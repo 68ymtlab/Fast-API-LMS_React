@@ -19,19 +19,16 @@ export const LoginUserProvider = (props: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let isMounted = true;
-    console.log(`[LoginUserProvider useEffect HttpOnly Aware] Start. Current loginUser:`, loginUser, `isLoadingUser: ${isLoadingUser}`);
 
     const attemptFetchUser = async () => {
-      if (!loginUser && isLoadingUser) { // 初期ロード時など、ユーザー未取得かつローディング中の場合のみ
-        console.log("[LoginUserProvider HttpOnly Aware] Attempting to fetch user profile.");
+      if (!loginUser && isLoadingUser) {
+        // 初期ロード時など、ユーザー未取得かつローディング中の場合のみ
         try {
           const res = await axios.get("/home_profile");
           if (isMounted) {
             if (res.status === 200 && res.data) {
-              console.log("[LoginUserProvider HttpOnly Aware] User fetched successfully. Data:", res.data);
               setLoginUser(res.data);
             } else {
-              console.log(`[LoginUserProvider HttpOnly Aware] Fetch returned non-200 or no data. Status: ${res.status}. Setting user to null.`);
               setLoginUser(null);
             }
           }
@@ -42,7 +39,6 @@ export const LoginUserProvider = (props: { children: React.ReactNode }) => {
           }
         } finally {
           if (isMounted) {
-            console.log("[LoginUserProvider HttpOnly Aware] Fetch attempt complete. Setting isLoadingUser to false.");
             setIsLoadingUser(false);
           }
         }
@@ -57,14 +53,9 @@ export const LoginUserProvider = (props: { children: React.ReactNode }) => {
 
     return () => {
       isMounted = false;
-      console.log("[LoginUserProvider HttpOnly Aware useEffect] Cleanup.");
     };
   }, [loginUser, isLoadingUser, setLoginUser, setIsLoadingUser]); // loginUser, isLoadingUserを依存関係に含め、状態変化に対応
-
-  console.log(`[LoginUserProvider Render HttpOnly Aware] loginUser:`, loginUser, `isLoadingUser: ${isLoadingUser}`);
   return (
-    <LoginUserContext.Provider value={{ loginUser, setLoginUser, isLoadingUser }}>
-      {children}
-    </LoginUserContext.Provider>
+    <LoginUserContext.Provider value={{ loginUser, setLoginUser, isLoadingUser }}>{children}</LoginUserContext.Provider>
   );
 };
