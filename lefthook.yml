@@ -1,8 +1,25 @@
+# lefthook.yml
 pre-commit:
   commands:
-    check:
+    check: # コマンド名はそのまま "check" を使用
       glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
       glob_ignore:
         - "public/libs/MathJax/**/*"
         - "src/components/ui/**/*"
-      run: bash -c 'npx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true "{staged_files}" && git update-index --again'
+      run: |
+        # LEFTHOOK_FILES 環境変数はLefthookによって設定され、
+        # ステージングされていて、かつglobパターンに一致するファイルリスト（改行区切り）を含みます。
+        # 処理対象のファイルがない場合は何もしないで終了します。
+        if [ -z "$LEFTHOOK_FILES" ]; then
+          exit 0
+        fi
+
+        # 'set -e' でコマンドが失敗したら直ちにスクリプトを終了させます。
+        set -e
+
+        # LEFTHOOK_FILES をnull区切りに変換し、xargs を使って biome コマンドに渡します。
+        # '--' はbiomeコマンドのオプションの終わりを示し、続く引数がファイルパスであることを明示します。
+        echo "$LEFTHOOK_FILES" | tr '\n' '\0' | xargs -0 --no-run-if-empty npx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --
+
+        # biome がファイルを変更した場合、それらを再度ステージングします。
+        echo "$LEFTHOOK_FILES" | tr '\n' '\0' | xargs -0 --no-run-if-empty git add
