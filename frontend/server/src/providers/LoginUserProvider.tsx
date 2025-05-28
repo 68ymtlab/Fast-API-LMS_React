@@ -18,31 +18,33 @@ export const LoginUserProvider = (props: { children: React.ReactNode }) => {
   const [loginUser, setLoginUser] = useState<User | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [cookies] = useCookies(["token"]);
+  const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
-      if (cookies.token && !loginUser) {
-        setIsLoadingUser(true);
-        await axios
-          .get("/home_profile")
-          .then((res) => {
-            if (res.status === 200) {
-              setLoginUser(res.data);
-            }
-          })
-          .catch((error) => {
-            console.error("Error fetching user data:", error);
-          })
-          .finally(() => {
-            setIsLoadingUser(false);
-          });
-      } else {
+      // 既にチェック済みの場合はスキップ
+      if (hasChecked) {
+        return;
+      }
+
+      setIsLoadingUser(true);
+      try {
+        const res = await axios.get("/home_profile");
+        if (res.status === 200) {
+          setLoginUser(res.data);
+        }
+      } catch (error) {
+        console.error("LoginUserProvider: Error fetching user data:", error);
+        // 認証エラーの場合はユーザー情報をクリア
+        setLoginUser(null);
+      } finally {
         setIsLoadingUser(false);
+        setHasChecked(true);
       }
     };
 
     fetchUser();
-  }, [cookies.token, loginUser]);
+  }, []); // 初回のみ実行
 
   return <LoginUserContext value={{ loginUser, setLoginUser, isLoadingUser }}>{children}</LoginUserContext>;
 };
