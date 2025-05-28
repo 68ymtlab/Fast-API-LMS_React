@@ -1,3 +1,7 @@
+import { ChevronUp, LogOut, User2 } from "lucide-react";
+import Link from "next/link";
+import { type FC, memo } from "react";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +24,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import type { SidebarGroups } from "@/types/sidebarGroups";
-import { ChevronUp, LogOut, User2 } from "lucide-react";
-import Link from "next/link";
-import { type FC, memo } from "react";
 
 type Props = {
   sidebarGroups: SidebarGroups[];
