@@ -6,10 +6,10 @@ import { Menu } from "lucide-react";
 import { type FC, memo } from "react";
 
 export const StudentHeader: FC = memo(() => {
-  const { setOpen, open, toggleSidebar } = useSidebar();
+  const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="fixed flex justify-between px-8 w-screen h-16 bg-primary text-primary-foreground items-center drop-shadow-2xl border-b border-gray-300 shadow-md">
+    <header className="fixed flex justify-between px-8 w-screen h-16 bg-primary text-primary-foreground items-center drop-shadow-2xl border-b border-gray-300 shadow-md z-30">
       <Button
         variant="ghost"
         size="icon"
@@ -20,7 +20,7 @@ export const StudentHeader: FC = memo(() => {
         <Menu className="size-6" />
       </Button>
       <div className="flex gap-3">
-        <h1 className="font-bold text-2xl">学習支援システム[学生・テスト]</h1>
+        <h1 className="font-bold text-2xl">学習支援システム</h1>
       </div>
     </header>
   );
