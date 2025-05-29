@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
-import { StudentHeader } from '@/components/atoms/layout/StudentHeader';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import withAuth from '@/hocs/withAuth';
-import axios from '@/lib/axios';
+import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import withAuth from "@/hocs/withAuth";
+import axios from "@/lib/axios";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 // markdown.js の関数は別途用意されていると仮定
 // import { markdownToHtml, reloadMathJax } from '@/components/methods/markdown';
@@ -50,11 +50,12 @@ export const WeekFlowsPage = () => {
     }
 
     const homeProfile = () => {
-      axios.get('/home_profile')
-        .then(function (response) {
+      axios
+        .get("/home_profile")
+        .then((response) => {
           setUserInfo(response.data);
         })
-        .catch(function (error) {
+        .catch((error) => {
           if (error.response?.status === 401) {
             setSessionError(true);
           } else {
@@ -64,22 +65,24 @@ export const WeekFlowsPage = () => {
     };
 
     const getWeek = () => {
-      axios.get(`/get_week/${week_id}`)
-        .then(function (response) {
+      axios
+        .get(`/get_week/${week_id}`)
+        .then((response) => {
           setWeek(response.data);
         })
-        .catch(function (error) {
-          console.error('週情報の取得に失敗しました:', error);
+        .catch((error) => {
+          console.error("週情報の取得に失敗しました:", error);
         });
     };
 
     const getWeekFlows = () => {
-      axios.get(`/get_week_flows/${week_id}`)
-        .then(function (response) {
+      axios
+        .get(`/get_week_flows/${week_id}`)
+        .then((response) => {
           setFlows(response.data);
         })
-        .catch(function (error) {
-          console.error('演習問題の取得に失敗しました:', error);
+        .catch((error) => {
+          console.error("演習問題の取得に失敗しました:", error);
         })
         .finally(() => {
           setLoading(false);
@@ -89,7 +92,6 @@ export const WeekFlowsPage = () => {
     homeProfile();
     getWeek();
     getWeekFlows();
-
   }, [course_id, week_id]);
 
   const handleStartFlow = (flowId: number) => {
@@ -131,7 +133,6 @@ export const WeekFlowsPage = () => {
 
   return (
     <>
-      <StudentHeader />
       <main className="pt-16">
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">
@@ -151,15 +152,10 @@ export const WeekFlowsPage = () => {
                   <Card key={flow.id} className="w-full">
                     <CardHeader>
                       <CardTitle>演習問題{index + 1}</CardTitle>
-                      <CardDescription>
-                        {flow.description || '演習問題概要がここに表示されます'}
-                      </CardDescription>
+                      <CardDescription>{flow.description || "演習問題概要がここに表示されます"}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Button 
-                        onClick={() => handleStartFlow(flow.id)}
-                        className="w-auto"
-                      >
+                      <Button onClick={() => handleStartFlow(flow.id)} className="w-auto">
                         演習問題を開始
                       </Button>
                     </CardContent>
@@ -168,9 +164,7 @@ export const WeekFlowsPage = () => {
               ) : (
                 <Card className="w-full">
                   <CardContent className="pt-6">
-                    <p className="text-center text-gray-500">
-                      この週には演習問題がありません。
-                    </p>
+                    <p className="text-center text-gray-500">この週には演習問題がありません。</p>
                   </CardContent>
                 </Card>
               )}
@@ -182,4 +176,4 @@ export const WeekFlowsPage = () => {
   );
 };
 
-export default withAuth(WeekFlowsPage, ['学生', 'テスト']);
+export default withAuth(WeekFlowsPage, ["学生", "テスト"]);
