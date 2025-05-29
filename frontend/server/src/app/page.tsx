@@ -5,7 +5,7 @@ import { memo, useState } from "react";
 import type { FC } from "react";
 
 export const Root: FC = memo(() => {
-  const [email, setEmail] = useState("");
+  const [_email, _setEmail] = useState("");
   return (
     <>
       <DefaultHeader />
