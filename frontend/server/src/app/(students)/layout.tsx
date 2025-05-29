@@ -56,7 +56,7 @@ export const StudentLayoutInner = memo(({ children }: { children: ReactNode }) =
     <div className="flex h-screen pt-16">
       <AppSidebar sidebarGroups={sidebarGroups} />
       <SidebarInset>
-        <main>{children}</main>
+        <main className="flex-1 w-full">{children}</main>
       </SidebarInset>
     </div>
   );
@@ -65,7 +65,7 @@ export const StudentLayoutInner = memo(({ children }: { children: ReactNode }) =
 export const StudentLayout = memo(({ children }: { children: ReactNode }) => {
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen w-full">
         <StudentHeader />
         <StudentLayoutInner>{children}</StudentLayoutInner>
       </div>
