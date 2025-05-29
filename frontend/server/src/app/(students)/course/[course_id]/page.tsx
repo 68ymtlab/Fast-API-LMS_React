@@ -1,12 +1,10 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { StudentHeader } from '@/components/atoms/layout/StudentHeader';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import withAuth from '@/hocs/withAuth';
-import axios from '@/lib/axios';
+"use client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import withAuth from "@/hocs/withAuth";
+import axios from "@/lib/axios";
+import { useParams, useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 
 interface UserInfo {
   id: number;
@@ -41,38 +39,33 @@ interface Content {
 }
 
 // カスタムスイッチコンポーネント
-const CustomSwitch = ({ 
-  checked, 
-  onCheckedChange 
-}: { 
-  checked: boolean; 
+const CustomSwitch = ({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) => (
   <label className="relative inline-flex items-center cursor-pointer">
-    <input 
-      type="checkbox" 
-      checked={checked}
-      onChange={(e) => onCheckedChange(e.target.checked)}
-      className="sr-only"
-    />
-    <div className={`w-11 h-6 rounded-full transition-colors ${
-      checked ? 'bg-blue-600' : 'bg-gray-300'
-    }`}>
-      <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      } mt-0.5 ml-0.5`} />
+    <input type="checkbox" checked={checked} onChange={(e) => onCheckedChange(e.target.checked)} className="sr-only" />
+    <div className={`w-11 h-6 rounded-full transition-colors ${checked ? "bg-blue-600" : "bg-gray-300"}`}>
+      <div
+        className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0"
+        } mt-0.5 ml-0.5`}
+      />
     </div>
   </label>
 );
 
 // 週選択カードコンポーネント（階層構造対応）
-const WeekSelectCard = ({ 
-  week, 
+const WeekSelectCard = ({
+  week,
   contents,
-  onMoveWeek, 
-  onMoveFlow 
-}: { 
-  week: Week; 
+  onMoveWeek,
+  onMoveFlow,
+}: {
+  week: Week;
   contents: Content[];
   onMoveWeek: (id: number, isContentId?: boolean) => void;
   onMoveFlow: (weekId: number) => void;
@@ -81,15 +74,15 @@ const WeekSelectCard = ({
     <CardContent className="p-6">
       <h3 className="text-lg font-semibold mb-2">第{week.week_num}回</h3>
       <p className="text-gray-600 mb-4 text-sm">{week.week_name}</p>
-      
+
       {contents.length > 0 && (
         <div className="space-y-2 mb-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2">コンテンツ:</h4>
           {contents.map((content) => (
             <div key={content.content_id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
               <span className="text-gray-700">{content.content_name}</span>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => onMoveWeek(content.content_id, true)}
                 className="text-xs"
@@ -100,20 +93,12 @@ const WeekSelectCard = ({
           ))}
         </div>
       )}
-      
+
       <div className="flex space-x-2 mt-4">
-        <Button 
-          variant="default" 
-          className="flex-1"
-          onClick={() => onMoveWeek(week.week_id)}
-        >
+        <Button variant="default" className="flex-1" onClick={() => onMoveWeek(week.week_id)}>
           学習を始める
         </Button>
-        <Button 
-          variant="default" 
-          className="flex-1"
-          onClick={() => onMoveFlow(week.week_id)}
-        >
+        <Button variant="default" className="flex-1" onClick={() => onMoveFlow(week.week_id)}>
           演習問題
         </Button>
       </div>
@@ -148,12 +133,8 @@ const WeekSelectTable = ({
         </colgroup>
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              GROUP
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              内容
-            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GROUP</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">内容</th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
               教科書コンテンツ
             </th>
@@ -164,41 +145,40 @@ const WeekSelectTable = ({
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {Object.entries(groupedWeeks)
-            .sort(([numA], [numB]) => parseInt(numA) - parseInt(numB))
+            .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
             .map(([weekNumStr, weeksInGroup]) => {
-              const weekNum = parseInt(weekNumStr);
+              const weekNum = Number.parseInt(weekNumStr);
               const isGroupExpanded = expandedWeekNumbers.has(weekNum);
 
               return (
                 <React.Fragment key={`group-${weekNum}`}>
                   {/* "第N回" ヘッダー行 */}
-                  <tr
-                    className="bg-gray-100 hover:bg-gray-200 cursor-pointer"
-                    onClick={() => onToggleWeekNumber(weekNum)}
-                  >
-                    <td
-                      className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-800"
-                      colSpan={4}
-                    >
-                      <div className="flex items-center space-x-2">
+                  <tr className="bg-gray-100">
+                    <td className="p-0" colSpan={4}>
+                      <button
+                        type="button"
+                        onClick={() => onToggleWeekNumber(weekNum)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onToggleWeekNumber(weekNum);
+                          }
+                        }}
+                        className="w-full flex items-center space-x-2 px-6 py-4 text-left text-sm font-semibold text-gray-800 whitespace-nowrap hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 cursor-pointer"
+                      >
                         <svg
-                          className={`w-5 h-5 transition-transform transform ${
-                            isGroupExpanded ? 'rotate-90' : ''
-                          }`}
+                          className={`w-5 h-5 transition-transform transform ${isGroupExpanded ? "rotate-90" : ""}`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                           xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M9 5l7 7-7 7"
-                          ></path>
+                          <title>開閉アイコン</title>
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
                         </svg>
                         <span>第{weekNum}回</span>
-                      </div>
+                      </button>
                     </td>
                   </tr>
 
@@ -206,7 +186,7 @@ const WeekSelectTable = ({
                   {isGroupExpanded &&
                     weeksInGroup.map((week) => {
                       const individualContents = contentsMap[week.week_id] || [];
-                      individualContents.sort((a,b) => a.order - b.order);
+                      individualContents.sort((a, b) => a.order - b.order);
 
                       return (
                         <React.Fragment key={week.week_id}>
@@ -215,12 +195,10 @@ const WeekSelectTable = ({
                             <td className="pl-10 pr-6 py-3 text-sm text-gray-500">
                               {/* 1列目はインデントとして機能 */}
                             </td>
-                            <td
-                              className="px-6 py-3 text-base font-medium text-gray-700"
-                            >
-                              {week.week_name}
-                            </td>
-                            <td className="px-6 py-3 text-center text-sm"> {/* 学習を始めるボタン用のセル */}
+                            <td className="px-6 py-3 text-base font-medium text-gray-700">{week.week_name}</td>
+                            <td className="px-6 py-3 text-center text-sm">
+                              {" "}
+                              {/* 学習を始めるボタン用のセル */}
                               <Button
                                 variant="default"
                                 size="sm"
@@ -248,10 +226,7 @@ const WeekSelectTable = ({
 
                           {/* この週に紐づく個別コンテンツ */}
                           {individualContents.map((content) => (
-                            <tr
-                              key={content.content_id}
-                              className="bg-white hover:bg-gray-50"
-                            >
+                            <tr key={content.content_id} className="bg-white hover:bg-gray-50">
                               <td className="pl-10 pr-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {/* 1列目はインデントとして機能 */}
                               </td>
@@ -271,8 +246,7 @@ const WeekSelectTable = ({
                                 </Button>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                                {/* 個別コンテンツの演習問題は通常週単位なので"-" */}
-                                -
+                                {/* 個別コンテンツの演習問題は通常週単位なので"-" */}-
                               </td>
                             </tr>
                           ))}
@@ -305,13 +279,16 @@ export const CoursePage = () => {
   const [expandedWeekNumbers, setExpandedWeekNumbers] = useState<Set<number>>(new Set());
 
   // 週ごとのコンテンツマップを作成
-  const contentsMap = contents.reduce((acc, content) => {
-    if (!acc[content.week_id]) {
-      acc[content.week_id] = [];
-    }
-    acc[content.week_id].push(content);
-    return acc;
-  }, {} as { [weekId: number]: Content[] });
+  const contentsMap = contents.reduce(
+    (acc, content) => {
+      if (!acc[content.week_id]) {
+        acc[content.week_id] = [];
+      }
+      acc[content.week_id].push(content);
+      return acc;
+    },
+    {} as { [weekId: number]: Content[] },
+  );
 
   useEffect(() => {
     if (!course_id) {
@@ -320,11 +297,12 @@ export const CoursePage = () => {
     }
 
     const homeProfile = () => {
-      axios.get('/home_profile')
-        .then(function (response) {
+      axios
+        .get("/home_profile")
+        .then((response) => {
           setUserInfo(response.data);
         })
-        .catch(function (error) {
+        .catch((error) => {
           if (error.response?.status === 401) {
             setSessionError(true);
           } else {
@@ -334,32 +312,35 @@ export const CoursePage = () => {
     };
 
     const getCourseInfo = () => {
-      axios.get(`/get_course_info/${course_id}`)
-        .then(function (response) {
+      axios
+        .get(`/get_course_info/${course_id}`)
+        .then((response) => {
           setCourse(response.data);
         })
-        .catch(function (error) {
-          console.error('コース情報の取得に失敗しました:', error);
+        .catch((error) => {
+          console.error("コース情報の取得に失敗しました:", error);
         });
     };
 
     const getWeeksApi = () => {
-      axios.get(`/get_weeks/${course_id}`)
-        .then(function (response) {
+      axios
+        .get(`/get_weeks/${course_id}`)
+        .then((response) => {
           setWeeks(response.data);
         })
-        .catch(function (error) {
-          console.error('週一覧の取得に失敗しました:', error);
+        .catch((error) => {
+          console.error("週一覧の取得に失敗しました:", error);
         });
     };
 
     const getCourseContents = () => {
-      axios.get(`/get_course_contents/${course_id}`)
-        .then(function (response) {
+      axios
+        .get(`/get_course_contents/${course_id}`)
+        .then((response) => {
           setContents(response.data);
         })
-        .catch(function (error) {
-          console.error('コンテンツ一覧の取得に失敗しました:', error);
+        .catch((error) => {
+          console.error("コンテンツ一覧の取得に失敗しました:", error);
         })
         .finally(() => {
           setLoading(false);
@@ -370,20 +351,22 @@ export const CoursePage = () => {
     getCourseInfo();
     getWeeksApi();
     getCourseContents();
-
   }, [course_id]);
 
   // `weeks` が更新されたら `week_num` でグループ化する
   useEffect(() => {
     if (weeks.length > 0) {
-      const groups = weeks.reduce((acc, week) => {
-        const key = week.week_num;
-        if (!acc[key]) {
-          acc[key] = [];
-        }
-        acc[key].push(week);
-        return acc;
-      }, {} as { [key: number]: Week[] });
+      const groups = weeks.reduce(
+        (acc, week) => {
+          const key = week.week_num;
+          if (!acc[key]) {
+            acc[key] = [];
+          }
+          acc[key].push(week);
+          return acc;
+        },
+        {} as { [key: number]: Week[] },
+      );
 
       // 各グループ内の週を `order` プロパティでソート
       for (const numKey in groups) {
@@ -405,10 +388,10 @@ export const CoursePage = () => {
     setExpandedWeekNumbers(newExpanded);
   };
 
-  const handleMoveWeek = (id: number, isContentId: boolean = false) => {
+  const handleMoveWeek = (id: number, isContentId = false) => {
     if (isContentId) {
       // 個別コンテンツIDが渡された場合、そのコンテンツページへ遷移
-      const targetContent = contents.find(c => c.content_id === id);
+      const targetContent = contents.find((c) => c.content_id === id);
       if (targetContent && course_id) {
         router.push(`/${course_id}/Week/${targetContent.week_id}/${id}`);
       } else {
@@ -442,7 +425,6 @@ export const CoursePage = () => {
   if (sessionError) {
     return (
       <>
-        <StudentHeader />
         <main className="pt-16">
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
@@ -458,7 +440,6 @@ export const CoursePage = () => {
   if (loading) {
     return (
       <>
-        <StudentHeader />
         <main className="pt-16">
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
@@ -472,12 +453,10 @@ export const CoursePage = () => {
 
   return (
     <>
-      <StudentHeader />
       <main className="pt-16">
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-6xl mx-auto">
-
               {course && (
                 <div className="mb-8">
                   <h1 className="text-3xl font-bold mb-2">{course.subject_name}</h1>
@@ -490,15 +469,14 @@ export const CoursePage = () => {
               <div className="mb-6">
                 <div className="flex items-center justify-end space-x-4">
                   <div className="flex items-center space-x-2">
-                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/>
+                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <title>カード表示アイコン</title>
+                      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
                     </svg>
-                    <CustomSwitch 
-                      checked={isCardView}
-                      onCheckedChange={setIsCardView}
-                    />
-                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+                    <CustomSwitch checked={isCardView} onCheckedChange={setIsCardView} />
+                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <title>リスト表示アイコン</title>
+                      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                     </svg>
                   </div>
                 </div>
@@ -507,43 +485,41 @@ export const CoursePage = () => {
               {isCardView && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(groupedWeeksByNum)
-                    .sort(([numA], [numB]) => parseInt(numA) - parseInt(numB))
+                    .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
                     .flatMap(([weekNum, weeksInGroup]) =>
-                      weeksInGroup.map(week => (
-                        <WeekSelectCard 
+                      weeksInGroup.map((week) => (
+                        <WeekSelectCard
                           key={week.week_id}
                           week={week}
                           contents={contentsMap[week.week_id] || []}
                           onMoveWeek={handleMoveWeek}
                           onMoveFlow={handleMoveFlow}
                         />
-                      ))
+                      )),
                     ).length > 0 ? (
-                      Object.entries(groupedWeeksByNum)
-                        .sort(([numA], [numB]) => parseInt(numA) - parseInt(numB))
-                        .flatMap(([weekNum, weeksInGroup]) =>
-                          weeksInGroup.map(week => (
-                            <WeekSelectCard 
-                              key={week.week_id}
-                              week={week}
-                              contents={contentsMap[week.week_id] || []}
-                              onMoveWeek={handleMoveWeek}
-                              onMoveFlow={handleMoveFlow}
-                            />
-                          ))
-                        )
-                    ) : (
+                    Object.entries(groupedWeeksByNum)
+                      .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
+                      .flatMap(([weekNum, weeksInGroup]) =>
+                        weeksInGroup.map((week) => (
+                          <WeekSelectCard
+                            key={week.week_id}
+                            week={week}
+                            contents={contentsMap[week.week_id] || []}
+                            onMoveWeek={handleMoveWeek}
+                            onMoveFlow={handleMoveFlow}
+                          />
+                        )),
+                      )
+                  ) : (
                     <div className="col-span-full bg-white rounded-lg shadow-sm border p-6">
-                      <p className="text-center text-gray-500">
-                        このコースには週が設定されていません。
-                      </p>
+                      <p className="text-center text-gray-500">このコースには週が設定されていません。</p>
                     </div>
                   )}
                 </div>
               )}
 
               {!isCardView && (
-                <WeekSelectTable 
+                <WeekSelectTable
                   groupedWeeks={groupedWeeksByNum}
                   contentsMap={contentsMap}
                   expandedWeekNumbers={expandedWeekNumbers}
@@ -560,4 +536,4 @@ export const CoursePage = () => {
   );
 };
 
-export default withAuth(CoursePage, ['学生', 'テスト']); 
+export default withAuth(CoursePage, ["学生", "テスト"]);
