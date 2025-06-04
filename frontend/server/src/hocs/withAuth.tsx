@@ -46,7 +46,7 @@ const withAuth = <P extends object>(WrappedComponent: ComponentType<P>, required
 
       // URL直打ちなどによるアクセス制御
       const allowedPaths = pageAccessRules[userRole] || [];
-      const isAllowed = allowedPaths.some((allowedPaths) => pathname.startsWith(allowedPaths));
+      const isAllowed = allowedPaths.some((allowedPath) => pathname.startsWith(allowedPath));
 
       if (!isAllowed && !pathname.startsWith("/login")) {
         alert("このページにアクセスする権限がありません．");

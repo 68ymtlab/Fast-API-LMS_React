@@ -11,8 +11,8 @@ export const roleRedirectMap: { [key: string]: string } = {
 export const pageAccessRules: { [key: string]: string[] } = {
   管理者: ["/admin/home"],
   教師: ["/t/home"],
-  学生: ["/home"],
-  テスト: ["/home"],
+  学生: ["/home", "/weekflows", "/course"],
+  テスト: ["/home", "/weekflows", "/course"],
 };
 
 // 特定のパスプレフィックスに対して、アクセスを許可するkind_nameのリストを定義
