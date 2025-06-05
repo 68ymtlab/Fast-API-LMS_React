@@ -3,6 +3,7 @@
 import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import withAuth from "@/hocs/withAuth";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 import { Book, Home, Settings, ShieldQuestion, Users } from "lucide-react";
 import { type ReactNode, memo } from "react";
@@ -73,4 +74,4 @@ export const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
   );
 });
 
-export default TeacherLayout;
+export default withAuth(TeacherLayout);
