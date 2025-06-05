@@ -2,7 +2,7 @@
 
 import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 import { Book, Home, Settings, ShieldQuestion, Users } from "lucide-react";
 import { type ReactNode, memo } from "react";
@@ -55,7 +55,9 @@ export const StudentLayoutInner = memo(({ children }: { children: ReactNode }) =
   return (
     <div className="flex h-screen pt-16">
       <AppSidebar sidebarGroups={sidebarGroups} />
-      <main className="flex-1 overflow-auto p-4 transition-all duration-300 ease-in-out">{children}</main>
+      <SidebarInset>
+        <main className="flex-1 w-full">{children}</main>
+      </SidebarInset>
     </div>
   );
 });
@@ -63,7 +65,7 @@ export const StudentLayoutInner = memo(({ children }: { children: ReactNode }) =
 export const StudentLayout = memo(({ children }: { children: ReactNode }) => {
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen w-full">
         <StudentHeader />
         <StudentLayoutInner>{children}</StudentLayoutInner>
       </div>

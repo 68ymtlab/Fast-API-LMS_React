@@ -143,7 +143,7 @@ export const StudentHome = () => {
       .get("/get_point")
       .then((res) => {
         if (res.status === 200) {
-          setPoint(res.data.toString());
+          setPoint(res.data?.toString());
         }
       })
       .catch((error) => {
@@ -651,59 +651,59 @@ export const StudentHome = () => {
 
             <div className="flex flex-col items-center gap-4">
               <div className="text-lg font-medium text-gray-600" />
-              <div className="w-[300px] flex flex-col items-center gap-1">
-                <div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-yellow-600" />
-                    <span className="font-medium text-yellow-800">S</span>
-                  </div>
-                  <span className="text-xs text-yellow-800">500pt以上</span>
+            </div>
+            <div className="w-[300px] flex flex-col items-center gap-1">
+              <div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-yellow-600" />
+                  <span className="font-medium text-yellow-800">S</span>
                 </div>
-                <div className="w-3/5 flex items-center justify-between p-2 bg-purple-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-purple-600" />
-                    <span className="font-medium text-purple-800">A</span>
-                  </div>
-                  <span className="text-xs text-purple-800">200pt以上</span>
-                </div>
-                <div className="w-4/5 flex items-center justify-between p-2 bg-blue-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-blue-800">B</span>
-                  </div>
-                  <span className="text-xs text-blue-800">100pt以上</span>
-                </div>
-                <div className="w-11/12 flex items-center justify-between p-2 bg-green-100 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-4 h-4 text-green-600" />
-                    <span className="font-medium text-green-800">C</span>
-                  </div>
-                  <span className="text-xs text-green-800">50pt以上</span>
-                </div>
-                <div className="w-full flex items-center justify-between p-2 bg-secondary/10 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Star className="w-4 h-4 text-secondary" />
-                    <span className="font-medium text-gray-800">D</span>
-                  </div>
-                  <span className="text-xs text-gray-800">20pt以下</span>
-                </div>
+                <span className="text-xs text-yellow-800">500pt以上</span>
               </div>
-              <div className="w-full p-3 bg-secondary/5 rounded-lg">
-                <div className="text-center text-sm text-gray-600">
-                  あなたは
-                  <span className="font-bold text-secondary mx-1">
-                    {Number(point) >= 500
-                      ? "S"
-                      : Number(point) >= 200
-                        ? "A"
-                        : Number(point) >= 100
-                          ? "B"
-                          : Number(point) >= 50
-                            ? "C"
-                            : "D"}
-                  </span>
-                  ランクです
+              <div className="w-3/5 flex items-center justify-between p-2 bg-purple-100 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-purple-600" />
+                  <span className="font-medium text-purple-800">A</span>
                 </div>
+                <span className="text-xs text-purple-800">200pt以上</span>
+              </div>
+              <div className="w-4/5 flex items-center justify-between p-2 bg-blue-100 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-800">B</span>
+                </div>
+                <span className="text-xs text-blue-800">100pt以上</span>
+              </div>
+              <div className="w-11/12 flex items-center justify-between p-2 bg-green-100 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-green-600" />
+                  <span className="font-medium text-green-800">C</span>
+                </div>
+                <span className="text-xs text-green-800">50pt以上</span>
+              </div>
+              <div className="w-full flex items-center justify-between p-2 bg-secondary/10 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-secondary" />
+                  <span className="font-medium text-gray-800">D</span>
+                </div>
+                <span className="text-xs text-gray-800">20pt以下</span>
+              </div>
+            </div>
+            <div className="w-full p-3 bg-secondary/5 rounded-lg">
+              <div className="text-center text-sm text-gray-600">
+                あなたは
+                <span className="font-bold text-secondary mx-1">
+                  {Number(point) >= 500
+                    ? "S"
+                    : Number(point) >= 200
+                      ? "A"
+                      : Number(point) >= 100
+                        ? "B"
+                        : Number(point) >= 50
+                          ? "C"
+                          : "D"}
+                </span>
+                ランクです
               </div>
             </div>
           </div>
@@ -739,9 +739,9 @@ export const StudentHome = () => {
               <div className="w-full h-4 bg-gray-200 rounded-full">
                 <div className="h-full rounded-full bg-secondary" style={{ width: `${progress}%` }} />
               </div>
-              <div className="text-right mt-1">
-                <span className="text-sm font-medium text-secondary">{progress}%</span>
-              </div>
+            </div>
+            <div className="text-right mt-1">
+              <span className="text-sm font-medium text-secondary">{progress}%</span>
             </div>
           </div>
           <DialogFooter>
