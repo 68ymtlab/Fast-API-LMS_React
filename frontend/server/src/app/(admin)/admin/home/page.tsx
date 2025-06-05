@@ -1,6 +1,4 @@
 "use client";
-
-import { AdminHeader } from "@/components/atoms/layout/AdminHeader";
 import { Button } from "@/components/ui/button";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,7 +7,6 @@ export const AdminHome = () => {
   const { logout } = useAuth();
   return (
     <>
-      <AdminHeader />
       <main>
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">
