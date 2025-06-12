@@ -20,7 +20,7 @@ export const TeacherHeader: FC = memo(() => {
         <Menu className="size-6" />
       </Button>
       <div className="flex gap-3">
-        <h1 className="font-bold text-2xl">学習支援システム[教師]</h1>
+        <h1 className="font-bold text-2xl">学習支援システム</h1>
       </div>
     </header>
   );
