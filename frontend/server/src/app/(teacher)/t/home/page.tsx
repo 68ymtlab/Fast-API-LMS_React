@@ -7,7 +7,8 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
-import { BookOpen, Calendar, User, Users } from "lucide-react";
+import { BookOpen, Calendar, Loader2, User, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Subject = {
@@ -24,12 +25,25 @@ type SubjectResponse = {
 };
 
 export const TeacherHome = () => {
+  const router = useRouter();
   const { logout } = useAuth();
   const [duringSubjects, setDuringSubjects] = useState<Subject[]>([]);
   const [outsideSubjects, setOutsideSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
+  const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
+
+  const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
+    setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
+    try {
+      await callback();
+    } finally {
+      setTimeout(() => {
+        setLoadingButtons((prev) => ({ ...prev, [buttonId]: false }));
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     const fetchUserName = async () => {
@@ -132,8 +146,18 @@ export const TeacherHome = () => {
                             </div>
                           </CardContent>
                           <CardFooter className="p-4 pt-0">
-                            <Button className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white font-medium py-2 rounded-xl transition-shadow hover:shadow-xl text-sm">
-                              コース情報
+                            <Button
+                              onClick={() =>
+                                handleButtonClick(`course-${item.id}`, () => router.push(`/t/subject/${item.id}`))
+                              }
+                              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white font-medium py-2 rounded-xl transition-all text-sm relative"
+                              disabled={loadingButtons[`course-${item.id}`]}
+                            >
+                              {loadingButtons[`course-${item.id}`] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "コース情報"
+                              )}
                             </Button>
                           </CardFooter>
                         </Card>
@@ -175,8 +199,18 @@ export const TeacherHome = () => {
                             </div>
                           </CardContent>
                           <CardFooter className="p-4 pt-0">
-                            <Button className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white font-medium py-2 rounded-xl transition-shadow hover:shadow-xl text-sm">
-                              コース情報
+                            <Button
+                              onClick={() =>
+                                handleButtonClick(`course-${item.id}`, () => router.push(`/t/subject/${item.id}`))
+                              }
+                              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white font-medium py-2 rounded-xl transition-all text-sm relative"
+                              disabled={loadingButtons[`course-${item.id}`]}
+                            >
+                              {loadingButtons[`course-${item.id}`] ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "コース情報"
+                              )}
                             </Button>
                           </CardFooter>
                         </Card>
@@ -186,7 +220,9 @@ export const TeacherHome = () => {
                 )}
               </>
             )}
-            <Button onClick={logout}>ログアウト</Button>
+            <Button onClick={logout} className="mt-4">
+              ログアウト
+            </Button>
           </div>
         </div>
       </main>

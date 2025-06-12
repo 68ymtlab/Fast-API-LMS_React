@@ -10,7 +10,7 @@ export const roleRedirectMap: { [key: string]: string } = {
 // kind_nameに基づいて、各ロールのアクセス可能なページの定義
 export const pageAccessRules: { [key: string]: string[] } = {
   管理者: ["/admin/home"],
-  教師: ["/t/home"],
+  教師: ["/t/home", "/t/subject", "/t/course", "/t/weekflows"],
   学生: ["/home", "/weekflows", "/course"],
   テスト: ["/home", "/weekflows", "/course"],
 };
@@ -18,6 +18,7 @@ export const pageAccessRules: { [key: string]: string[] } = {
 // 特定のパスプレフィックスに対して、アクセスを許可するkind_nameのリストを定義
 export const protectedRoutesWithRoles: { [pathPrefix: string]: string[] } = {
   "/admin": ["管理者"],
+  "/t": ["教師"],
   "/teacher": ["教師", "管理者"],
   "/student": ["テスト", "学生", "教師", "管理者"],
 };
