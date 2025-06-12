@@ -134,9 +134,9 @@ html[data-theme="theme3"] {
 }
 
 html[data-theme="theme4"] {
-	--primary: oklch(88% 0.16 105);         /* より黄色らしい、フレッシュな色 */
-	--primary-foreground: oklch(20% 0 0);   /* 黒に近い文字色 */
-	--secondary: oklch(95% 0.08 105);       /* 明るめサブカラー */
+	--primary: oklch(88% 0.16 105); /* より黄色らしい、フレッシュな色 */
+	--primary-foreground: oklch(20% 0 0); /* 黒に近い文字色 */
+	--secondary: oklch(95% 0.08 105); /* 明るめサブカラー */
 	--secondary-foreground: oklch(30% 0 0);
 }
 
@@ -182,4 +182,39 @@ html[data-theme="theme9"] {
 	body {
 		@apply bg-background text-foreground;
 	}
+	h1 {
+		font-size: 2em;
+		font-weight: bold;
+		margin: 10px 0;
+	}
+	h2 {
+		font-size: 1.5em;
+		font-weight: bold;
+		margin: 12px 0;
+	}
+	h3 {
+		font-size: 1.17em;
+		font-weight: bold;
+		margin: 12px 0;
+	}
+	h4 {
+		font-size: 1em;
+		font-weight: bold;
+		margin: 12px 0;
+	}
+	h5 {
+		font-size: 0.83em;
+		font-weight: bold;
+		margin: 12px 0;
+	}
+	h6 {
+		font-size: 0.67em;
+		font-weight: bold;
+		margin: 12px 0;
+	}
+}
+
+.container {
+	margin: 0 auto;
+	width: 1200px;
 }
