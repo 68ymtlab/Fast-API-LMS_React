@@ -1,7 +1,6 @@
 "use client";
 
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import withAuth from "@/hocs/withAuth";
@@ -74,8 +73,7 @@ export const TeacherHome = () => {
 
   return (
     <>
-      <TeacherHeader />
-      <main className="pt-12">
+      <main>
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
           <div className="container mx-auto px-8 py-12 max-w-7xl">
             <div className="flex items-center justify-between mb-12">
