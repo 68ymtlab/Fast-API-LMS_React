@@ -29,6 +29,7 @@
 		"lucide-react": "^0.510.0",
 		"mathjax": "^3.2.2",
 		"next": "15.3.2",
+		"next-auth": "^4.24.11",
 		"react": "^19.1.0",
 		"react-cookie": "^8.0.1",
 		"react-dom": "^19.1.0",
