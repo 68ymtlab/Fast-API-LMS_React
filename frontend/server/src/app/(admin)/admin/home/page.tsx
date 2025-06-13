@@ -2,7 +2,6 @@
 
 import { AdminHeader } from "@/components/atoms/layout/AdminHeader";
 import { Button } from "@/components/ui/button";
-import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 
 export const AdminHome = () => {
@@ -23,4 +22,4 @@ export const AdminHome = () => {
   );
 };
 
-export default withAuth(AdminHome);
+export default AdminHome;

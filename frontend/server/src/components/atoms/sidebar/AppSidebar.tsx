@@ -1,4 +1,5 @@
 import { ChevronUp, LogOut, User2 } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { type FC, memo } from "react";
 
@@ -21,8 +22,6 @@ import {
   SidebarMenuItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { useAuth } from "@/hooks/useAuth";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 
 type Props = {
@@ -31,11 +30,9 @@ type Props = {
 
 export const AppSidebar: FC<Props> = memo((props) => {
   const { sidebarGroups } = props;
-  const { loginUser } = useLoginUser();
-  const { logout } = useAuth();
-
-  const handleLogout = async () => {
-    await logout();
+  const { data: session } = useSession();
+  const handleLogout = () => {
+    signOut({ callbackUrl: "/login" });
   };
 
   return (
@@ -81,7 +78,7 @@ export const AppSidebar: FC<Props> = memo((props) => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuSubButton>
-                  <User2 /> {loginUser?.username}
+                  <User2 /> {session?.user?.display_name || session?.user?.username || "ユーザー名"}
                   <ChevronUp className="ml-auto" />
                 </SidebarMenuSubButton>
               </DropdownMenuTrigger>

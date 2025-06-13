@@ -4,7 +4,6 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
 import { BookOpen, Calendar, User, Users } from "lucide-react";
@@ -194,4 +193,4 @@ export const TeacherHome = () => {
   );
 };
 
-export default withAuth(TeacherHome);
+export default TeacherHome;

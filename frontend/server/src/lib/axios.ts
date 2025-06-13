@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 
 import config from "./config";
 import debug, { LogLevel } from "./utils/debug";
@@ -37,11 +37,20 @@ axiosInstance.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
-    const config_ = error.config || {};
+  (error: unknown) => {
+    if (isAxiosError(error)) {
+      const config_ = error.config || { method: "UNKNOWN", url: "unknown URL" };
+      const method = config_.method?.toUpperCase() || "UNKNOWN";
+      const url = config_.url || "unknown URL";
 
-    if (config.debug && config.debugLevel >= LogLevel.ERROR) {
-      debug.apiError(config_.method?.toUpperCase() || "UNKNOWN", config_.url || "unknown URL", error);
+      if (config.debug && config.debugLevel >= LogLevel.ERROR) {
+        debug.apiError(method, url, error.response?.data || error.message);
+      }
+    } else {
+      // Axios以外のエラーの場合
+      if (config.debug && config.debugLevel >= LogLevel.ERROR) {
+        debug.error("Unknown error occurred", error);
+      }
     }
 
     return Promise.reject(error);

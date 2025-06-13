@@ -1,7 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
@@ -536,4 +535,4 @@ export const CoursePage = () => {
   );
 };
 
-export default withAuth(CoursePage, ["学生", "テスト"]);
+export default CoursePage;

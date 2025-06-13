@@ -3,7 +3,6 @@
 import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -176,4 +175,4 @@ export const WeekFlowsPage = () => {
   );
 };
 
-export default withAuth(WeekFlowsPage, ["学生", "テスト"]);
+export default WeekFlowsPage;
