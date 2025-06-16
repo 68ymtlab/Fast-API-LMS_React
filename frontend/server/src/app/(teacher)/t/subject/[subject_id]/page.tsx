@@ -3,6 +3,9 @@
 import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
@@ -33,6 +36,26 @@ export const SubjectPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  // コース作成用の状態
+  const [courseName, setCourseName] = useState("");
+  const [startDate, setStartDate] = useState({
+    year: "",
+    month: "",
+    day: "",
+    hour: "",
+    minute: "",
+  });
+  const [endDate, setEndDate] = useState({
+    year: "",
+    month: "",
+    day: "",
+    hour: "",
+    minute: "",
+  });
+  const [weeks, setWeeks] = useState<number>(1);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
     setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
@@ -68,6 +91,47 @@ export const SubjectPage = () => {
 
     fetchCourses();
   }, [params.subject_id]);
+
+  // 日時を結合する関数
+  const combineDateTime = (date: { year: string; month: string; day: string; hour: string; minute: string }) => {
+    const { year, month, day, hour, minute } = date;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`;
+  };
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+
+    try {
+      const response = await axios.post(
+        "/create_course",
+        {
+          subject_id: params.subject_id,
+          course_name: courseName,
+          start_date_time: combineDateTime(startDate),
+          end_date_time: combineDateTime(endDate),
+          weeks: weeks,
+        },
+        { withCredentials: true },
+      );
+
+      if (response.data.success) {
+        setIsCreateDialogOpen(false);
+        // コース一覧を更新
+        const coursesResponse = await axios.get<ApiResponse>(`/get_created_courses/${params.subject_id}`, {
+          withCredentials: true,
+        });
+        if (coursesResponse.status === 200) {
+          setCreatedCourses(coursesResponse.data.created || []);
+          setSharedCourses(coursesResponse.data.shared || []);
+        }
+      }
+    } catch (error) {
+      console.error("コースの作成に失敗しました:", error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const CourseCard = ({ course }: { course: Course }) => (
     <Card
@@ -152,8 +216,227 @@ export const SubjectPage = () => {
           <div className="container mx-auto px-8 py-12 max-w-7xl">
             <div className="flex items-center justify-between mb-12">
               <h2 className="text-3xl font-bold text-gray-800">コース一覧</h2>
-              <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl shadow-sm" />
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="bg-primary hover:bg-primary/90 text-white"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                    aria-hidden="true"
+                  >
+                    <title>コース追加アイコン</title>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  コースを追加
+                </Button>
+              </div>
             </div>
+
+            {/* コース作成ダイアログ */}
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-bold text-gray-800">新規コース作成</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCreateCourse}>
+                  <div className="grid gap-6 py-6">
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="courseName" className="text-base font-medium">
+                          コース名
+                        </Label>
+                        <Input
+                          id="courseName"
+                          value={courseName}
+                          onChange={(e) => setCourseName(e.target.value)}
+                          className="h-12 text-base"
+                          placeholder="コース名を入力してください"
+                          required
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label className="text-base font-medium">開始日時</Label>
+                        <div className="grid grid-cols-5 gap-3">
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="年"
+                              value={startDate.year}
+                              onChange={(e) => setStartDate((prev) => ({ ...prev, year: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">年</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="月"
+                              min="1"
+                              max="12"
+                              value={startDate.month}
+                              onChange={(e) => setStartDate((prev) => ({ ...prev, month: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">月</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="日"
+                              min="1"
+                              max="31"
+                              value={startDate.day}
+                              onChange={(e) => setStartDate((prev) => ({ ...prev, day: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">日</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="時"
+                              min="0"
+                              max="23"
+                              value={startDate.hour}
+                              onChange={(e) => setStartDate((prev) => ({ ...prev, hour: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">時</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="分"
+                              min="0"
+                              max="59"
+                              value={startDate.minute}
+                              onChange={(e) => setStartDate((prev) => ({ ...prev, minute: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">分</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label className="text-base font-medium">終了日時</Label>
+                        <div className="grid grid-cols-5 gap-3">
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="年"
+                              value={endDate.year}
+                              onChange={(e) => setEndDate((prev) => ({ ...prev, year: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">年</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="月"
+                              min="1"
+                              max="12"
+                              value={endDate.month}
+                              onChange={(e) => setEndDate((prev) => ({ ...prev, month: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">月</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="日"
+                              min="1"
+                              max="31"
+                              value={endDate.day}
+                              onChange={(e) => setEndDate((prev) => ({ ...prev, day: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">日</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="時"
+                              min="0"
+                              max="23"
+                              value={endDate.hour}
+                              onChange={(e) => setEndDate((prev) => ({ ...prev, hour: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">時</p>
+                          </div>
+                          <div className="grid gap-1">
+                            <Input
+                              type="number"
+                              placeholder="分"
+                              min="0"
+                              max="59"
+                              value={endDate.minute}
+                              onChange={(e) => setEndDate((prev) => ({ ...prev, minute: e.target.value }))}
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-xs text-gray-500">分</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor="weeks" className="text-base font-medium">
+                          週数
+                        </Label>
+                        <Input
+                          id="weeks"
+                          type="number"
+                          min="1"
+                          value={weeks}
+                          onChange={(e) => setWeeks(Number.parseInt(e.target.value))}
+                          className="h-12 text-base"
+                          placeholder="週数を入力してください"
+                          required
+                        />
+                        <p className="text-sm text-gray-500">コースの週数を設定してください</p>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      className="h-12 text-base"
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isCreating}
+                      className="h-12 text-base bg-primary hover:bg-primary/90"
+                    >
+                      {isCreating ? "作成中..." : "作成"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
             {isLoading ? (
               <div className="text-center py-8">読み込み中...</div>
             ) : error ? (

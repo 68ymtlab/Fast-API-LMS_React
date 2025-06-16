@@ -134,9 +134,9 @@ html[data-theme="theme3"] {
 }
 
 html[data-theme="theme4"] {
-	--primary: oklch(88% 0.16 105);         /* より黄色らしい、フレッシュな色 */
-	--primary-foreground: oklch(20% 0 0);   /* 黒に近い文字色 */
-	--secondary: oklch(95% 0.08 105);       /* 明るめサブカラー */
+	--primary: oklch(88% 0.16 105); /* より黄色らしい、フレッシュな色 */
+	--primary-foreground: oklch(20% 0 0); /* 黒に近い文字色 */
+	--secondary: oklch(95% 0.08 105); /* 明るめサブカラー */
 	--secondary-foreground: oklch(30% 0 0);
 }
 

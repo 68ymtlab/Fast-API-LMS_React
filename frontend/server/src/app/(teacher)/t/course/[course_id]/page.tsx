@@ -2,6 +2,9 @@
 import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 import { BarChart2, Edit, Eye, Loader2 } from "lucide-react";
@@ -447,7 +450,7 @@ export const CoursePage = () => {
   const router = useRouter();
   const course_id = params.course_id as string;
 
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [sessionError, setSessionError] = useState(false);
   const [course, setCourse] = useState<Course | null>(null);
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -469,6 +472,94 @@ export const CoursePage = () => {
     {} as { [weekId: number]: Content[] },
   );
 
+  const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false);
+  const [weekName, setWeekName] = useState("");
+  const [weekNum, setWeekNum] = useState("");
+  const [order, setOrder] = useState("");
+  const [files, setFiles] = useState<{ file_path: string; file_text: string }[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string[]>([]);
+
+  const validateForm = () => {
+    const errors: string[] = [];
+    if (files.length === 0) {
+      errors.push("登録するコースのフォルダを選択してください。");
+    }
+    if (!weekName) {
+      errors.push("週名を入力してください。");
+    }
+    if (!weekNum) {
+      errors.push("週数を入力してください。");
+    }
+    if (!order) {
+      errors.push("並び順を入力してください。");
+    }
+    setErrorMessage(errors);
+    return errors.length === 0;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileObjects = e.target.files;
+    if (!fileObjects) return;
+
+    const fileForUpload: { file_path: string; file_text: string }[] = [];
+
+    for (const file of Array.from(fileObjects)) {
+      const filePath = (file as File & { webkitRelativePath: string }).webkitRelativePath;
+      const fileReader = new FileReader();
+
+      if (file.type.includes("image")) {
+        fileReader.onload = (e) => {
+          const _result = "";
+          const int8Array = new Uint8Array(e.target?.result as ArrayBuffer);
+          let hexString = "";
+          for (let i = 0; i < int8Array.length; i++) {
+            const str = int8Array[i].toString(16).padStart(2, "0");
+            hexString += `\\x${str}`;
+          }
+          fileForUpload.push({ file_path: filePath, file_text: hexString });
+          setFiles(fileForUpload);
+        };
+        fileReader.readAsArrayBuffer(file);
+      } else {
+        fileReader.onload = (e) => {
+          fileForUpload.push({ file_path: filePath, file_text: e.target?.result as string });
+          setFiles(fileForUpload);
+        };
+        fileReader.readAsText(file);
+      }
+    }
+  };
+
+  const handleRegisterWeek = async () => {
+    if (!validateForm()) return;
+
+    try {
+      const response = await axios.post(
+        "/register_week",
+        {
+          week_name: weekName,
+          week_num: Number.parseInt(weekNum),
+          order: Number.parseInt(order),
+          course_id: course_id,
+          week_files: files,
+        },
+        { withCredentials: true },
+      );
+
+      if (response.data.success) {
+        setIsAddContentDialogOpen(false);
+        // 週一覧を更新
+        const weeksResponse = await axios.get(`/get_weeks/${course_id}`);
+        setWeeks(weeksResponse.data);
+      } else {
+        setErrorMessage([response.data.error_msg]);
+      }
+    } catch (error) {
+      console.error("週の登録に失敗しました:", error);
+      setErrorMessage(["週の登録に失敗しました。"]);
+    }
+  };
+
   useEffect(() => {
     if (!course_id) {
       setLoading(false);
@@ -485,7 +576,6 @@ export const CoursePage = () => {
           if (error.response?.status === 401) {
             setSessionError(true);
           } else {
-            console.log(error.response);
           }
         });
     };
@@ -585,7 +675,6 @@ export const CoursePage = () => {
           console.error(`First content in week ${weekId} not found or course_id missing.`);
         }
       } else {
-        console.log(`No contents found for week ${weekId}. Cannot start week learning.`);
       }
     }
   };
@@ -652,6 +741,28 @@ export const CoursePage = () => {
 
               <div className="mb-6">
                 <div className="flex items-center justify-end space-x-4">
+                  <Button
+                    onClick={() => setIsAddContentDialogOpen(true)}
+                    className="bg-primary hover:bg-primary/90 text-white h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <title>コンテンツ追加アイコン</title>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    コンテンツを追加
+                  </Button>
                   <div className="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
                     <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <title>カード表示アイコン</title>
@@ -666,11 +777,121 @@ export const CoursePage = () => {
                 </div>
               </div>
 
+              {/* コンテンツ追加ダイアログ */}
+              <Dialog open={isAddContentDialogOpen} onOpenChange={setIsAddContentDialogOpen}>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-bold text-gray-800">コンテンツ追加</DialogTitle>
+                  </DialogHeader>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleRegisterWeek();
+                    }}
+                  >
+                    <div className="grid gap-6 py-6">
+                      {errorMessage.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 p-6 rounded-lg">
+                          <h3 className="font-semibold mb-2">エラーが発生しました</h3>
+                          <ul className="list-disc list-inside space-y-1">
+                            {errorMessage.map((msg) => (
+                              <li key={msg}>{msg}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="grid gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="weekName" className="text-base font-medium">
+                            週名
+                          </Label>
+                          <Input
+                            id="weekName"
+                            value={weekName}
+                            onChange={(e) => setWeekName(e.target.value)}
+                            placeholder="例: 線形代数学_第1週"
+                            className="h-12 text-base"
+                            required
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="grid gap-2">
+                            <Label htmlFor="weekNum" className="text-base font-medium">
+                              第○週、第○回
+                            </Label>
+                            <Input
+                              id="weekNum"
+                              type="number"
+                              value={weekNum}
+                              onChange={(e) => setWeekNum(e.target.value)}
+                              placeholder="数値のみを入力"
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-1">数値のみを入力してください</p>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="order" className="text-base font-medium">
+                              並び順
+                            </Label>
+                            <Input
+                              id="order"
+                              type="number"
+                              value={order}
+                              onChange={(e) => setOrder(e.target.value)}
+                              placeholder="数値のみを入力"
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-1">昇順でコンテンツが並びます</p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="files" className="text-base font-medium">
+                            コンテンツファイル
+                          </Label>
+                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                            <Input
+                              id="files"
+                              type="file"
+                              onChange={handleFileChange}
+                              // @ts-ignore
+                              webkitdirectory="true"
+                              // @ts-ignore
+                              directory=""
+                              className="h-12 text-base"
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-2">フォルダを選択してください</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsAddContentDialogOpen(false)}
+                        className="h-12 text-base"
+                      >
+                        キャンセル
+                      </Button>
+                      <Button type="submit" className="h-12 text-base bg-primary hover:bg-primary/90">
+                        登録
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
               {isCardView && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(groupedWeeksByNum)
                     .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                    .flatMap(([weekNum, weeksInGroup]) =>
+                    .flatMap(([_weekNum, weeksInGroup]) =>
                       weeksInGroup.map((week) => (
                         <WeekSelectCard
                           key={week.week_id}
@@ -683,7 +904,7 @@ export const CoursePage = () => {
                     ).length > 0 ? (
                     Object.entries(groupedWeeksByNum)
                       .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                      .flatMap(([weekNum, weeksInGroup]) =>
+                      .flatMap(([_weekNum, weeksInGroup]) =>
                         weeksInGroup.map((week) => (
                           <WeekSelectCard
                             key={week.week_id}
