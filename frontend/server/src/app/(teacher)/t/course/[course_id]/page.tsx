@@ -477,6 +477,8 @@ export const CoursePage = () => {
   const [weekNum, setWeekNum] = useState("");
   const [order, setOrder] = useState("");
   const [files, setFiles] = useState<{ file_path: string; file_text: string }[]>([]);
+  const [selectedFileCount, setSelectedFileCount] = useState(0);
+  const [selectedFolderName, setSelectedFolderName] = useState("");
   const [errorMessage, setErrorMessage] = useState<string[]>([]);
 
   const validateForm = () => {
@@ -502,6 +504,16 @@ export const CoursePage = () => {
     if (!fileObjects) return;
 
     const fileForUpload: { file_path: string; file_text: string }[] = [];
+    const fileCount = fileObjects.length;
+    
+    // フォルダ名を取得（最初のファイルのパスから）
+    if (fileCount > 0) {
+      const firstFile = fileObjects[0] as File & { webkitRelativePath: string };
+      const folderName = firstFile.webkitRelativePath.split('/')[0];
+      setSelectedFolderName(folderName);
+    }
+    
+    setSelectedFileCount(fileCount);
 
     for (const file of Array.from(fileObjects)) {
       const filePath = (file as File & { webkitRelativePath: string }).webkitRelativePath;
@@ -548,6 +560,14 @@ export const CoursePage = () => {
 
       if (response.data.success) {
         setIsAddContentDialogOpen(false);
+        // フォームをリセット
+        setWeekName("");
+        setWeekNum("");
+        setOrder("");
+        setFiles([]);
+        setSelectedFileCount(0);
+        setSelectedFolderName("");
+        setErrorMessage([]);
         // 週一覧を更新
         const weeksResponse = await axios.get(`/get_weeks/${course_id}`);
         setWeeks(weeksResponse.data);
@@ -558,6 +578,18 @@ export const CoursePage = () => {
       console.error("週の登録に失敗しました:", error);
       setErrorMessage(["週の登録に失敗しました。"]);
     }
+  };
+
+  const handleDialogClose = () => {
+    setIsAddContentDialogOpen(false);
+    // フォームをリセット
+    setWeekName("");
+    setWeekNum("");
+    setOrder("");
+    setFiles([]);
+    setSelectedFileCount(0);
+    setSelectedFolderName("");
+    setErrorMessage([]);
   };
 
   useEffect(() => {
@@ -754,12 +786,7 @@ export const CoursePage = () => {
                       aria-hidden="true"
                     >
                       <title>コンテンツ追加アイコン</title>
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 4v16m8-8H4"
-                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                     </svg>
                     コンテンツを追加
                   </Button>
@@ -778,7 +805,7 @@ export const CoursePage = () => {
               </div>
 
               {/* コンテンツ追加ダイアログ */}
-              <Dialog open={isAddContentDialogOpen} onOpenChange={setIsAddContentDialogOpen}>
+              <Dialog open={isAddContentDialogOpen} onOpenChange={handleDialogClose}>
                 <DialogContent className="sm:max-w-[600px]">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-bold text-gray-800">コンテンツ追加</DialogTitle>
@@ -830,7 +857,6 @@ export const CoursePage = () => {
                               className="h-12 text-base"
                               required
                             />
-                            <p className="text-sm text-gray-500 mt-1">数値のみを入力してください</p>
                           </div>
                           <div className="grid gap-2">
                             <Label htmlFor="order" className="text-base font-medium">
@@ -845,7 +871,6 @@ export const CoursePage = () => {
                               className="h-12 text-base"
                               required
                             />
-                            <p className="text-sm text-gray-500 mt-1">昇順でコンテンツが並びます</p>
                           </div>
                         </div>
 
@@ -853,19 +878,101 @@ export const CoursePage = () => {
                           <Label htmlFor="files" className="text-base font-medium">
                             コンテンツファイル
                           </Label>
-                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                            <Input
-                              id="files"
-                              type="file"
-                              onChange={handleFileChange}
-                              // @ts-ignore
-                              webkitdirectory="true"
-                              // @ts-ignore
-                              directory=""
-                              className="h-12 text-base"
-                              required
-                            />
-                            <p className="text-sm text-gray-500 mt-2">フォルダを選択してください</p>
+                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary/50 transition-colors duration-200">
+                            {selectedFileCount === 0 ? (
+                              <label htmlFor="files" className="flex flex-col items-center space-y-3 cursor-pointer">
+                                <svg
+                                  className="w-12 h-12 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  aria-hidden="true"
+                                >
+                                  <title>フォルダアイコン</title>
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"
+                                  />
+                                </svg>
+                                <div className="text-center">
+                                  <p className="text-sm font-medium text-gray-700 mb-1">フォルダを選択してください</p>
+                                </div>
+                                <Input
+                                  id="files"
+                                  type="file"
+                                  onChange={handleFileChange}
+                                  // @ts-ignore
+                                  webkitdirectory="true"
+                                  // @ts-ignore
+                                  directory=""
+                                  className="h-12 text-base"
+                                  required
+                                />
+                              </label>
+                            ) : (
+                              <div className="flex flex-col items-center space-y-3">
+                                <div className="flex items-center space-x-2 text-green-600">
+                                  <svg
+                                    className="w-8 h-8"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden="true"
+                                  >
+                                    <title>チェックマークアイコン</title>
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                  <span className="text-lg font-semibold">ファイルが選択されました</span>
+                                </div>
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4 w-full max-w-md">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                      <svg
+                                        className="w-5 h-5 text-green-600"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        aria-hidden="true"
+                                      >
+                                        <title>フォルダアイコン</title>
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth="2"
+                                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"
+                                        />
+                                      </svg>
+                                      <span className="font-medium text-gray-900">{selectedFolderName}</span>
+                                    </div>
+                                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                                      {selectedFileCount}個のファイル
+                                    </div>
+                                  </div>
+                                </div>
+                                <label htmlFor="files" className="cursor-pointer">
+                                  <Input
+                                    id="files"
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    // @ts-ignore
+                                    webkitdirectory="true"
+                                    // @ts-ignore
+                                    directory=""
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -874,7 +981,7 @@ export const CoursePage = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setIsAddContentDialogOpen(false)}
+                        onClick={handleDialogClose}
                         className="h-12 text-base"
                       >
                         キャンセル
