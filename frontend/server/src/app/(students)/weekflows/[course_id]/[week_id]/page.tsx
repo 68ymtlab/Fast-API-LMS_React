@@ -97,7 +97,8 @@ export const WeekFlowsPage = () => {
   const handleStartFlow = (flowId: number) => {
     // 演習問題開始の処理
     console.log(`演習問題 ${flowId} を開始します`);
-    // ここで実際の演習問題ページに遷移する処理を実装
+    // 演習問題実行ページに遷移
+    window.location.href = `/weekflows/${course_id}/${week_id}/${flowId}/session`;
   };
 
   if (sessionError) {
