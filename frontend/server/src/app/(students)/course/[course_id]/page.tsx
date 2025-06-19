@@ -267,7 +267,7 @@ export const CoursePage = () => {
   const router = useRouter();
   const course_id = params.course_id as string;
 
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [sessionError, setSessionError] = useState(false);
   const [course, setCourse] = useState<Course | null>(null);
   const [weeks, setWeeks] = useState<Week[]>([]);
@@ -295,6 +295,20 @@ export const CoursePage = () => {
       setLoading(false);
       return;
     }
+
+    const homeProfile = () => {
+      axios
+        .get("/home_profile")
+        .then((response) => {
+          setUserInfo(response.data);
+        })
+        .catch((error) => {
+          if (error.response?.status === 401) {
+            setSessionError(true);
+          } else {
+          }
+        });
+    };
 
     const getCourseInfo = () => {
       axios
@@ -373,34 +387,32 @@ export const CoursePage = () => {
   };
 
   const handleMoveWeek = (id: number, isContentId = false) => {
-    // if (isContentId) {
-    //   // 個別コンテンツIDが渡された場合、そのコンテンツページへ遷移
-    //   const targetContent = contents.find((c) => c.content_id === id);
-    //   if (targetContent && course_id) {
-    //     router.push(`/Week/${targetContent.week_id}/${id}`);
-    //   } else {
-    //     console.error(`Content with id ${id} not found or course_id missing.`);
-    //   }
-    // } else {
-    //   // 週IDが渡された場合、その週の最初のコンテンツページへ遷移
-    //   const weekId = id;
-    //   const contentsInWeek = contentsMap[weekId];
-    //   if (contentsInWeek && contentsInWeek.length > 0) {
-    //     // orderでソートして最初のコンテンツを取得 (すでにソートされている前提だが念のため)
-    //     const sortedContents = [...contentsInWeek].sort((a, b) => a.order - b.order);
-    //     const firstContent = sortedContents[0];
-    //     if (firstContent && course_id) {
-    //       router.push(`/${course_id}/Week/${weekId}/${firstContent.content_id}`);
-    //     } else {
-    //       console.error(`First content in week ${weekId} not found or course_id missing.`);
-    //     }
-    //   } else {
-    //     console.log(`No contents found for week ${weekId}. Cannot start week learning.`);
-    //     // ここでフォールバックとして週の演習問題ページに飛ばすなども可能
-    //     // router.push(`/weekflows/${course_id}/${weekId}`);
-    //   }
-    // }
-    router.push(`/lesson/${id}/1`);
+    if (isContentId) {
+      // 個別コンテンツIDが渡された場合、そのコンテンツページへ遷移
+      const targetContent = contents.find((c) => c.content_id === id);
+      if (targetContent && course_id) {
+        router.push(`/${course_id}/Week/${targetContent.week_id}/${id}`);
+      } else {
+        console.error(`Content with id ${id} not found or course_id missing.`);
+      }
+    } else {
+      // 週IDが渡された場合、その週の最初のコンテンツページへ遷移
+      const weekId = id;
+      const contentsInWeek = contentsMap[weekId];
+      if (contentsInWeek && contentsInWeek.length > 0) {
+        // orderでソートして最初のコンテンツを取得 (すでにソートされている前提だが念のため)
+        const sortedContents = [...contentsInWeek].sort((a, b) => a.order - b.order);
+        const firstContent = sortedContents[0];
+        if (firstContent && course_id) {
+          router.push(`/${course_id}/Week/${weekId}/${firstContent.content_id}`);
+        } else {
+          console.error(`First content in week ${weekId} not found or course_id missing.`);
+        }
+      } else {
+        // ここでフォールバックとして週の演習問題ページに飛ばすなども可能
+        // router.push(`/weekflows/${course_id}/${weekId}`);
+      }
+    }
   };
 
   const handleMoveFlow = (weekId: number) => {
@@ -471,7 +483,7 @@ export const CoursePage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(groupedWeeksByNum)
                     .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                    .flatMap(([weekNum, weeksInGroup]) =>
+                    .flatMap(([_weekNum, weeksInGroup]) =>
                       weeksInGroup.map((week) => (
                         <WeekSelectCard
                           key={week.week_id}
@@ -484,7 +496,7 @@ export const CoursePage = () => {
                     ).length > 0 ? (
                     Object.entries(groupedWeeksByNum)
                       .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                      .flatMap(([weekNum, weeksInGroup]) =>
+                      .flatMap(([_weekNum, weeksInGroup]) =>
                         weeksInGroup.map((week) => (
                           <WeekSelectCard
                             key={week.week_id}
