@@ -26,6 +26,7 @@ import {
   Trophy,
   User,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 interface Course {
@@ -56,6 +57,7 @@ interface HighPointer {
 }
 
 export const StudentHome = () => {
+  const router = useRouter();
   const { logout } = useAuth();
   const [username, setUsername] = useState("");
   const [point, setPoint] = useState("0");
@@ -455,7 +457,11 @@ export const StudentHome = () => {
                       </div>
                     </CardContent>
                     <CardFooter className="flex gap-3">
-                      <Button className="flex-1 h-11" variant="default">
+                      <Button
+                        className="flex-1 h-11"
+                        variant="default"
+                        onClick={() => router.push(`/course/${subject.id}`)}
+                      >
                         <Play className="w-5 h-5 mr-2" />
                         学習を始める
                       </Button>
