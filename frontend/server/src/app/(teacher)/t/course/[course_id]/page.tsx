@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 import { BarChart2, Edit, Eye, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -1041,4 +1040,4 @@ export const CoursePage = () => {
   );
 };
 
-export default withAuth(CoursePage, ["教師"]);
+export default CoursePage;

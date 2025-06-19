@@ -4,7 +4,6 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
 import { BarChart2, Calendar, Clock, FileText, Loader2, Users } from "lucide-react";
@@ -489,4 +488,4 @@ export const SubjectPage = () => {
   );
 };
 
-export default withAuth(SubjectPage);
+export default SubjectPage;
