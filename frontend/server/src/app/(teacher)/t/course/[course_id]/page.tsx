@@ -1,5 +1,4 @@
 "use client";
-import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -505,14 +504,14 @@ export const CoursePage = () => {
 
     const fileForUpload: { file_path: string; file_text: string }[] = [];
     const fileCount = fileObjects.length;
-    
+
     // フォルダ名を取得（最初のファイルのパスから）
     if (fileCount > 0) {
       const firstFile = fileObjects[0] as File & { webkitRelativePath: string };
-      const folderName = firstFile.webkitRelativePath.split('/')[0];
+      const folderName = firstFile.webkitRelativePath.split("/")[0];
       setSelectedFolderName(folderName);
     }
-    
+
     setSelectedFileCount(fileCount);
 
     for (const file of Array.from(fileObjects)) {
@@ -746,7 +745,6 @@ export const CoursePage = () => {
 
   return (
     <>
-      <TeacherHeader />
       <main className="pt-16">
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
           <div className="container mx-auto px-4 py-8">
@@ -978,12 +976,7 @@ export const CoursePage = () => {
                       </div>
                     </div>
                     <DialogFooter className="gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleDialogClose}
-                        className="h-12 text-base"
-                      >
+                      <Button type="button" variant="outline" onClick={handleDialogClose} className="h-12 text-base">
                         キャンセル
                       </Button>
                       <Button type="submit" className="h-12 text-base bg-primary hover:bg-primary/90">

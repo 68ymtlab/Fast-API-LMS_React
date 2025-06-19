@@ -1,6 +1,4 @@
 "use client";
-
-import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -210,7 +208,6 @@ export const SubjectPage = () => {
 
   return (
     <>
-      <TeacherHeader />
       <main className="pt-12">
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
           <div className="container mx-auto px-8 py-12 max-w-7xl">
