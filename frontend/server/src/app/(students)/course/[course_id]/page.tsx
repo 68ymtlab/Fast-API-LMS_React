@@ -387,32 +387,33 @@ export const CoursePage = () => {
   };
 
   const handleMoveWeek = (id: number, isContentId = false) => {
-    if (isContentId) {
-      // 個別コンテンツIDが渡された場合、そのコンテンツページへ遷移
-      const targetContent = contents.find((c) => c.content_id === id);
-      if (targetContent && course_id) {
-        router.push(`/${course_id}/Week/${targetContent.week_id}/${id}`);
-      } else {
-        console.error(`Content with id ${id} not found or course_id missing.`);
-      }
-    } else {
-      // 週IDが渡された場合、その週の最初のコンテンツページへ遷移
-      const weekId = id;
-      const contentsInWeek = contentsMap[weekId];
-      if (contentsInWeek && contentsInWeek.length > 0) {
-        // orderでソートして最初のコンテンツを取得 (すでにソートされている前提だが念のため)
-        const sortedContents = [...contentsInWeek].sort((a, b) => a.order - b.order);
-        const firstContent = sortedContents[0];
-        if (firstContent && course_id) {
-          router.push(`/${course_id}/Week/${weekId}/${firstContent.content_id}`);
-        } else {
-          console.error(`First content in week ${weekId} not found or course_id missing.`);
-        }
-      } else {
-        // ここでフォールバックとして週の演習問題ページに飛ばすなども可能
-        // router.push(`/weekflows/${course_id}/${weekId}`);
-      }
-    }
+    // if (isContentId) {
+    //   // 個別コンテンツIDが渡された場合、そのコンテンツページへ遷移
+    //   const targetContent = contents.find((c) => c.content_id === id);
+    //   if (targetContent && course_id) {
+    //     router.push(`/${course_id}/Week/${targetContent.week_id}/${id}`);
+    //   } else {
+    //     console.error(`Content with id ${id} not found or course_id missing.`);
+    //   }
+    // } else {
+    //   // 週IDが渡された場合、その週の最初のコンテンツページへ遷移
+    //   const weekId = id;
+    //   const contentsInWeek = contentsMap[weekId];
+    //   if (contentsInWeek && contentsInWeek.length > 0) {
+    //     // orderでソートして最初のコンテンツを取得 (すでにソートされている前提だが念のため)
+    //     const sortedContents = [...contentsInWeek].sort((a, b) => a.order - b.order);
+    //     const firstContent = sortedContents[0];
+    //     if (firstContent && course_id) {
+    //       router.push(`/${course_id}/Week/${weekId}/${firstContent.content_id}`);
+    //     } else {
+    //       console.error(`First content in week ${weekId} not found or course_id missing.`);
+    //     }
+    //   } else {
+    //     // ここでフォールバックとして週の演習問題ページに飛ばすなども可能
+    //     // router.push(`/weekflows/${course_id}/${weekId}`);
+    //   }
+    // }
+    router.push(`/lesson/${id}/1`);
   };
 
   const handleMoveFlow = (weekId: number) => {
