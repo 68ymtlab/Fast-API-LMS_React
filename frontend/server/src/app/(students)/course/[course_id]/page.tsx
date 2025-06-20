@@ -133,7 +133,7 @@ const WeekSelectTable = ({
         </colgroup>
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GROUP</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">回</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">内容</th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
               教科書コンテンツ
@@ -267,13 +267,13 @@ export const CoursePage = () => {
   const router = useRouter();
   const course_id = params.course_id as string;
 
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [sessionError, setSessionError] = useState(false);
   const [course, setCourse] = useState<Course | null>(null);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCardView, setIsCardView] = useState(true);
+  const [isCardView, setIsCardView] = useState(false);
 
   const [groupedWeeksByNum, setGroupedWeeksByNum] = useState<{ [key: number]: Week[] }>({});
   const [expandedWeekNumbers, setExpandedWeekNumbers] = useState<Set<number>>(new Set());
@@ -306,7 +306,6 @@ export const CoursePage = () => {
           if (error.response?.status === 401) {
             setSessionError(true);
           } else {
-            console.log(error.response);
           }
         });
     };
@@ -347,7 +346,6 @@ export const CoursePage = () => {
         });
     };
 
-    homeProfile();
     getCourseInfo();
     getWeeksApi();
     getCourseContents();
@@ -411,7 +409,6 @@ export const CoursePage = () => {
           console.error(`First content in week ${weekId} not found or course_id missing.`);
         }
       } else {
-        console.log(`No contents found for week ${weekId}. Cannot start week learning.`);
         // ここでフォールバックとして週の演習問題ページに飛ばすなども可能
         // router.push(`/weekflows/${course_id}/${weekId}`);
       }
@@ -425,7 +422,7 @@ export const CoursePage = () => {
   if (sessionError) {
     return (
       <>
-        <main className="pt-16">
+        <main>
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
               <h2 className="text-2xl font-bold text-red-600 mb-4">セッションエラー</h2>
@@ -440,7 +437,7 @@ export const CoursePage = () => {
   if (loading) {
     return (
       <>
-        <main className="pt-16">
+        <main>
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
               <p>読み込み中...</p>
@@ -453,7 +450,7 @@ export const CoursePage = () => {
 
   return (
     <>
-      <main className="pt-16">
+      <main>
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-6xl mx-auto">
@@ -470,13 +467,13 @@ export const CoursePage = () => {
                 <div className="flex items-center justify-end space-x-4">
                   <div className="flex items-center space-x-2">
                     <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <title>カード表示アイコン</title>
-                      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+                      <title>リスト表示アイコン</title>
+                      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                     </svg>
                     <CustomSwitch checked={isCardView} onCheckedChange={setIsCardView} />
                     <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <title>リスト表示アイコン</title>
-                      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+                      <title>カード表示アイコン</title>
+                      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
                     </svg>
                   </div>
                 </div>
@@ -486,7 +483,7 @@ export const CoursePage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {Object.entries(groupedWeeksByNum)
                     .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                    .flatMap(([weekNum, weeksInGroup]) =>
+                    .flatMap(([_weekNum, weeksInGroup]) =>
                       weeksInGroup.map((week) => (
                         <WeekSelectCard
                           key={week.week_id}
@@ -499,7 +496,7 @@ export const CoursePage = () => {
                     ).length > 0 ? (
                     Object.entries(groupedWeeksByNum)
                       .sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
-                      .flatMap(([weekNum, weeksInGroup]) =>
+                      .flatMap(([_weekNum, weeksInGroup]) =>
                         weeksInGroup.map((week) => (
                           <WeekSelectCard
                             key={week.week_id}
