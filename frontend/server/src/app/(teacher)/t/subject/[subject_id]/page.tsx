@@ -188,7 +188,9 @@ export const SubjectPage = () => {
           <Button
             variant="outline"
             className="flex-1 border border-primary/20 hover:bg-primary/5 text-primary font-medium py-2 rounded-xl transition-all text-sm flex items-center justify-center gap-2 bg-white"
-            onClick={() => handleButtonClick(`status-${course.course_id}`, () => {})}
+            onClick={() =>
+              handleButtonClick(`status-${course.course_id}`, () => router.push(`/t/coursescore/${course.course_id}`))
+            }
             disabled={loadingButtons[`status-${course.course_id}`]}
           >
             {loadingButtons[`status-${course.course_id}`] ? (
