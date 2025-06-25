@@ -469,7 +469,11 @@ export const StudentHome = () => {
                         <BarChart className="w-5 h-5 mr-2" />
                         学習状況照会
                       </Button>
-                      <Button className="flex-1 h-11" variant="outline">
+                      <Button
+                        className="flex-1 h-11"
+                        variant="outline"
+                        onClick={() => router.push(`/syllabus/${subject.id}`)}
+                      >
                         <FileText className="w-5 h-5 mr-2" />
                         シラバス情報
                       </Button>
