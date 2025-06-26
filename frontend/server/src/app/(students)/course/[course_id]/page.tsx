@@ -413,7 +413,7 @@ export const CoursePage = () => {
     //     // router.push(`/weekflows/${course_id}/${weekId}`);
     //   }
     // }
-    router.push(`/lesson/${id}/1`);
+    router.push(`/lesson/${course_id}/${id}/1`);
   };
 
   const handleMoveFlow = (weekId: number) => {
