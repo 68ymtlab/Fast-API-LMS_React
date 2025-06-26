@@ -465,7 +465,7 @@ export const StudentHome = () => {
                         <Play className="w-5 h-5 mr-2" />
                         学習を始める
                       </Button>
-                      <Button className="flex-1 h-11" variant="outline">
+                      <Button className="flex-1 h-11" variant="outline" onClick={() => router.push(`/coursescore/${subject.id}`)}>
                         <BarChart className="w-5 h-5 mr-2" />
                         学習状況照会
                       </Button>
