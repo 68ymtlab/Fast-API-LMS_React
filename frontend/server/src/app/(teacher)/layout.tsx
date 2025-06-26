@@ -64,6 +64,7 @@ export const TeacherLayoutInner = memo(({ children }: { children: ReactNode }) =
 });
 
 export const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
+  console.log("[TeacherLayout] Layout rendered");
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex flex-col min-h-screen w-full">
@@ -74,4 +75,4 @@ export const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
   );
 });
 
-export default withAuth(TeacherLayout);
+export default withAuth(TeacherLayout, ["教師", "管理者"]);

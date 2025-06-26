@@ -1,4 +1,5 @@
 import appConfig from "@/lib/config"; // インポート名を appConfig に変更 (debugLevelアクセス用)
+import { ALGORITHM, SECRET_KEY } from "@/lib/secrets"; // secrets.tsからインポート
 import debug, { LogLevel } from "@/lib/utils/debug"; // src/libs/utils/debug をインポート
 import { type JWTPayload, jwtVerify } from "jose";
 import { type NextRequest, NextResponse } from "next/server";
@@ -23,11 +24,11 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
     return null;
   }
 
-  const secretKey = process.env.JWT_SECRET_KEY;
-  const algorithm = process.env.JWT_ALGORITHM || "HS256";
+  const secretKey = SECRET_KEY; // secrets.ts の SECRET_KEY を使用
+  const algorithm = ALGORITHM; // secrets.ts の ALGORITHM を使用
 
   if (!secretKey) {
-    debug.error("[Middleware] JWT_SECRET_KEY is not defined in environment variables.");
+    debug.error("[Middleware] JWT_SECRET_KEY is not defined in config.");
     return null;
   }
 
@@ -37,13 +38,13 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
       algorithms: [algorithm],
     });
     return payload;
-  } catch (error) {
-    if (error.code === "ERR_JWT_EXPIRED") {
+  } catch (error: any) {
+    if (error?.code === "ERR_JWT_EXPIRED") {
       debug.warn("[Middleware] JWT token has expired");
-    } else if (error.code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") {
+    } else if (error?.code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") {
       debug.warn("[Middleware] JWT signature verification failed");
     } else {
-      debug.error("[Middleware] JWT verification error:", error.message);
+      debug.error("[Middleware] JWT verification error:", error?.message);
     }
     return null;
   }
@@ -51,21 +52,17 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const tokenCookie = request.cookies.get("token");
-  const token = tokenCookie?.value;
 
   // メンテナンスモード時のログ出力 (debugLevel が DEBUG 以上の場合)
   if (isMaintenanceMode && appConfig.debugLevel >= LogLevel.DEBUG) {
-    // config を appConfig に変更
     debug.verbose(`[Middleware] Maintenance mode is ON. Pathname: ${pathname}`);
   }
 
-  // 1. メンテナンスモードの処理
+  // 1. メンテナンスモードの処理のみ
   if (isMaintenanceMode) {
     const isExcluded = maintenanceExclusionPaths.includes(pathname);
     if (!isExcluded && !pathname.startsWith("/maintenance")) {
       if (appConfig.debugLevel >= LogLevel.INFO) {
-        // config を appConfig に変更
         debug.info(`[Middleware] Maintenance mode: Redirecting to /maintenance from ${pathname}`);
       }
       const maintenanceUrl = process.env.NEXT_PUBLIC_APP_BASE_URL
@@ -75,7 +72,6 @@ export async function middleware(request: NextRequest) {
     }
     if (pathname.startsWith("/maintenance")) {
       if (appConfig.debugLevel >= LogLevel.DEBUG) {
-        // config を appConfig に変更
         debug.verbose(`[Middleware] Maintenance mode: Allowing access to ${pathname}`);
       }
       return NextResponse.next();
@@ -83,7 +79,6 @@ export async function middleware(request: NextRequest) {
   } else {
     if (pathname.startsWith("/maintenance")) {
       if (appConfig.debugLevel >= LogLevel.INFO) {
-        // config を appConfig に変更
         debug.info(`[Middleware] Maintenance mode is OFF. Rewriting ${pathname} to /404`);
       }
       request.nextUrl.pathname = "/404";
@@ -91,91 +86,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 2. トークン検証と役割取得
-  const decodedPayload = await verifyToken(token || "");
-  const userRole = decodedPayload?.kind_name || null;
-
-  // デバッグログ (debugLevel が INFO 以上の場合)
-  if (appConfig.debugLevel >= LogLevel.INFO) {
-    // config を appConfig に変更
-    debug.info(`[Middleware] Pathname: ${pathname}`);
-    debug.info(`[Middleware] Token: ${token ? "Exists" : "Does not exist"}`);
-    debug.info(`[Middleware] User Role: ${userRole || "N/A"}`);
-  }
-  // より詳細なペイロード情報は DEBUG レベルで出力
+  // 認証チェックは一切行わず、すべてのページへのアクセスを許可
   if (appConfig.debugLevel >= LogLevel.DEBUG) {
-    // config を appConfig に変更
-    debug.verbose("[Middleware] Decoded Payload:", decodedPayload);
-  }
-
-  // 3. 認証ページ (例: /login) の処理
-  if (isAuthPage(pathname)) {
-    if (decodedPayload && userRole) {
-      const userDefaultPath = roleRedirectMap[userRole] || roleRedirectMap.default;
-      if (appConfig.debugLevel >= LogLevel.INFO) {
-        // config を appConfig に変更
-        debug.info(`[Middleware] Authenticated user on auth page '${pathname}'. Redirecting to: ${userDefaultPath}`);
-      }
-      return NextResponse.redirect(new URL(userDefaultPath, request.url));
-    }
-    if (appConfig.debugLevel >= LogLevel.INFO) {
-      // config を appConfig に変更
-      debug.info(`[Middleware] Unauthenticated user on auth page '${pathname}'. Allowing.`);
-    }
-    return NextResponse.next();
-  }
-
-  // 4. 保護されたルートの処理
-  let routeIsProtected = false;
-  let requiredRolesForPath: string[] = [];
-  let longestMatchedPrefix = "";
-
-  for (const prefix in protectedRoutesWithRoles) {
-    if (pathname.startsWith(prefix) && prefix.length >= longestMatchedPrefix.length) {
-      routeIsProtected = true;
-      requiredRolesForPath = protectedRoutesWithRoles[prefix];
-      longestMatchedPrefix = prefix;
-    }
-  }
-
-  if (routeIsProtected) {
-    if (appConfig.debugLevel >= LogLevel.INFO) {
-      // config を appConfig に変更
-      debug.info(
-        `[Middleware] Path '${pathname}' is protected. Required roles: ${requiredRolesForPath.length > 0 ? requiredRolesForPath.join(", ") : "Any authenticated user"}`,
-      );
-    }
-    if (!decodedPayload || !userRole) {
-      if (appConfig.debugLevel >= LogLevel.INFO) {
-        // config を appConfig に変更
-        debug.info("[Middleware] Not authenticated for protected route. Redirecting to login.");
-      }
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("from", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (requiredRolesForPath.length > 0 && !requiredRolesForPath.includes(userRole)) {
-      if (appConfig.debugLevel >= LogLevel.INFO) {
-        // config を appConfig に変更
-        debug.info(
-          `[Middleware] Role mismatch for '${pathname}'. User role: '${userRole}', Required: '${requiredRolesForPath.join(", ")}'. Redirecting.`,
-        );
-      }
-      const userDefaultPath = roleRedirectMap[userRole] || roleRedirectMap.default;
-      return NextResponse.redirect(new URL(userDefaultPath, request.url));
-    }
-    if (appConfig.debugLevel >= LogLevel.INFO) {
-      // config を appConfig に変更
-      debug.info(`[Middleware] Authenticated and authorized for protected route '${pathname}'. Allowing.`);
-    }
-    return NextResponse.next();
-  }
-
-  // 5. 上記のいずれにも該当しない場合 (公開ページなど)
-  if (appConfig.debugLevel >= LogLevel.INFO) {
-    // config を appConfig に変更
-    debug.info(`[Middleware] Path '${pathname}' is public or no specific rules matched. Allowing.`);
+    debug.verbose(`[Middleware] Allowing access to '${pathname}' without authentication check.`);
   }
   return NextResponse.next();
 }

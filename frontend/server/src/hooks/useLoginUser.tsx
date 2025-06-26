@@ -1,5 +1,4 @@
-import { useContext } from "react";
+// このファイルは不要になりました。
+// useLoginUserは providers/LoginUserProvider.tsx から直接exportしています。
 
-import { LoginUserContext, type LoginUserContextType } from "../providers/LoginUserProvider";
-
-export const useLoginUser = (): LoginUserContextType => useContext(LoginUserContext);
+export { useLoginUser } from "@/providers/LoginUserProvider";

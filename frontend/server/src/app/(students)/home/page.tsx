@@ -761,4 +761,4 @@ export const StudentHome = () => {
   );
 };
 
-export default withAuth(StudentHome);
+export default withAuth(StudentHome, ["学生", "テスト"]);

@@ -14,49 +14,28 @@ const withAuth = <P extends object>(WrappedComponent: ComponentType<P>, required
     const pathname = usePathname();
 
     useEffect(() => {
+      console.log("[withAuth] Simple check:", { 
+        pathname, 
+        isLoadingUser, 
+        hasUser: !!loginUser
+      });
+
       if (isLoadingUser) {
+        console.log("[withAuth] Loading user, waiting...");
         return; // ユーザー情報読み込み中は待機
       }
 
       if (!loginUser) {
+        console.log("[withAuth] No user, redirecting to login");
         router.push("/login"); // 未ログインならログインページへ
         return;
       }
 
-      const userRole = loginUser.kind_name;
+      console.log("[withAuth] User found, allowing access");
+    }, [loginUser, isLoadingUser, pathname, router]);
 
-      // ログイン直後のリダイレクト（ログインページから遷移してきた場合など）
-      // また，ログインしているが，現在のページが "/"のような共有ページだった場合
-      if (pathname === "/login") {
-        const redirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
-        if (pathname !== redirectPath) {
-          router.push(redirectPath);
-          return;
-        }
-      }
-
-      // 権限チェック
-      if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
-        // このページに必要なロールを持っていない場合
-        alert("このページにアクセスする権限がありません．");
-        const fallbackRedirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
-        router.push(fallbackRedirectPath);
-        return;
-      }
-
-      // URL直打ちなどによるアクセス制御
-      const allowedPaths = pageAccessRules[userRole] || [];
-      const isAllowed = allowedPaths.some((allowedPath) => pathname.startsWith(allowedPath));
-
-      if (!isAllowed && !pathname.startsWith("/login")) {
-        alert("このページにアクセスする権限がありません．");
-        const fallbackRedirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
-        router.push(fallbackRedirectPath);
-        return;
-      }
-    }, [loginUser, isLoadingUser, pathname, router, requiredRoles]);
-
-    if (isLoadingUser || !loginUser) {
+    if (isLoadingUser) {
+      console.log("[withAuth] Showing loading screen");
       return (
         <div className="flex flex-col min-h-screen">
           <DefaultHeader />
@@ -68,7 +47,20 @@ const withAuth = <P extends object>(WrappedComponent: ComponentType<P>, required
       );
     }
 
-    // 権限チェックを通過した場合のみコンポーネントを描画
+    if (!loginUser) {
+      console.log("[withAuth] No user found, showing loading (should redirect soon)");
+      return (
+        <div className="flex flex-col min-h-screen">
+          <DefaultHeader />
+          <div className="flex flex-1 flex-col items-center justify-center space-y-4 p-4">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-muted-foreground">認証情報を確認しています．．．</p>
+          </div>
+        </div>
+      );
+    }
+
+    // ログインしていれば、権限に関係なくコンポーネントを描画
     return <WrappedComponent {...props} />;
   };
   return AuthComponent;

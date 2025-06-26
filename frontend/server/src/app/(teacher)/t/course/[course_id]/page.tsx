@@ -8,6 +8,7 @@ import axios from "@/lib/axios";
 import { BarChart2, Edit, Eye, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
+import { useLoginUser } from "@/hooks/useLoginUser";
 
 interface UserInfo {
   id: number;
@@ -70,7 +71,7 @@ const WeekSelectCard = ({
 }: {
   week: Week;
   contents: Content[];
-  onMoveWeek: (id: number, isContentId?: boolean) => void;
+  onMoveWeek: (id: number, isContentId?: boolean, action?: 'preview' | 'edit') => void;
   onMoveFlow: (weekId: number) => void;
 }) => {
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
@@ -111,7 +112,7 @@ const WeekSelectCard = ({
                     size="sm"
                     onClick={() =>
                       handleButtonClick(`preview-content-${content.content_id}`, () =>
-                        onMoveWeek(content.content_id, true),
+                        onMoveWeek(content.content_id, true, 'preview'),
                       )
                     }
                     className="text-xs bg-primary text-white hover:bg-primary/90"
@@ -131,7 +132,7 @@ const WeekSelectCard = ({
                     size="sm"
                     onClick={() =>
                       handleButtonClick(`edit-content-${content.content_id}`, () =>
-                        onMoveWeek(content.content_id, true),
+                        onMoveWeek(content.content_id, true, 'edit'),
                       )
                     }
                     className="text-xs bg-primary text-white hover:bg-primary/90"
@@ -155,7 +156,7 @@ const WeekSelectCard = ({
         <div className="flex space-x-2 mt-4">
           <Button
             variant="default"
-            onClick={() => handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id))}
+            onClick={() => handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'preview'))}
             className="flex-1 bg-primary text-white hover:bg-primary/90 font-medium py-2 rounded-xl transition-all text-sm flex items-center justify-center gap-2"
             disabled={loadingButtons[`preview-${week.week_id}`]}
           >
@@ -170,7 +171,7 @@ const WeekSelectCard = ({
           </Button>
           <Button
             variant="default"
-            onClick={() => handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id))}
+            onClick={() => handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'edit'))}
             className="flex-1 bg-primary text-white hover:bg-primary/90 font-medium py-2 rounded-xl transition-shadow hover:shadow-xl text-sm flex items-center justify-center gap-2"
             disabled={loadingButtons[`edit-${week.week_id}`]}
           >
@@ -217,7 +218,7 @@ const WeekSelectTable = ({
   contentsMap: { [weekId: number]: Content[] };
   expandedWeekNumbers: Set<number>;
   onToggleWeekNumber: (weekNum: number) => void;
-  onMoveWeek: (id: number, isContentId?: boolean) => void;
+  onMoveWeek: (id: number, isContentId?: boolean, action?: 'preview' | 'edit') => void;
   onMoveFlow: (weekId: number) => void;
 }) => {
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
@@ -313,7 +314,7 @@ const WeekSelectTable = ({
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id));
+                                    handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'preview'));
                                   }}
                                   className="bg-primary text-white hover:bg-primary/90"
                                   disabled={loadingButtons[`preview-${week.week_id}`]}
@@ -334,7 +335,7 @@ const WeekSelectTable = ({
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id));
+                                    handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'edit'));
                                   }}
                                   className="bg-primary text-white hover:bg-primary/90"
                                   disabled={loadingButtons[`edit-${week.week_id}`]}
@@ -388,7 +389,7 @@ const WeekSelectTable = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleButtonClick(`preview-content-${content.content_id}`, () =>
-                                        onMoveWeek(content.content_id, true),
+                                        onMoveWeek(content.content_id, true, 'preview'),
                                       );
                                     }}
                                     className="bg-primary text-white hover:bg-primary/90"
@@ -411,7 +412,7 @@ const WeekSelectTable = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleButtonClick(`edit-content-${content.content_id}`, () =>
-                                        onMoveWeek(content.content_id, true),
+                                        onMoveWeek(content.content_id, true, 'edit'),
                                       );
                                     }}
                                     className="bg-primary text-white hover:bg-primary/90"
@@ -443,9 +444,10 @@ const WeekSelectTable = ({
   );
 };
 
-export const CoursePage = () => {
-  const params = useParams();
+function CoursePage() {
+  const { loginUser, isLoadingUser } = useLoginUser();
   const router = useRouter();
+  const params = useParams();
   const course_id = params.course_id as string;
 
   const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -543,18 +545,25 @@ export const CoursePage = () => {
   const handleRegisterWeek = async () => {
     if (!validateForm()) return;
 
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("course_id", String(params.course_id));
+    formData.append("week_name", weekName);
+    formData.append("week_num", weekNum);
+    formData.append("order", order);
+    if (files.length > 0) {
+      files.forEach((file) => {
+        const blob = new Blob([Buffer.from(file.file_text, "base64")], { type: "text/plain" });
+        formData.append("week_files", blob, file.file_path);
+      });
+    }
+
     try {
-      const response = await axios.post(
-        "/register_week",
-        {
-          week_name: weekName,
-          week_num: Number.parseInt(weekNum),
-          order: Number.parseInt(order),
-          course_id: course_id,
-          week_files: files,
+      const response = await axios.post("/register_week", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
         },
-        { withCredentials: true },
-      );
+      });
 
       if (response.data.success) {
         setIsAddContentDialogOpen(false);
@@ -567,14 +576,16 @@ export const CoursePage = () => {
         setSelectedFolderName("");
         setErrorMessage([]);
         // 週一覧を更新
-        const weeksResponse = await axios.get(`/get_weeks/${course_id}`);
-        setWeeks(weeksResponse.data);
+        getWeeksApi();
+        getCourseContents();
       } else {
         setErrorMessage([response.data.error_msg]);
       }
     } catch (error) {
       console.error("週の登録に失敗しました:", error);
       setErrorMessage(["週の登録に失敗しました。"]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -591,66 +602,58 @@ export const CoursePage = () => {
   };
 
   useEffect(() => {
-    if (!course_id) {
-      setLoading(false);
-      return;
+    if (!isLoadingUser && !loginUser) {
+      router.push("/login");
     }
+  }, [loginUser, isLoadingUser, router]);
 
-    const homeProfile = () => {
-      axios
-        .get("/home_profile")
-        .then((response) => {
-          setUserInfo(response.data);
-        })
-        .catch((error) => {
-          if (error.response?.status === 401) {
-            setSessionError(true);
-          } else {
-          }
-        });
-    };
+  useEffect(() => {
+    if (loginUser && course_id) {
+      getCourseInfo();
+      getWeeksApi();
+      getCourseContents();
+    }
+  }, [loginUser, course_id]);
 
-    const getCourseInfo = () => {
-      axios
-        .get(`/get_course_info/${course_id}`)
-        .then((response) => {
-          setCourse(response.data);
-        })
-        .catch((error) => {
-          console.error("コース情報の取得に失敗しました:", error);
-        });
-    };
+  const homeProfile = () => {
+    // ユーザー情報が既にあるため、この関数は不要だが呼び出し元があるため保持
+  };
 
-    const getWeeksApi = () => {
-      axios
-        .get(`/get_weeks/${course_id}`)
-        .then((response) => {
-          setWeeks(response.data);
-        })
-        .catch((error) => {
-          console.error("週一覧の取得に失敗しました:", error);
-        });
-    };
+  const getCourseInfo = () => {
+    axios
+      .get(`/get_course_info/${params.course_id}`)
+      .then((response) => {
+        setCourse(response.data);
+      })
+      .catch((error) => {
+        console.error("コース情報の取得に失敗しました:", error);
+      });
+  };
 
-    const getCourseContents = () => {
-      axios
-        .get(`/get_course_contents/${course_id}`)
-        .then((response) => {
-          setContents(response.data);
-        })
-        .catch((error) => {
-          console.error("コンテンツ一覧の取得に失敗しました:", error);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    };
+  const getWeeksApi = () => {
+    axios
+      .get(`/get_weeks/${params.course_id}`)
+      .then((response) => {
+        setWeeks(response.data);
+      })
+      .catch((error) => {
+        console.error("週一覧の取得に失敗しました:", error);
+      });
+  };
 
-    homeProfile();
-    getCourseInfo();
-    getWeeksApi();
-    getCourseContents();
-  }, [course_id]);
+  const getCourseContents = () => {
+    axios
+      .get(`/get_course_contents/${params.course_id}`)
+      .then((response) => {
+        setContents(response.data);
+      })
+      .catch((error) => {
+        console.error("コンテンツ一覧の取得に失敗しました:", error);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
     if (weeks.length > 0) {
@@ -685,26 +688,39 @@ export const CoursePage = () => {
     setExpandedWeekNumbers(newExpanded);
   };
 
-  const handleMoveWeek = (id: number, isContentId = false) => {
+  const handleMoveWeek = (id: number, isContentId = false, action: 'preview' | 'edit' = 'preview') => {
+    console.log('handleMoveWeek called:', { id, isContentId, action, course_id });
+    
     if (isContentId) {
       const targetContent = contents.find((c) => c.content_id === id);
+      console.log('Target content:', targetContent);
       if (targetContent && course_id) {
-        router.push(`/t/course/${course_id}/Week/${targetContent.week_id}/${id}`);
+        if (action === 'preview') {
+          const previewUrl = `/t/course/${course_id}/preview/week/${targetContent.week_id}/1`;
+          console.log('Navigating to content preview:', previewUrl);
+          router.push(previewUrl);
+        } else {
+          const editUrl = `/t/course/${course_id}/week/${targetContent.week_id}/edit`;
+          console.log('Navigating to content edit:', editUrl);
+          router.push(editUrl);
+        }
       } else {
         console.error(`Content with id ${id} not found or course_id missing.`);
       }
     } else {
       const weekId = id;
-      const contentsInWeek = contentsMap[weekId];
-      if (contentsInWeek && contentsInWeek.length > 0) {
-        const sortedContents = [...contentsInWeek].sort((a, b) => a.order - b.order);
-        const firstContent = sortedContents[0];
-        if (firstContent && course_id) {
-          router.push(`/t/course/${course_id}/Week/${weekId}/${firstContent.content_id}`);
+      if (course_id) {
+        if (action === 'preview') {
+          const previewUrl = `/t/course/${course_id}/preview/week/${weekId}/1`;
+          console.log('Navigating to week preview:', previewUrl);
+          router.push(previewUrl);
         } else {
-          console.error(`First content in week ${weekId} not found or course_id missing.`);
+          const editUrl = `/t/course/${course_id}/week/${weekId}/edit`;
+          console.log('Navigating to week edit:', editUrl);
+          router.push(editUrl);
         }
       } else {
+        console.error(`course_id missing.`);
       }
     }
   };
@@ -770,6 +786,14 @@ export const CoursePage = () => {
 
               <div className="mb-6">
                 <div className="flex items-center justify-end space-x-4">
+                  <Button
+                    onClick={() => router.push(`/t/course/${course_id}/preview`)}
+                    variant="outline"
+                    className="bg-white hover:bg-gray-50 text-gray-700 h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
+                  >
+                    <Eye className="w-5 h-5" />
+                    コースプレビュー
+                  </Button>
                   <Button
                     onClick={() => setIsAddContentDialogOpen(true)}
                     className="bg-primary hover:bg-primary/90 text-white h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
@@ -1038,6 +1062,6 @@ export const CoursePage = () => {
       </main>
     </>
   );
-};
+}
 
 export default CoursePage;

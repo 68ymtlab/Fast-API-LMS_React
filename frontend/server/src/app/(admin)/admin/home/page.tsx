@@ -21,4 +21,4 @@ export const AdminHome = () => {
   );
 };
 
-export default withAuth(AdminHome);
+export default withAuth(AdminHome, ["管理者"]);

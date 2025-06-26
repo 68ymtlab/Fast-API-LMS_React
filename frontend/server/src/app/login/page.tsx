@@ -3,7 +3,6 @@
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FC, memo, useEffect, useState } from "react";
-import { useCookies } from "react-cookie";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,30 +14,47 @@ import { EmailInput } from "@/components/atoms/input/EmailInput";
 import { PasswordInput } from "@/components/atoms/input/PasswordInput";
 
 import { DefaultHeader } from "@/components/atoms/layout/DefaultHeader";
-import { useAuth } from "@/hooks/useAuth";
 import { useLoginUser } from "@/hooks/useLoginUser";
+import { roleRedirectMap } from "@/router/router";
 
 export const Login: FC = memo(() => {
-  const { login, isLoading, error } = useAuth();
-  const { loginUser, isLoadingUser } = useLoginUser();
+  const { loginUser, isLoadingUser, login } = useLoginUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [cookies] = useCookies(["access_token"]);
+  const [isLogging, setIsLogging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // ログイン済みユーザーのリダイレクト
   useEffect(() => {
-    if (!isLoadingUser && cookies.access_token && loginUser) {
-      router.push("/home");
+    if (!isLoadingUser && loginUser) {
+      const redirectPath = roleRedirectMap[loginUser.kind_name] || roleRedirectMap.default;
+      console.log("[Login] Already logged in, redirecting to:", redirectPath);
+      router.replace(redirectPath);
     }
-  }, [cookies.access_token, loginUser, isLoadingUser, router]);
+  }, [loginUser, isLoadingUser, router]);
 
-  const onClickLogin = () => {
-    if (email && password) {
-      login(email, password);
+  const onClickLogin = async () => {
+    if (!email || !password) {
+      setError("メールアドレスとパスワードを入力してください");
+      return;
     }
+
+    setIsLogging(true);
+    setError(null);
+
+    const success = await login(email, password);
+    
+    if (success) {
+      // ログイン成功時のリダイレクトはuseEffectで処理される
+    } else {
+      setError("ログインに失敗しました。メールアドレスとパスワードを確認してください。");
+    }
+    
+    setIsLogging(false);
   };
 
-  if (isLoadingUser || (cookies.access_token && !loginUser && !error)) {
+  if (isLoadingUser) {
     return (
       <div className="flex flex-col min-h-screen">
         <DefaultHeader />
@@ -50,8 +66,8 @@ export const Login: FC = memo(() => {
     );
   }
 
-  if (cookies.access_token && loginUser) {
-    return null;
+  if (loginUser) {
+    return null; // リダイレクト中
   }
 
   return (
@@ -84,8 +100,8 @@ export const Login: FC = memo(() => {
                   <Label htmlFor="password">パスワード</Label>
                   <PasswordInput password={password} setPassword={setPassword} />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                <Button type="submit" className="w-full" disabled={isLogging}>
+                  {isLogging ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   ログイン
                 </Button>
               </div>

@@ -3,8 +3,7 @@
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
-import { useAuth } from "@/hooks/useAuth";
+import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 import { BookOpen, Calendar, Loader2, User, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -23,15 +22,24 @@ type SubjectResponse = {
   outside_result: Subject[];
 };
 
-export const TeacherHome = () => {
+function TeacherHome() {
+  console.log("[TeacherHome] Component rendered");
   const router = useRouter();
-  const { logout } = useAuth();
+  const { loginUser, logout } = useLoginUser();
   const [duringSubjects, setDuringSubjects] = useState<Subject[]>([]);
   const [outsideSubjects, setOutsideSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
+
+  // 認証チェック
+  useEffect(() => {
+    if (!loginUser) {
+      router.push("/login");
+      return;
+    }
+  }, [loginUser, router]);
 
   const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
     setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
@@ -45,11 +53,11 @@ export const TeacherHome = () => {
   };
 
   useEffect(() => {
+    if (!loginUser) return;
+
     const fetchUserName = async () => {
       try {
-        const response = await axios.get("/user_name", {
-          withCredentials: true,
-        });
+        const response = await axios.get("/user_name");
         if (response.status === 200) {
           setUserName(response.data);
         }
@@ -59,16 +67,16 @@ export const TeacherHome = () => {
     };
 
     fetchUserName();
-  }, []);
+  }, [loginUser]);
 
   useEffect(() => {
+    if (!loginUser) return;
+
     const fetchSubjects = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await axios.get<SubjectResponse>("/get_subjects", {
-          withCredentials: true,
-        });
+        const response = await axios.get<SubjectResponse>("/get_subjects");
         if (response.status === 200) {
           setDuringSubjects(response.data.during_result);
           setOutsideSubjects(response.data.outside_result);
@@ -83,7 +91,12 @@ export const TeacherHome = () => {
     };
 
     fetchSubjects();
-  }, []);
+  }, [loginUser]);
+
+  // ログインしていない場合は何も表示しない
+  if (!loginUser) {
+    return null;
+  }
 
   return (
     <>
@@ -226,6 +239,6 @@ export const TeacherHome = () => {
       </main>
     </>
   );
-};
+}
 
-export default withAuth(TeacherHome);
+export default TeacherHome;
