@@ -104,7 +104,7 @@ export const WeekFlowsPage = () => {
     return (
       <>
         <StudentHeader />
-        <main className="pt-16">
+        <main>
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
               <h2 className="text-2xl font-bold text-red-600 mb-4">セッションエラー</h2>
@@ -120,7 +120,7 @@ export const WeekFlowsPage = () => {
     return (
       <>
         <StudentHeader />
-        <main className="pt-16">
+        <main>
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4 py-8">
               <p>読み込み中...</p>
@@ -133,7 +133,7 @@ export const WeekFlowsPage = () => {
 
   return (
     <>
-      <main className="pt-16">
+      <main>
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">
             {/* 週情報のヘッダー */}

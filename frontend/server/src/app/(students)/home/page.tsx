@@ -18,7 +18,9 @@ import {
   Crown,
   FileText,
   List,
+  Loader2,
   LogIn,
+  Medal,
   Play,
   Star,
   Target,
@@ -28,6 +30,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Course {
   course_id: number;
@@ -63,8 +66,6 @@ export const StudentHome = () => {
   const [point, setPoint] = useState("0");
   const [loginNum, setLoginNum] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [goal_set_dialog, set_goal_dialog] = useState(false);
-  const [complete_dialog, setComplete] = useState(false);
   const [point_list_dialog, setPointListDialog] = useState(false);
   const [ranking_dialog, setRankingDialog] = useState(false);
   const [newGoal, setNewGoal] = useState("");
@@ -72,6 +73,7 @@ export const StudentHome = () => {
   const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
   const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
+  const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [user_stats_dialog, setUserStatsDialog] = useState(false);
@@ -82,6 +84,17 @@ export const StudentHome = () => {
     { id: 3, title: "演習問題を解く", points: 10, icon: <BookOpen className="w-5 h-5 text-secondary" /> },
     { id: 4, title: "累計10日ログイン", points: 10, icon: <Calendar className="w-5 h-5 text-secondary" /> },
   ];
+
+  const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
+    setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
+    try {
+      await callback();
+    } finally {
+      setTimeout(() => {
+        setLoadingButtons((prev) => ({ ...prev, [buttonId]: false }));
+      }, 500);
+    }
+  };
 
   const fetchProgress = useCallback(async () => {
     try {
@@ -163,22 +176,6 @@ export const StudentHome = () => {
         console.error("ユーザー名の取得に失敗しました:", error);
       });
 
-    // ハイスコアの取得
-    axios
-      .get("/get_high_pointer")
-      .then((res) => {
-        if (res.status === 200) {
-          const pointers: HighPointer[] = res.data;
-          setHighPointers(pointers);
-          // ユーザーの順位を計算
-          const rank = pointers.findIndex((p) => p.mail === username) + 1;
-          setUserRank(rank);
-        }
-      })
-      .catch((error) => {
-        console.error("ハイスコアの取得に失敗しました:", error);
-      });
-
     // ログイン日数の取得
     axios
       .post("/login_num")
@@ -192,14 +189,25 @@ export const StudentHome = () => {
       });
 
     fetchProgress();
-  }, [username, fetchProgress]);
+  }, [fetchProgress]);
 
-  const onClickGoal = () => {
-    set_goal_dialog(true);
-  };
-  const onClickComplete = () => {
-    setComplete(true);
-  };
+  // username取得後にランキング取得
+  useEffect(() => {
+    if (!username) return;
+    axios
+      .get("/get_high_pointer")
+      .then((res) => {
+        if (res.status === 200) {
+          const pointers: HighPointer[] = res.data;
+          setHighPointers(pointers);
+          const rank = pointers.findIndex((p) => p.mail === username) + 1;
+          setUserRank(rank);
+        }
+      })
+      .catch((error) => {
+        console.error("ハイスコアの取得に失敗しました:", error);
+      });
+  }, [username]);
 
   const handleAddGoal = () => {
     if (newGoal.trim() === "") {
@@ -220,7 +228,6 @@ export const StudentHome = () => {
           };
           setGoals([...goals, newGoalData]);
           setNewGoal("");
-          set_goal_dialog(false);
         }
       })
       .catch((error) => {
@@ -287,21 +294,45 @@ export const StudentHome = () => {
           <div className="container mx-auto px-8 py-8 max-w-7xl">
             <div className="flex gap-8 w-full">
               <div className="flex-1">
-                <div className="bg-[#f9f9f9] rounded-[12px] shadow-md p-8">
-                  <div className="flex items-center justify-around gap-10">
-                    <div className="w-20 h-18 bg-gray-200 rounded-full flex items-center justify-center">
-                      <User className="w-16 h-16 text-secondary" />
+                <div className="bg-[#f9f9f9] rounded-[12px] shadow-md p-8 flex flex-col justify-between h-full">
+                  <div className="flex items-center gap-8">
+                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                      <User className="w-12 h-12 text-secondary" />
                     </div>
                     <p className="text-3xl font-bold text-gray-800">{username}</p>
-                    <div className="flex justify-end gap-8">
+                    <div className="flex items-center gap-6 ml-8">
                       <div className="flex items-center gap-2">
-                        <Star className="w-6 h-6 text-secondary" />
-                        <span className="text-xl font-semibold text-gray-800">{point}pt</span>
+                        <Clock className="w-7 h-7 text-secondary" />
+                        <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Star className="w-7 h-7 text-secondary" />
+                        <span className="text-xl font-bold text-gray-800">{point}pt</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Crown className="w-7 h-7 text-secondary" />
+                        <span className="text-xl font-bold text-gray-800">{userRank}位</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <ThemeSwitcher />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>テーマ切り替え</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="flex items-center gap-4">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger onClick={() => setPointListDialog(true)}>
-                            <List className="w-6 h-6 text-secondary" />
+                            <List className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>ポイントリスト</p>
@@ -311,7 +342,7 @@ export const StudentHome = () => {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger onClick={() => setRankingDialog(true)}>
-                            <Crown className="w-6 h-6 text-secondary" />
+                            <Medal className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>ポイントランキング</p>
@@ -321,7 +352,7 @@ export const StudentHome = () => {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger onClick={() => setUserStatsDialog(true)}>
-                            <BarChart2 className="w-6 h-6 text-secondary" />
+                            <BarChart2 className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>学習進捗</p>
@@ -331,93 +362,145 @@ export const StudentHome = () => {
                     </div>
                   </div>
                 </div>
-
-                <div className="mt-6">
-                  <div className="flex flex-row gap-4 w-full">
-                    <Button
-                      className="flex-1 h-12 text-xl font-bold flex items-center justify-center gap-2"
-                      onClick={onClickComplete}
-                    >
-                      <Trophy className="w-8 h-8" />
-                      達成した目標
-                    </Button>
-                    <Button
-                      className="flex-1 h-12 text-xl font-bold flex items-center justify-center gap-2"
-                      onClick={onClickGoal}
-                    >
-                      <Target className="w-8 h-8" />
-                      目標を設定
-                    </Button>
-                  </div>
-                </div>
               </div>
 
               <div className="flex-1">
-                <div className="bg-white rounded-lg shadow-md p-6 h-[210px]">
-                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                    <Target className="w-5 h-5 text-secondary" />
-                    設定した目標
-                  </h2>
-                  <div className="space-y-2 h-[calc(200px-4rem)] overflow-y-auto pr-2">
-                    {goals && goals.length > 0 ? (
-                      goals.map((goal) => (
-                        <div
-                          key={goal.goal_id}
-                          className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-secondary/10 rounded-full">
-                              <Target className="w-4 h-4 text-secondary" />
+                <div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
+                  <Tabs defaultValue="goals" className="w-full">
+                    <TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
+                      <TabsTrigger value="goals" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">設定した目標</TabsTrigger>
+                      <TabsTrigger value="completed" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">達成した目標</TabsTrigger>
+                      <TabsTrigger value="add" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">目標を設定</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="goals">
+                      <div className="space-y-2 h-32 overflow-y-auto pr-2">
+                        {goals && goals.length > 0 ? (
+                          goals.map((goal) => (
+                            <div
+                              key={goal.goal_id}
+                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-secondary/10 rounded-full">
+                                  <Target className="w-4 h-4 text-secondary" />
+                                </div>
+                                <span className="font-medium text-gray-800">{goal.details}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
+                                        onClick={() => handleToggleCompleted(goal.goal_id, goal.completed)}
+                                      >
+                                        <Trophy className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>目標達成へ</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
+                                        onClick={() => handleDeleteGoal(goal.goal_id)}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>目標を削除</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
                             </div>
-                            <span className="font-medium text-gray-800">{goal.details}</span>
+                          ))
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full">
+                            <div className="flex flex-col items-center gap-2">
+                              <Target className="w-10 h-10 text-secondary/30" />
+                              <p className="text-gray-500">目標が設定されていません</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
-                                    onClick={() => handleToggleCompleted(goal.goal_id, goal.completed)}
-                                  >
-                                    <Trophy className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>目標達成へ</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-                                    onClick={() => handleDeleteGoal(goal.goal_id)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>目標を削除</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                        )}
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="completed">
+                      <div className="space-y-2 h-32 overflow-y-auto pr-2">
+                        {completeGoals && completeGoals.length > 0 ? (
+                          completeGoals.map((goal) => (
+                            <div
+                              key={goal.goal_id}
+                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-secondary/10 rounded-full">
+                                  <Trophy className="w-4 h-4 text-secondary" />
+                                </div>
+                                <span className="font-medium text-gray-800">{goal.details}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
+                                        onClick={() => handleDeleteGoal(goal.goal_id)}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>目標を削除</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full">
+                            <div className="flex flex-col items-center gap-2">
+                              <Trophy className="w-10 h-10 text-secondary/30" />
+                              <p className="text-gray-500">達成した目標はありません</p>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <div className="flex flex-col items-center gap-2">
-                          <Target className="w-10 h-10 text-secondary/30" />
-                          <p className="text-gray-500">目標が設定されていません</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="add">
+                      <div className="py-4">
+                        <Input
+                          placeholder="目標を入力してください"
+                          value={newGoal}
+                          onChange={(e) => setNewGoal(e.target.value)}
+                          className="w-full"
+                        />
+                        <div className="flex justify-end gap-2 mt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setNewGoal("");
+                            }}
+                          >
+                            キャンセル
+                          </Button>
+                          <Button onClick={handleAddGoal}>設定する</Button>
                         </div>
                       </div>
-                    )}
-                  </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </div>
             </div>
@@ -458,22 +541,29 @@ export const StudentHome = () => {
                     </CardContent>
                     <CardFooter className="flex gap-3">
                       <Button
-                        className="flex-1 h-11"
+                        className="flex-1 h-11 text-base font-semibold"
                         variant="default"
-                        onClick={() => router.push(`/course/${subject.id}`)}
+                        onClick={() =>
+                          handleButtonClick(`course-${subject.id}`, () => router.push(`/course/${subject.id}`))
+                        }
+                        disabled={loadingButtons[`course-${subject.id}`]}
                       >
                         <Play className="w-5 h-5 mr-2" />
-                        学習を始める
+                        {loadingButtons[`course-${subject.id}`] ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "学習を始める"
+                        )}
                       </Button>
                       <Button
-                        className="flex-1 h-11"
+                        className="flex-1 h-11 text-base font-semibold"
                         variant="outline"
                         onClick={() => router.push(`/coursescore/${subject.id}`)}
                       >
                         <BarChart className="w-5 h-5 mr-2" />
                         学習状況照会
                       </Button>
-                      <Button className="flex-1 h-11" variant="outline">
+                      <Button className="flex-1 h-11 text-base font-semibold" variant="outline">
                         <FileText className="w-5 h-5 mr-2" />
                         シラバス情報
                       </Button>
@@ -485,99 +575,9 @@ export const StudentHome = () => {
             <Button onClick={logout} className="mt-4">
               ログアウト
             </Button>
-            <ThemeSwitcher />
           </div>
         </div>
       </main>
-
-      <Dialog open={goal_set_dialog} onOpenChange={set_goal_dialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新しい目標を設定</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="目標を入力してください"
-              value={newGoal}
-              onChange={(e) => setNewGoal(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                set_goal_dialog(false);
-              }}
-            >
-              キャンセル
-            </Button>
-            <Button onClick={handleAddGoal}>設定する</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={complete_dialog} onOpenChange={setComplete}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <Trophy className="w-6 h-6 text-secondary" />
-              達成した目標
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {completeGoals && completeGoals.length > 0 ? (
-              completeGoals.map((goal) => (
-                <div
-                  key={goal.goal_id}
-                  className="flex items-center justify-between p-4 bg-secondary/5 rounded-lg border border-secondary/10 shadow-sm hover:shadow-md transition-all duration-200"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-secondary/10 rounded-full">
-                      <Trophy className="w-5 h-5 text-secondary" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-gray-800 text-lg">{goal.details}</span>
-                      <span className="text-sm text-secondary">達成済み</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-                            onClick={() => handleDeleteGoal(goal.goal_id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>目標を削除</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <div className="flex flex-col items-center gap-3">
-                  <Trophy className="w-12 h-12 text-secondary/30" />
-                  <p className="text-gray-500 text-lg">達成した目標はありません</p>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setComplete(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={point_list_dialog} onOpenChange={setPointListDialog}>
         <DialogContent className="sm:max-w-[425px]">
@@ -662,7 +662,7 @@ export const StudentHome = () => {
             <div className="flex flex-col items-center gap-4">
               <div className="text-lg font-medium text-gray-600" />
             </div>
-            <div className="w-[300px] flex flex-col items-center gap-1">
+            <div className="w-[300px] flex flex-col items-center gap-1 justify-center mx-auto">
               <div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-yellow-600" />
@@ -736,7 +736,7 @@ export const StudentHome = () => {
           <div className="space-y-6 py-4">
             <div className="flex flex-col items-center gap-2 p-4 bg-secondary/5 rounded-lg">
               <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-secondary" />
+                <BarChart2 className="w-5 h-5 text-secondary" />
                 <span className="font-medium text-gray-600">ログイン日数</span>
               </div>
               <span className="text-2xl font-bold text-secondary">{loginNum}日</span>
