@@ -3,11 +3,10 @@
 import { MathJax as BetterMathJax, MathJaxContext } from "better-react-mathjax";
 import type { FC, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
-// import rehypeMathjax from "rehype-mathjax";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-// import remarkMath from "remark-math";
+import "./style.css";
 
 type Props = {
   children: ReactNode;
@@ -40,12 +39,19 @@ type MathJaxProps = {
   text: string;
 };
 
+const customSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    "*": [...(defaultSchema.attributes?.["*"] || []), "className"],
+  },
+};
+
 export const MathJax: FC<MathJaxProps> = (props) => {
   const { text } = props;
   return (
-    // <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeMathjax]}>
     <BetterMathJax>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}>
         {text}
       </ReactMarkdown>
     </BetterMathJax>
