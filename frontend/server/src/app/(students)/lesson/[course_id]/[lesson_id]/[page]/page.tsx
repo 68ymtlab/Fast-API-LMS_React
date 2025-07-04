@@ -5,7 +5,7 @@ import axios from "@/lib/axios";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
-import "./style.css";
+
 import { Button } from "@/components/ui/button";
 
 export const LessonPage = () => {
