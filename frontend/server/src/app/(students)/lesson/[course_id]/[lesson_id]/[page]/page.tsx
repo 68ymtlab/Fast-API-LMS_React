@@ -98,20 +98,16 @@ export const LessonPage = () => {
           </h1>
           <MathJax text={content} />
           <div className="flex mt-4 justify-between items-center">
-            <div>
-              {Number(page) !== 1 && (
-                <Button className="default align-middle" onClick={go_previous_page}>
-                  前のページ
-                </Button>
-              )}
-            </div>
-            <div>
-              {Number(page) === lesson?.page_num && (
-                <Button className="default align-middle" onClick={go_lesson_page}>
-                  コンテンツ一覧に戻る
-                </Button>
-              )}
-            </div>
+            {Number(page) !== 1 ? (
+              <Button className="default align-middle" onClick={go_previous_page}>
+                前のページ
+              </Button>
+            ) : <span />}
+            {Number(page) === lesson?.page_num ? (
+              <Button className="default align-middle" onClick={go_lesson_page}>
+                コンテンツ一覧に戻る
+              </Button>
+            ) : <span />}
           </div>
           {Number(page) < lesson?.page_num && (
             <Button

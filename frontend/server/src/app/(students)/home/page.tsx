@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,7 +31,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface Course {
   course_id: number;
@@ -294,9 +294,9 @@ export const StudentHome = () => {
           <div className="container mx-auto px-8 py-8 max-w-7xl">
             <div className="flex gap-8 w-full">
               <div className="flex-1">
-                <div className="bg-[#f9f9f9] rounded-[12px] shadow-md p-8 flex flex-col justify-between h-full">
-                  <div className="flex items-center gap-8">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center gap-8 pl-4">
+                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
                       <User className="w-12 h-12 text-secondary" />
                     </div>
                     <p className="text-3xl font-bold text-gray-800">{username}</p>
@@ -331,8 +331,15 @@ export const StudentHome = () => {
                     <div className="flex items-center gap-4">
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger onClick={() => setPointListDialog(true)}>
-                            <List className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              onClick={() => setPointListDialog(true)}
+                            >
+                              <List className="w-7 h-7 text-secondary" />
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>ポイントリスト</p>
@@ -341,8 +348,15 @@ export const StudentHome = () => {
                       </TooltipProvider>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger onClick={() => setRankingDialog(true)}>
-                            <Medal className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              onClick={() => setRankingDialog(true)}
+                            >
+                              <Medal className="w-7 h-7 text-secondary" />
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>ポイントランキング</p>
@@ -351,8 +365,15 @@ export const StudentHome = () => {
                       </TooltipProvider>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger onClick={() => setUserStatsDialog(true)}>
-                            <BarChart2 className="w-6 h-6 text-secondary hover:text-primary transition-colors" />
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              onClick={() => setUserStatsDialog(true)}
+                            >
+                              <BarChart2 className="w-7 h-7 text-secondary" />
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>学習進捗</p>
@@ -368,9 +389,24 @@ export const StudentHome = () => {
                 <div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
                   <Tabs defaultValue="goals" className="w-full">
                     <TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
-                      <TabsTrigger value="goals" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">設定した目標</TabsTrigger>
-                      <TabsTrigger value="completed" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">達成した目標</TabsTrigger>
-                      <TabsTrigger value="add" className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors">目標を設定</TabsTrigger>
+                      <TabsTrigger
+                        value="goals"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                      >
+                        設定した目標
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="completed"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                      >
+                        達成した目標
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="add"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                      >
+                        目標を設定
+                      </TabsTrigger>
                     </TabsList>
                     <TabsContent value="goals">
                       <div className="space-y-2 h-32 overflow-y-auto pr-2">

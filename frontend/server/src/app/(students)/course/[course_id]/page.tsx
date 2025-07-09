@@ -513,31 +513,39 @@ export const CoursePage = () => {
   return (
     <>
       <main>
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-6xl mx-auto">
               {course && (
                 <div className="mb-8">
-                  <h1 className="text-3xl font-bold mb-2">{course.subject_name}</h1>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-3xl font-bold text-primary">{course.subject_name}</h1>
+                    <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">必修</span>
+                  </div>
                   <h2 className="text-xl text-gray-600 mb-4">
                     {course.course_name} / {course.period}
                   </h2>
+                  {course.course_description && (
+                    <blockquote className="text-gray-600 mt-4 p-4 bg-gray-50 rounded-lg border-l-4 border-primary">
+                      <p className="italic">{course.course_description}</p>
+                    </blockquote>
+                  )}
                 </div>
               )}
 
               <div className="mb-6">
-                <div className="flex items-center justify-end space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <div className="flex items-center justify-end space-x-2">
+                  <span className="inline-flex items-center px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
+                    <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <title>リスト表示アイコン</title>
                       <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
                     </svg>
                     <CustomSwitch checked={isCardView} onCheckedChange={setIsCardView} />
-                    <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <title>カード表示アイコン</title>
                       <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
                     </svg>
-                  </div>
+                  </span>
                 </div>
               </div>
 
@@ -574,7 +582,7 @@ export const CoursePage = () => {
                         )),
                       )
                   ) : (
-                    <div className="col-span-full bg-white rounded-lg shadow-sm border p-6">
+                    <div className="col-span-full bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                       <p className="text-center text-gray-500">このコースには週が設定されていません。</p>
                     </div>
                   )}
@@ -582,16 +590,18 @@ export const CoursePage = () => {
               )}
 
               {!isCardView && (
-                <WeekSelectTable
-                  groupedWeeks={groupedWeeksByNum}
-                  contentsMap={contentsMap}
-                  expandedWeekNumbers={expandedWeekNumbers}
-                  onToggleWeekNumber={handleToggleWeekNumber}
-                  onMoveWeek={handleMoveWeek}
-                  onMoveFlow={handleMoveFlow}
-                  loadingState={loadingState}
-                  setLoadingState={setLoadingState}
-                />
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <WeekSelectTable
+                    groupedWeeks={groupedWeeksByNum}
+                    contentsMap={contentsMap}
+                    expandedWeekNumbers={expandedWeekNumbers}
+                    onToggleWeekNumber={handleToggleWeekNumber}
+                    onMoveWeek={handleMoveWeek}
+                    onMoveFlow={handleMoveFlow}
+                    loadingState={loadingState}
+                    setLoadingState={setLoadingState}
+                  />
+                </div>
               )}
             </div>
           </div>
