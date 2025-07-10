@@ -55,11 +55,11 @@ function FlowCompletionPage() {
   };
 
   const returnToFlow = () => {
-    router.push(`/s/course/${params.course_id}/week/${params.week_id}/flow/${params.flow_id}`);
+    router.push(`/weekflows/${params.course_id}/${params.week_id}`);
   };
 
   const startNewSession = () => {
-    router.push(`/s/course/${params.course_id}/week/${params.week_id}/flow/${params.flow_id}`);
+    router.push(`/weekflows/${params.course_id}/${params.week_id}/${params.flow_id}/session`);
   };
 
   const getAccuracyBadgeVariant = (accuracy: number) => {
@@ -193,7 +193,7 @@ function FlowCompletionPage() {
                   className="flex items-center gap-2"
                 >
                   <ArrowLeft className="h-5 w-5" />
-                  演習フローに戻る
+                  演習一覧に戻る
                 </Button>
                 
                 <Button
@@ -213,13 +213,13 @@ function FlowCompletionPage() {
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="pt-6">
               <div className="text-center">
-                <h3 className="font-medium mb-2">次のステップ</h3>
+                <h3 className="font-medium mb-2">復習へ</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  他の演習問題にも挑戦して、理解を深めましょう。
+                  教科書ページに戻り、わからない場所を復習しよう。
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => router.push(`/s/course/${params.course_id}/week/${params.week_id}`)}
+                  onClick={() => router.push(`/lesson/${params.course_id}/${params.week_id}/1`)}
                   className="flex items-center gap-2"
                 >
                   <ArrowLeft className="h-4 w-4" />

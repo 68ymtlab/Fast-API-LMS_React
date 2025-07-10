@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import axios from "@/lib/axios"
 import MultipleTextQuestion from "@/components/flow/MultipleTextQuestion"
@@ -8,8 +8,10 @@ import SingleTextQuestion from "@/components/flow/SingleTextQuestion"
 import ChoiceQuestion from "@/components/flow/ChoiceQuestion"
 import DescriptiveTextQuestion from "@/components/flow/DescriptiveTextQuestion"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Move } from "lucide-react"
 import withAuth from "@/hocs/withAuth"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { MathJax } from "@/components/shared/MathJax"
 
 interface FlowPageData {
   page_type: string
@@ -52,6 +54,15 @@ function FlowSessionPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pageAnswerStatus, setPageAnswerStatus] = useState<Record<number, AnswerStatus>>({})
+  const [hintOpen, setHintOpen] = useState(false)
+  const [hintText, setHintText] = useState<string>("")
+  const [showHintTooltip, setShowHintTooltip] = useState(false)
+  const [hintTooltipClosed, setHintTooltipClosed] = useState(false)
+  const [hintPosition, setHintPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const hintRef = useRef<HTMLDivElement>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Session state management functions
   const saveSessionState = (sessionData: FlowSessionData, page: number, answerStatus?: Record<number, AnswerStatus>) => {
@@ -271,8 +282,8 @@ function FlowSessionPage() {
       // Clear localStorage when session is finished
       clearSessionState()
       
-      // Navigate back to week flows
-      router.push(`/weekflows/${course_id}/${week_id}`)
+      // Navigate to completion page
+      router.push(`/weekflows/${course_id}/${week_id}/${flow_id}/completion/${flowSession.flow_session_id}`)
     } catch (err) {
       setError("セッションの終了に失敗しました")
       console.error(err)
@@ -332,6 +343,89 @@ function FlowSessionPage() {
     }
   }
 
+  // ヒント取得関数
+  const getHint = async () => {
+    try {
+      const res = await axios.get(`/get_flowpage_hint/${flowSession?.flow_session_id}/${currentPage}`);
+      setHintText(res.data.content);
+    } catch (e) {
+      setHintText("ヒントの取得に失敗しました");
+    }
+  };
+
+  // ダイアログopen時に取得
+  useEffect(() => {
+    if (hintOpen && flowSession?.flow_session_id && currentPage) {
+      getHint();
+    }
+  }, [hintOpen, flowSession?.flow_session_id, currentPage]);
+
+  // 30秒タイマー開始・リセット
+  const startHintTimer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setShowHintTooltip(true);
+      setHintTooltipClosed(false);
+    }, 60000); // 1分
+  };
+  const resetHintTimer = () => {
+    setShowHintTooltip(false);
+    setHintTooltipClosed(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    startHintTimer();
+  };
+
+  // ドラッグ機能
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (hintRef.current) {
+      const rect = hintRef.current.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+      setIsDragging(true);
+    }
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging && hintRef.current) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      
+      // 画面内に制限
+      const maxX = window.innerWidth - hintRef.current.offsetWidth;
+      const maxY = window.innerHeight - hintRef.current.offsetHeight;
+      
+      setHintPosition({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY))
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
+
+  // ページ切り替え時にタイマー開始
+  useEffect(() => {
+    setShowHintTooltip(false);
+    setHintTooltipClosed(false);
+    startHintTimer();
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [currentPage, flowSession?.flow_session_id]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -350,101 +444,218 @@ function FlowSessionPage() {
 
   return (
     <main>
-        <div className="container mx-auto py-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">
-          {flowSession?.flow_title || "演習問題"}
-        </h1>
-        <div className="text-gray-600">
-          問題 {currentPage} / {flowSession?.total_pages || 1}
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-        <div
-          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-          style={{
-            width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%`
-          }}
-        />
-      </div>
-
-      {/* Page Navigation */}
-      <div className="flex justify-center space-x-2 mb-8 flex-wrap">
-        {Array.from({ length: flowSession?.total_pages || 1 }, (_, i) => {
-          const pageNum = i + 1
-          const status = pageAnswerStatus[pageNum] || 'unanswered'
-          
-          return (
-            <button
-              key={pageNum}
-              onClick={() => handleJumpToPage(pageNum)}
-              className={`
-                w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
-                ${pageNum === currentPage 
-                  ? 'ring-2 ring-blue-500 ring-offset-2' 
-                  : ''
-                }
-                ${status === 'correct' 
-                  ? 'bg-green-500 text-white hover:bg-green-600' 
-                  : status === 'incorrect'
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                }
-              `}
-              title={`問題 ${pageNum} (${
-                status === 'correct' ? '正解' : 
-                status === 'incorrect' ? '不正解' : 
-                '未解答'
-              })`}
-            >
-              {pageNum}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Question Content */}
-      <div className="mb-8">
-        {renderQuestion()}
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between items-center">
-        <Button
-          variant="outline"
-          onClick={handlePreviousPage}
-          disabled={currentPage === 1}
-          className="flex items-center gap-2"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          前の問題
-        </Button>
-
-        <div className="text-sm text-gray-600">
-          {currentPage} / {flowSession?.total_pages || 1}
+      <div className="container mx-auto py-8">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-2">
+            {flowSession?.flow_title || "演習問題"}
+          </h1>
+          <div className="text-gray-600">
+            問題 {currentPage} / {flowSession?.total_pages || 1}
+          </div>
         </div>
 
-        {currentPage === flowSession?.total_pages ? (
+        {/* Progress Bar */}
+        <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+          <div
+            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            style={{
+              width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%`
+            }}
+          />
+        </div>
+
+        {/* Page Navigation */}
+        <div className="flex justify-center space-x-2 mb-8 flex-wrap">
+          {Array.from({ length: flowSession?.total_pages || 1 }, (_, i) => {
+            const pageNum = i + 1
+            const status = pageAnswerStatus[pageNum] || 'unanswered'
+            
+            return (
+              <button
+                key={pageNum}
+                onClick={() => handleJumpToPage(pageNum)}
+                className={`
+                  w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
+                  ${pageNum === currentPage 
+                    ? 'ring-2 ring-blue-500 ring-offset-2' 
+                    : ''
+                  }
+                  ${status === 'correct' 
+                    ? 'bg-green-500 text-white hover:bg-green-600' 
+                    : status === 'incorrect'
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  }
+                `}
+                title={`問題 ${pageNum} (${
+                  status === 'correct' ? '正解' : 
+                  status === 'incorrect' ? '不正解' : 
+                  '未解答'
+                })`}
+              >
+                {pageNum}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ヒントダイアログ（ページナビゲーション下・問題文より上） */}
+        <div className="flex justify-end mb-4" style={{ position: 'relative' }}>
+          <DialogPrimitive.Root open={hintOpen} onOpenChange={setHintOpen}>
+            <DialogPrimitive.Trigger asChild>
+              <button
+                style={{
+                  backgroundColor: '#FFD600',
+                  color: '#111',
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  borderRadius: '9999px',
+                  padding: '8px 16px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#FFD600" viewBox="0 0 24 24" stroke="#222" strokeWidth="2" className="inline-block align-middle" style={{marginRight: '4px'}}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a7 7 0 0 0-4 12.9V18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.1A7 7 0 0 0 12 3zm-2 16h4" />
+                </svg>
+                ヒント
+              </button>
+            </DialogPrimitive.Trigger>
+            {/* 1分無入力でヒントツールチップ表示（×で消せる） */}
+            {showHintTooltip && !hintTooltipClosed && (
+              <div style={{
+                position: 'absolute',
+                right: 0,
+                top: '-44px',
+                background: '#fffbe6',
+                color: '#222',
+                border: '1.5px solid #FFD600',
+                borderRadius: 8,
+                padding: '8px 14px 8px 14px',
+                fontWeight: 600,
+                fontSize: '1rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                zIndex: 300,
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <span>⏱️ ヒントがありますよ！</span>
+                <button
+                  onClick={() => { setHintTooltipClosed(true); setShowHintTooltip(false); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginLeft: 4,
+                    display: 'flex', alignItems: 'center',
+                  }}
+                  aria-label="ヒント通知を閉じる"
+                >
+                  <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#888" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            )}
+            <DialogPrimitive.Portal>
+              {hintOpen && (
+                                                    <DialogPrimitive.Content
+                    ref={hintRef}
+                    style={{
+                      position: 'fixed',
+                      left: hintPosition.x || 'calc(100vw - 520px)',
+                      top: hintPosition.y || 'calc(100vh - 22rem)',
+                      width: '480px',
+                      minHeight: '220px',
+                      maxHeight: '80vh',
+                      zIndex: 200,
+                      overflow: 'auto',
+                      padding: '0',
+                      borderRadius: '20px',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08)',
+                      background: '#fff',
+                      border: '3px solid #FFD600',
+                      cursor: isDragging ? 'grabbing' : 'grab',
+                    }}
+                    className="custom-scrollbar"
+                  >
+                    <div 
+                      style={{ 
+                        position: 'relative', 
+                        padding: '24px', 
+                        fontSize: '1rem', 
+                        color: '#222', 
+                        lineHeight: 1.7,
+                        cursor: 'default'
+                      }}
+                      onMouseDown={handleMouseDown}
+                    >
+                      <div style={{ 
+                        fontWeight: 700, 
+                        fontSize: '1.08rem', 
+                        marginBottom: '10px', 
+                        letterSpacing: '0.01em', 
+                        color: '#222',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Move className="w-4 h-4" style={{ cursor: 'grab' }} />
+                        ヒント
+                      </div>
+                      <DialogPrimitive.Close style={{ position: 'absolute', top: 12, right: 12, background: '#f5f5f5', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#888" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </DialogPrimitive.Close>
+                      <MathJax text={hintText} />
+                    </div>
+                  </DialogPrimitive.Content>
+              )}
+            </DialogPrimitive.Portal>
+          </DialogPrimitive.Root>
+        </div>
+
+        {/* Question Content */}
+        <div className="mb-8" onInput={resetHintTimer} onChange={resetHintTimer}>
+          {renderQuestion()}
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between items-center">
           <Button
-            onClick={handleFinishSession}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            演習を終了
-          </Button>
-        ) : (
-          <Button
-            onClick={handleNextPage}
+            variant="outline"
+            onClick={handlePreviousPage}
+            disabled={currentPage === 1}
             className="flex items-center gap-2"
           >
-            次の問題
-            <ChevronRight className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4" />
+            前の問題
           </Button>
-        )}
-      </div>
+
+          <div className="text-sm text-gray-600">
+            {currentPage} / {flowSession?.total_pages || 1}
+          </div>
+
+          {currentPage === flowSession?.total_pages ? (
+            <Button
+              onClick={handleFinishSession}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              演習を終了
+            </Button>
+          ) : (
+            <Button
+              onClick={handleNextPage}
+              className="flex items-center gap-2"
+            >
+              次の問題
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          )}
         </div>
+      </div>
     </main>
   )
 }
