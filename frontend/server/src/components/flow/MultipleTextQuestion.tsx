@@ -148,7 +148,7 @@ const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
             <div className="rounded-lg p-6 my-6 bg-red-100">
               <h2 className="text-2xl font-bold mb-4">不正解です</h2>
               <div className="rounded-lg p-6 bg-white">
-                <MathJax content={answer_comment} />
+                <MathJax text={answer_comment} />
               </div>
             </div>
           )}

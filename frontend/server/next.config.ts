@@ -6,6 +6,53 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // パフォーマンス最適化
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn']
+    } : false,
+  },
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  // 画像最適化
+  images: {
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  // Webpack設定
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // WSL2でのファイルウォッチングを改善
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+    
+    // バンドルサイズの最適化
+    // config.optimization = {
+    //   ...config.optimization,
+    //   splitChunks: {
+    //     chunks: 'all',
+    //     cacheGroups: {
+    //       vendor: {
+    //         test: /[\\/]node_modules[\\/]/,
+    //         name: 'vendors',
+    //         chunks: 'all',
+    //       },
+    //       mathjax: {
+    //         test: /[\\/]node_modules[\\/](mathjax|better-react-mathjax)[\\/]/,
+    //         name: 'mathjax',
+    //         chunks: 'all',
+    //         priority: 10,
+    //       },
+    //     },
+    //   },
+    // };
+    
+    return config;
+  },
 };
 
 const fs = require("fs-extra");
@@ -22,10 +69,17 @@ if (!isStorybookLifecycle) {
   debug.info("[next.config.ts] Copying MathJax files for Next.js build/dev...");
   try {
     fs.ensureDirSync(mathjaxDest); // コピー先のディレクトリが存在することを確認
+    // アクセス権限エラーを回避するため、既存ファイルを削除してからコピー
+    if (fs.existsSync(mathjaxDest)) {
+      fs.removeSync(mathjaxDest);
+      fs.ensureDirSync(mathjaxDest);
+    }
     fs.copySync(mathjaxSource, mathjaxDest, { overwrite: true }); // 同期的にコピー
     debug.info("[next.config.ts] MathJax files copied successfully.");
   } catch (err) {
     debug.error("[next.config.ts] Error copying MathJax files:", err);
+    // エラーが発生してもNext.jsの起動を継続
+    debug.warn("[next.config.ts] Continuing without MathJax copy...");
   }
 } else {
   debug.info("[next.config.ts] Storybook execution detected, skipping MathJax copy to public directory.");

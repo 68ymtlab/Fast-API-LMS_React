@@ -33,7 +33,7 @@ const sidebarGroups: SidebarGroups[] = [
       },
       {
         title: "アカウント設定",
-        url: "/account-settings",
+        url: "/settings",
         icon: Settings,
       },
     ],
@@ -64,7 +64,7 @@ export const StudentLayoutInner = memo(({ children }: { children: ReactNode }) =
 
 export const StudentLayout = memo(({ children }: { children: ReactNode }) => {
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen={true}>
       <div className="flex flex-col min-h-screen w-full">
         <StudentHeader />
         <StudentLayoutInner>{children}</StudentLayoutInner>

@@ -49,10 +49,42 @@ const customSchema = {
 
 export const MathJax: FC<MathJaxProps> = (props) => {
   const { text } = props;
+
+  // MathJaxテストセクションを除去するフィルタリング関数
+  const filterMathJaxTestContent = (content: string): string => {
+    console.log("[MathJax] Filtering content, original length:", content.length);
+
+    let filteredContent = content;
+
+    // MathJaxテストセクションを見つけて削除
+    // #### MathJaxテスト から次のセクションまでを削除
+    filteredContent = filteredContent.replace(/#### MathJaxテスト[\s\S]*?(?=####|###|##|#|$)/g, "");
+    filteredContent = filteredContent.replace(/### MathJaxテスト[\s\S]*?(?=####|###|##|#|$)/g, "");
+    filteredContent = filteredContent.replace(/## MathJaxテスト[\s\S]*?(?=####|###|##|#|$)/g, "");
+    filteredContent = filteredContent.replace(/# MathJaxテスト[\s\S]*?(?=####|###|##|#|$)/g, "");
+
+    // HTMLタグの場合
+    filteredContent = filteredContent.replace(/<h4[^>]*>MathJaxテスト<\/h4>[\s\S]*?(?=<h[1-6]|$)/gi, "");
+    filteredContent = filteredContent.replace(/<h3[^>]*>MathJaxテスト<\/h3>[\s\S]*?(?=<h[1-6]|$)/gi, "");
+    filteredContent = filteredContent.replace(/<h2[^>]*>MathJaxテスト<\/h2>[\s\S]*?(?=<h[1-6]|$)/gi, "");
+    filteredContent = filteredContent.replace(/<h1[^>]*>MathJaxテスト<\/h1>[\s\S]*?(?=<h[1-6]|$)/gi, "");
+
+    // 空行を整理
+    filteredContent = filteredContent.replace(/\n{3,}/g, "\n\n");
+
+    console.log("[MathJax] Filtered content length:", filteredContent.length);
+    console.log("[MathJax] Content was reduced by:", content.length - filteredContent.length, "chars");
+
+    return filteredContent.trim();
+  };
+
+  // テキストをフィルタリング
+  const filteredText = filterMathJaxTestContent(text);
+
   return (
     <BetterMathJax>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}>
-        {text}
+        {filteredText}
       </ReactMarkdown>
     </BetterMathJax>
   );
