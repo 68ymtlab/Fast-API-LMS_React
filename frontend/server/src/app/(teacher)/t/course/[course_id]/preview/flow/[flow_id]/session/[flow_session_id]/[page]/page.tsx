@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ChevronLeft, ChevronRight, Eye, ArrowLeft, Play, Target, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLoginUser } from "@/hooks/useLoginUser";
+import { MathJax } from "@/components/shared/MathJax";
 import axios from "@/lib/axios";
 import Link from "next/link";
 
@@ -182,10 +183,9 @@ function FlowSessionPreviewPage() {
                     <div>
                       <h4 className="font-semibold mb-2">セッション内容</h4>
                       <div className="prose prose-sm max-w-none border rounded-lg p-6 bg-gray-50 min-h-[400px]">
-                        <div 
-                          className="text-gray-700"
-                          dangerouslySetInnerHTML={{ __html: sessionInfo.session_content }}
-                        />
+                        <div className="text-gray-700">
+                          <MathJax text={sessionInfo.session_content} />
+                        </div>
                       </div>
                     </div>
                   </div>

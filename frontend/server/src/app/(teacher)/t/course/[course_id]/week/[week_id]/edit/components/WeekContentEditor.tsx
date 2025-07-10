@@ -117,37 +117,15 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
     return processedContent;
   };
 
-  const markdownToHtml = (markdown: string): string => {
-    // 簡単なMarkdown to HTML変換（実際のプロジェクトではライブラリを使用することを推奨）
-    let html = markdown;
-    
-    // Headers
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
-    
-    // Bold and italic
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    
-    // Line breaks
-    html = html.replace(/\n/g, '<br>');
-    
-    return html;
-  };
-
   const updatePreview = (rawContent: string) => {
+    // 学生側と同じシンプルな実装に変更
     const replacedContent = contentReplace(rawContent);
-    const htmlContent = markdownToHtml(replacedContent);
-    setPreviewContent(htmlContent);
+    setPreviewContent(replacedContent);
   };
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
-  };
-
-  const handleReflection = () => {
-    updatePreview(content);
+    updatePreview(newContent); // リアルタイムでプレビューを更新
   };
 
   const handleUpdate = async () => {
@@ -224,7 +202,7 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
             onValueChange={(value: string) => setCurrentPage(parseInt(value))}
             className="w-full"
           >
-            <TabsList className="grid grid-cols-auto gap-2 h-auto">
+            <TabsList className="inline-flex h-auto w-auto">
               {weekContent.block.map((block) => (
                 <TabsTrigger 
                   key={block.page} 
@@ -239,14 +217,6 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
             {weekContent.block.map((block) => (
               <TabsContent key={block.page} value={block.page.toString()} className="mt-6">
                 <div className="flex justify-center gap-3 mb-4">
-                  <Button 
-                    onClick={handleReflection} 
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Eye className="h-4 w-4" />
-                    反映
-                  </Button>
                   <Button 
                     onClick={handleUpdate} 
                     disabled={loading}
@@ -276,10 +246,16 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <Eye className="h-4 w-4" />
-                      プレビュー
+                      プレビュー（学生表示）
                     </h3>
-                    <div className="border border-gray-200 rounded-lg p-4 min-h-[600px] bg-white overflow-auto">
-                      <MathJax text={previewContent} />
+                    <div className="border border-gray-200 rounded-lg min-h-[600px] bg-white overflow-auto">
+                      <div className="container mx-auto p-0">
+                        <div className="min-h-[300px]">
+                          <div className="p-4">
+                            <MathJax text={previewContent} />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

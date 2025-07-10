@@ -103,21 +103,11 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
     }
   };
 
-  const markdownToHtml = (markdown: string): string => {
-    let html = markdown;
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    html = html.replace(/\n/g, '<br>');
-    return html;
-  };
-
   const updatePreview = (content: string, hint: string, answer: string) => {
-    setPreviewContent(markdownToHtml(content));
-    setPreviewHint(markdownToHtml(hint));
-    setPreviewAnswer(markdownToHtml(answer));
+    // 学生側と同じシンプルな実装に変更
+    setPreviewContent(content);
+    setPreviewHint(hint);
+    setPreviewAnswer(answer);
   };
 
   const handleFlowSelect = (flow: FlowInfo) => {
@@ -336,14 +326,6 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
             {/* 操作ボタン */}
             <div className="flex flex-col gap-2">
               <Button 
-                onClick={() => selectedPage && updatePreview(selectedPage.content, selectedPage.hint_comment, selectedPage.answer_comment)}
-                variant="outline"
-                disabled={!selectedPage}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                反映
-              </Button>
-              <Button 
                 onClick={() => {/* 実装: 更新処理 */}}
                 disabled={loading || !selectedPage}
               >
@@ -414,15 +396,23 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
                     onChange={(e) => {
                       selectedPage.content = e.target.value;
                       setSelectedPage({...selectedPage});
+                      // リアルタイムプレビュー更新
+                      updatePreview(e.target.value, selectedPage.hint_comment, selectedPage.answer_comment);
                     }}
                     className="min-h-[200px]"
                     placeholder="問題文を入力"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-2 block">プレビュー</label>
-                  <div className="border border-gray-200 rounded-lg p-4 min-h-[200px] bg-white">
-                    <MathJax text={previewContent} />
+                  <label className="text-sm font-medium mb-2 block">プレビュー（学生表示）</label>
+                  <div className="border border-gray-200 rounded-lg min-h-[200px] bg-white overflow-auto">
+                    <div className="container mx-auto p-0">
+                      <div className="min-h-[150px]">
+                        <div className="p-4">
+                          <MathJax text={previewContent} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -436,15 +426,23 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
                     onChange={(e) => {
                       selectedPage.hint_comment = e.target.value;
                       setSelectedPage({...selectedPage});
+                      // リアルタイムプレビュー更新
+                      updatePreview(selectedPage.content, e.target.value, selectedPage.answer_comment);
                     }}
                     className="min-h-[150px]"
                     placeholder="ヒントを入力"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-2 block">プレビュー</label>
-                  <div className="border border-gray-200 rounded-lg p-4 min-h-[150px] bg-white">
-                    <MathJax text={previewHint} />
+                  <label className="text-sm font-medium mb-2 block">プレビュー（学生表示）</label>
+                  <div className="border border-gray-200 rounded-lg min-h-[150px] bg-white overflow-auto">
+                    <div className="container mx-auto p-0">
+                      <div className="min-h-[100px]">
+                        <div className="p-4">
+                          <MathJax text={previewHint} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -458,15 +456,23 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
                     onChange={(e) => {
                       selectedPage.answer_comment = e.target.value;
                       setSelectedPage({...selectedPage});
+                      // リアルタイムプレビュー更新
+                      updatePreview(selectedPage.content, selectedPage.hint_comment, e.target.value);
                     }}
                     className="min-h-[150px]"
                     placeholder="解説を入力"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-2 block">プレビュー</label>
-                  <div className="border border-gray-200 rounded-lg p-4 min-h-[150px] bg-white">
-                    <MathJax text={previewAnswer} />
+                  <label className="text-sm font-medium mb-2 block">プレビュー（学生表示）</label>
+                  <div className="border border-gray-200 rounded-lg min-h-[150px] bg-white overflow-auto">
+                    <div className="container mx-auto p-0">
+                      <div className="min-h-[100px]">
+                        <div className="p-4">
+                          <MathJax text={previewAnswer} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

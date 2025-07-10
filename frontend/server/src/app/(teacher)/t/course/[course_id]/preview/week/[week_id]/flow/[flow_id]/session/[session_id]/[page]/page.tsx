@@ -13,6 +13,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Lightbulb, CheckCircle, XCircle, Fl
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLoginUser } from "@/hooks/useLoginUser";
+import { MathJax } from "@/components/shared/MathJax";
 import axios from "@/lib/axios";
 
 interface QuestionData {
@@ -319,16 +320,15 @@ function TeacherFlowSessionPreviewPage() {
               <CardDescription>学生が表示される問題内容</CardDescription>
             </CardHeader>
             <CardContent>
-              <div 
-                className="prose prose-sm max-w-none mb-6"
-                dangerouslySetInnerHTML={{ __html: questionData.question_content }}
-              />
+              <div className="prose prose-sm max-w-none mb-6">
+                <MathJax text={questionData.question_content} />
+              </div>
 
               {showHint && questionData.hint && (
                 <Alert className="mb-6">
                   <Lightbulb className="h-4 w-4" />
                   <AlertDescription>
-                    <div dangerouslySetInnerHTML={{ __html: questionData.hint }} />
+                    <MathJax text={questionData.hint} />
                   </AlertDescription>
                 </Alert>
               )}
@@ -367,16 +367,15 @@ function TeacherFlowSessionPreviewPage() {
                 </div>
 
                 {submissionResult.comment && (
-                  <div 
-                    className="prose prose-sm max-w-none mb-4"
-                    dangerouslySetInnerHTML={{ __html: submissionResult.comment }}
-                  />
+                  <div className="prose prose-sm max-w-none mb-4">
+                    <MathJax text={submissionResult.comment} />
+                  </div>
                 )}
 
                 {submissionResult.correct_answer && !submissionResult.is_correct && (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="font-medium mb-2">正解:</h4>
-                    <div dangerouslySetInnerHTML={{ __html: submissionResult.correct_answer }} />
+                    <MathJax text={submissionResult.correct_answer} />
                   </div>
                 )}
               </CardContent>

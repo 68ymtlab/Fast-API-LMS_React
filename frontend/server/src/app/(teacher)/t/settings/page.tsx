@@ -4,12 +4,47 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, EyeOff, User, Mail, UserCheck } from "lucide-react";
+import { Edit, EyeOff, User, Mail, UserCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { useLoginUser } from "@/hooks/useLoginUser";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import axios from "@/lib/axios";
+
+const formSchema = z.object({
+  currentPassword: z.string().min(1, "現在のパスワードを入力してください"),
+  newPassword: z.string().min(1, "新しいパスワードを入力してください"),
+  confirmPassword: z.string().min(1, "パスワードの確認を入力してください"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "新しいパスワードと確認用パスワードが一致しません",
+  path: ["confirmPassword"],
+}).refine((data) => data.currentPassword !== data.newPassword, {
+  message: "現在のパスワードと新しいパスワードが同じです",
+  path: ["newPassword"],
+});
+
+type FormData = z.infer<typeof formSchema>;
 
 function TeacherSettingsPage() {
   const { loginUser, isLoadingUser } = useLoginUser();
   const router = useRouter();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
 
   useEffect(() => {
     if (!isLoadingUser && !loginUser) {
@@ -18,7 +53,46 @@ function TeacherSettingsPage() {
   }, [loginUser, isLoadingUser, router]);
 
   const handlePasswordUpdate = () => {
-    router.push("/t/settings/password");
+    setShowPasswordModal(true);
+    setSuccess(false);
+    setErrorMessage("");
+    form.reset();
+  };
+
+  const onSubmit = async (data: FormData) => {
+    setLoading(true);
+    setErrorMessage("");
+    setSuccess(false);
+
+    try {
+      const params = {
+        email: loginUser?.email,
+        old_password: data.currentPassword,
+        new_password: data.newPassword,
+      };
+
+      const response = await axios.post("/update_password", params);
+
+      if (response.data.success) {
+        setSuccess(true);
+        form.reset();
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          setSuccess(false);
+        }, 2000);
+      } else {
+        setErrorMessage(response.data.error_msg || "パスワードの更新に失敗しました");
+      }
+    } catch (error: any) {
+      console.error("Error updating password:", error);
+      if (error.response?.status === 401) {
+        setErrorMessage("現在のパスワードが正しくありません");
+      } else {
+        setErrorMessage("パスワードの更新に失敗しました");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (isLoadingUser) {
@@ -124,6 +198,112 @@ function TeacherSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* パスワード変更モーダル */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>パスワードの変更</DialogTitle>
+            <DialogDescription>
+              セキュリティのため、定期的にパスワードを変更することをお勧めします
+            </DialogDescription>
+          </DialogHeader>
+
+          {success && (
+            <Alert className="mb-4 border-green-200 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                パスワードが正常に更新されました
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {errorMessage && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="currentPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>現在のパスワード</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="現在のパスワードを入力"
+                        {...field}
+                        disabled={loading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="newPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>新しいパスワード</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="新しいパスワードを入力"
+                        {...field}
+                        disabled={loading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>新しいパスワード（確認）</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="新しいパスワードを再度入力"
+                        {...field}
+                        disabled={loading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowPasswordModal(false)}
+                  disabled={loading}
+                >
+                  キャンセル
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? "更新中..." : "パスワードを変更"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
