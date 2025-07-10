@@ -20,6 +20,7 @@ interface UserInfo {
 
 interface Course {
   course_id: number;
+  subject_id?: number;
   subject_name: string;
   course_name: string;
   period: string;
@@ -71,139 +72,44 @@ const WeekSelectCard = ({
 }: {
   week: Week;
   contents: Content[];
-  onMoveWeek: (id: number, isContentId?: boolean, action?: 'preview' | 'edit') => void;
+  onMoveWeek: (id: number, isContentId?: boolean) => void;
   onMoveFlow: (weekId: number) => void;
-}) => {
-  const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
+}) => (
+  <Card className="h-full">
+    <CardContent className="p-6">
+      <h3 className="text-lg font-semibold mb-2">第{week.week_num}回</h3>
+      <p className="text-gray-600 mb-4 text-sm">{week.week_name}</p>
 
-  const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
-    setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
-    try {
-      await callback();
-    } finally {
-      setTimeout(() => {
-        setLoadingButtons((prev) => ({ ...prev, [buttonId]: false }));
-      }, 500);
-    }
-  };
-
-  return (
-    <Card className="h-full hover:shadow-lg transition-shadow duration-200 border border-gray-100">
-      <CardContent className="p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
-            第{week.week_num}回
-          </div>
-        </div>
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">{week.week_name}</h3>
-
-        {contents.length > 0 && (
-          <div className="space-y-2 mb-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">コンテンツ:</h4>
-            {contents.map((content) => (
-              <div
-                key={content.content_id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm hover:bg-gray-100 transition-colors duration-200"
+      {contents.length > 0 && (
+        <div className="space-y-2 mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">コンテンツ:</h4>
+          {contents.map((content) => (
+            <div key={content.content_id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+              <span className="text-gray-700">{content.content_name}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onMoveWeek(content.content_id, true)}
+                className="text-xs"
               >
-                <span className="text-gray-700">{content.content_name}</span>
-                <div className="flex gap-2">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() =>
-                      handleButtonClick(`preview-content-${content.content_id}`, () =>
-                        onMoveWeek(content.content_id, true, 'preview'),
-                      )
-                    }
-                    className="text-xs bg-primary text-white hover:bg-primary/90"
-                    disabled={loadingButtons[`preview-content-${content.content_id}`]}
-                  >
-                    {loadingButtons[`preview-content-${content.content_id}`] ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <>
-                        <Eye className="w-3 h-3 mr-1" />
-                        プレビュー
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() =>
-                      handleButtonClick(`edit-content-${content.content_id}`, () =>
-                        onMoveWeek(content.content_id, true, 'edit'),
-                      )
-                    }
-                    className="text-xs bg-primary text-white hover:bg-primary/90"
-                    disabled={loadingButtons[`edit-content-${content.content_id}`]}
-                  >
-                    {loadingButtons[`edit-content-${content.content_id}`] ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <>
-                        <Edit className="w-3 h-3 mr-1" />
-                        編集
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex space-x-2 mt-4">
-          <Button
-            variant="default"
-            onClick={() => handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'preview'))}
-            className="flex-1 bg-primary text-white hover:bg-primary/90 font-medium py-2 rounded-xl transition-all text-sm flex items-center justify-center gap-2"
-            disabled={loadingButtons[`preview-${week.week_id}`]}
-          >
-            {loadingButtons[`preview-${week.week_id}`] ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Eye className="w-4 h-4" />
-                プレビュー
-              </>
-            )}
-          </Button>
-          <Button
-            variant="default"
-            onClick={() => handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'edit'))}
-            className="flex-1 bg-primary text-white hover:bg-primary/90 font-medium py-2 rounded-xl transition-shadow hover:shadow-xl text-sm flex items-center justify-center gap-2"
-            disabled={loadingButtons[`edit-${week.week_id}`]}
-          >
-            {loadingButtons[`edit-${week.week_id}`] ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Edit className="w-4 h-4" />
                 編集
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleButtonClick(`status-${week.week_id}`, () => onMoveFlow(week.week_id))}
-            className="flex-1 border-primary/20 text-primary hover:bg-primary/5 font-medium py-2 rounded-xl transition-all text-sm flex items-center justify-center gap-2"
-            disabled={loadingButtons[`status-${week.week_id}`]}
-          >
-            {loadingButtons[`status-${week.week_id}`] ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <BarChart2 className="w-4 h-4" />
-                学習状況
-              </>
-            )}
-          </Button>
+              </Button>
+            </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
-  );
-};
+      )}
+
+      <div className="flex space-x-2 mt-4">
+        <Button variant="default" className="flex-1" onClick={() => onMoveWeek(week.week_id)}>
+          編集
+        </Button>
+        <Button variant="outline" className="flex-1 whitespace-nowrap" onClick={() => onMoveFlow(week.week_id)}>
+          学習状況
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 // 週選択テーブルコンポーネント
 const WeekSelectTable = ({
@@ -212,13 +118,15 @@ const WeekSelectTable = ({
   expandedWeekNumbers,
   onToggleWeekNumber,
   onMoveWeek,
+  onPreviewWeek,
   onMoveFlow,
 }: {
   groupedWeeks: { [key: number]: Week[] };
   contentsMap: { [weekId: number]: Content[] };
   expandedWeekNumbers: Set<number>;
   onToggleWeekNumber: (weekNum: number) => void;
-  onMoveWeek: (id: number, isContentId?: boolean, action?: 'preview' | 'edit') => void;
+  onMoveWeek: (id: number, isContentId?: boolean) => void;
+  onPreviewWeek: (id: number, isContentId?: boolean) => void;
   onMoveFlow: (weekId: number) => void;
 }) => {
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
@@ -234,28 +142,48 @@ const WeekSelectTable = ({
     }
   };
 
+  // 空の状態チェック
+  const hasWeeks = Object.keys(groupedWeeks).length > 0;
+
+  if (!hasWeeks) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="text-center py-12">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                コンテンツが登録されていません
+              </h3>
+              <p className="text-sm text-gray-500">
+                「週の作成」ボタンから学習コンテンツを追加してください
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="overflow-x-auto relative">
-        <table className="w-full table-layout-fixed">
-          <colgroup>
-            <col className="w-1/5" />
-            <col className="w-2/5" />
-            <col className="w-1/5" />
-            <col className="w-1/5" />
-            <col className="w-1/5" />
-          </colgroup>
+        <table className="w-full">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GROUP</th>
-              <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">内容</th>
-              <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">回</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">内容</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">
                 プレビュー
               </th>
-              <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">
                 編集
               </th>
-              <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 min-w-24">
                 学習状況
               </th>
             </tr>
@@ -314,9 +242,9 @@ const WeekSelectTable = ({
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleButtonClick(`preview-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'preview'));
+                                    handleButtonClick(`preview-${week.week_id}`, () => onPreviewWeek(week.week_id, false));
                                   }}
-                                  className="bg-primary text-white hover:bg-primary/90"
+                                  className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
                                   disabled={loadingButtons[`preview-${week.week_id}`]}
                                 >
                                   {loadingButtons[`preview-${week.week_id}`] ? (
@@ -335,9 +263,9 @@ const WeekSelectTable = ({
                                   size="sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id, false, 'edit'));
+                                    handleButtonClick(`edit-${week.week_id}`, () => onMoveWeek(week.week_id, false));
                                   }}
-                                  className="bg-primary text-white hover:bg-primary/90"
+                                  className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
                                   disabled={loadingButtons[`edit-${week.week_id}`]}
                                 >
                                   {loadingButtons[`edit-${week.week_id}`] ? (
@@ -350,7 +278,7 @@ const WeekSelectTable = ({
                                   )}
                                 </Button>
                               </td>
-                              <td className="px-6 py-4 text-center text-sm">
+                              <td className="px-6 py-4 text-center text-sm min-w-24">
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -358,7 +286,7 @@ const WeekSelectTable = ({
                                     e.stopPropagation();
                                     handleButtonClick(`status-${week.week_id}`, () => onMoveFlow(week.week_id));
                                   }}
-                                  className="border-primary/20 text-primary hover:bg-primary/5"
+                                  className="border-primary/20 text-primary hover:bg-primary/5 whitespace-nowrap"
                                   disabled={loadingButtons[`status-${week.week_id}`]}
                                 >
                                   {loadingButtons[`status-${week.week_id}`] ? (
@@ -389,10 +317,10 @@ const WeekSelectTable = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleButtonClick(`preview-content-${content.content_id}`, () =>
-                                        onMoveWeek(content.content_id, true, 'preview'),
+                                        onPreviewWeek(content.content_id, true),
                                       );
                                     }}
-                                    className="bg-primary text-white hover:bg-primary/90"
+                                    className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
                                     disabled={loadingButtons[`preview-content-${content.content_id}`]}
                                   >
                                     {loadingButtons[`preview-content-${content.content_id}`] ? (
@@ -412,10 +340,10 @@ const WeekSelectTable = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleButtonClick(`edit-content-${content.content_id}`, () =>
-                                        onMoveWeek(content.content_id, true, 'edit'),
+                                        onMoveWeek(content.content_id, true),
                                       );
                                     }}
-                                    className="bg-primary text-white hover:bg-primary/90"
+                                    className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
                                     disabled={loadingButtons[`edit-content-${content.content_id}`]}
                                   >
                                     {loadingButtons[`edit-content-${content.content_id}`] ? (
@@ -473,13 +401,42 @@ function CoursePage() {
   );
 
   const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false);
-  const [weekName, setWeekName] = useState("");
-  const [weekNum, setWeekNum] = useState("");
-  const [order, setOrder] = useState("");
+  const [weekName, setWeekName] = useState("線形代数学_第1週");
+  const [weekNum, setWeekNum] = useState("1");
+  const [order, setOrder] = useState("1");
   const [files, setFiles] = useState<{ file_path: string; file_text: string }[]>([]);
   const [selectedFileCount, setSelectedFileCount] = useState(0);
   const [selectedFolderName, setSelectedFolderName] = useState("");
   const [errorMessage, setErrorMessage] = useState<string[]>([]);
+
+  const readFileAsText = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  };
+
+  const readFileAsBinary = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as ArrayBuffer;
+        const uint8Array = new Uint8Array(result);
+        let binaryString = "";
+        
+        for (let i = 0; i < uint8Array.length; i++) {
+          const hex = uint8Array[i] < 0x10 ? "0" + uint8Array[i].toString(16) : uint8Array[i].toString(16);
+          binaryString += "\\x" + hex;
+        }
+        
+        resolve(binaryString);
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
 
   const validateForm = () => {
     const errors: string[] = [];
@@ -499,7 +456,7 @@ function CoursePage() {
     return errors.length === 0;
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileObjects = e.target.files;
     if (!fileObjects) return;
 
@@ -515,30 +472,30 @@ function CoursePage() {
 
     setSelectedFileCount(fileCount);
 
-    for (const file of Array.from(fileObjects)) {
-      const filePath = (file as File & { webkitRelativePath: string }).webkitRelativePath;
-      const fileReader = new FileReader();
-
-      if (file.type.includes("image")) {
-        fileReader.onload = (e) => {
-          const _result = "";
-          const int8Array = new Uint8Array(e.target?.result as ArrayBuffer);
-          let hexString = "";
-          for (let i = 0; i < int8Array.length; i++) {
-            const str = int8Array[i].toString(16).padStart(2, "0");
-            hexString += `\\x${str}`;
-          }
-          fileForUpload.push({ file_path: filePath, file_text: hexString });
-          setFiles(fileForUpload);
-        };
-        fileReader.readAsArrayBuffer(file);
-      } else {
-        fileReader.onload = (e) => {
-          fileForUpload.push({ file_path: filePath, file_text: e.target?.result as string });
-          setFiles(fileForUpload);
-        };
-        fileReader.readAsText(file);
+    try {
+      for (const file of Array.from(fileObjects)) {
+        const filePath = (file as File & { webkitRelativePath: string }).webkitRelativePath;
+        
+        let fileContent: string;
+        
+        if (file.type.startsWith('image/')) {
+          // 画像ファイルはバイナリとして読み取り
+          fileContent = await readFileAsBinary(file);
+        } else {
+          // その他のファイルはテキストとして読み取り
+          fileContent = await readFileAsText(file);
+        }
+        
+        fileForUpload.push({
+          file_path: filePath,
+          file_text: fileContent
+        });
       }
+      
+      setFiles(fileForUpload);
+    } catch (error) {
+      console.error("Error reading files:", error);
+      setErrorMessage(["ファイルの読み取りに失敗しました"]);
     }
   };
 
@@ -546,31 +503,24 @@ function CoursePage() {
     if (!validateForm()) return;
 
     setLoading(true);
-    const formData = new FormData();
-    formData.append("course_id", String(params.course_id));
-    formData.append("week_name", weekName);
-    formData.append("week_num", weekNum);
-    formData.append("order", order);
-    if (files.length > 0) {
-      files.forEach((file) => {
-        const blob = new Blob([Buffer.from(file.file_text, "base64")], { type: "text/plain" });
-        formData.append("week_files", blob, file.file_path);
-      });
-    }
-
+    
     try {
-      const response = await axios.post("/register_week", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const weekData = {
+        week_name: weekName,
+        week_num: parseInt(weekNum) || 1,
+        order: parseInt(order) || 1,
+        course_id: params.course_id,
+        week_files: files
+      };
+
+      const response = await axios.post("/register_week", weekData);
 
       if (response.data.success) {
         setIsAddContentDialogOpen(false);
         // フォームをリセット
-        setWeekName("");
-        setWeekNum("");
-        setOrder("");
+        setWeekName("線形代数学_第1週");
+        setWeekNum("1");
+        setOrder("1");
         setFiles([]);
         setSelectedFileCount(0);
         setSelectedFolderName("");
@@ -579,11 +529,15 @@ function CoursePage() {
         getWeeksApi();
         getCourseContents();
       } else {
-        setErrorMessage([response.data.error_msg]);
+        setErrorMessage([response.data.error_msg || "週次コンテンツの登録に失敗しました"]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("週の登録に失敗しました:", error);
-      setErrorMessage(["週の登録に失敗しました。"]);
+      if (error.response?.status === 401) {
+        setErrorMessage(["認証エラーが発生しました"]);
+      } else {
+        setErrorMessage([error.response?.data?.error_msg || "週の登録に失敗しました。"]);
+      }
     } finally {
       setLoading(false);
     }
@@ -592,9 +546,9 @@ function CoursePage() {
   const handleDialogClose = () => {
     setIsAddContentDialogOpen(false);
     // フォームをリセット
-    setWeekName("");
-    setWeekNum("");
-    setOrder("");
+    setWeekName("線形代数学_第1週");
+    setWeekNum("1");
+    setOrder("1");
     setFiles([]);
     setSelectedFileCount(0);
     setSelectedFolderName("");
@@ -688,37 +642,50 @@ function CoursePage() {
     setExpandedWeekNumbers(newExpanded);
   };
 
-  const handleMoveWeek = (id: number, isContentId = false, action: 'preview' | 'edit' = 'preview') => {
-    console.log('handleMoveWeek called:', { id, isContentId, action, course_id });
+  const handleMoveWeek = (id: number, isContentId = false) => {
+    console.log('handleMoveWeek called:', { id, isContentId, course_id });
     
     if (isContentId) {
       const targetContent = contents.find((c) => c.content_id === id);
       console.log('Target content:', targetContent);
       if (targetContent && course_id) {
-        if (action === 'preview') {
-          const previewUrl = `/t/course/${course_id}/preview/week/${targetContent.week_id}/1`;
-          console.log('Navigating to content preview:', previewUrl);
-          router.push(previewUrl);
-        } else {
-          const editUrl = `/t/course/${course_id}/week/${targetContent.week_id}/edit`;
-          console.log('Navigating to content edit:', editUrl);
-          router.push(editUrl);
-        }
+        const editUrl = `/t/course/${course_id}/week/${targetContent.week_id}/edit`;
+        console.log('Navigating to content edit:', editUrl);
+        router.push(editUrl);
       } else {
         console.error(`Content with id ${id} not found or course_id missing.`);
       }
     } else {
       const weekId = id;
       if (course_id) {
-        if (action === 'preview') {
-          const previewUrl = `/t/course/${course_id}/preview/week/${weekId}/1`;
-          console.log('Navigating to week preview:', previewUrl);
-          router.push(previewUrl);
-        } else {
-          const editUrl = `/t/course/${course_id}/week/${weekId}/edit`;
-          console.log('Navigating to week edit:', editUrl);
-          router.push(editUrl);
-        }
+        const editUrl = `/t/course/${course_id}/week/${weekId}/edit`;
+        console.log('Navigating to week edit:', editUrl);
+        router.push(editUrl);
+      } else {
+        console.error(`course_id missing.`);
+      }
+    }
+  };
+
+  const handlePreviewWeek = (id: number, isContentId = false) => {
+    console.log('handlePreviewWeek called:', { id, isContentId, course_id });
+    
+    if (isContentId) {
+      const targetContent = contents.find((c) => c.content_id === id);
+      console.log('Target content:', targetContent);
+      if (targetContent && course_id) {
+        const previewUrl = `/t/course/${course_id}/preview/week/${targetContent.week_id}/1`;
+        console.log('Navigating to content preview:', previewUrl);
+        router.push(previewUrl);
+      } else {
+        console.error(`Content with id ${id} not found or course_id missing.`);
+      }
+    } else {
+      const weekId = id;
+      if (course_id) {
+        const previewUrl = `/t/course/${course_id}/preview/week/${weekId}/1`;
+        console.log('Navigating to week preview:', previewUrl);
+        router.push(previewUrl);
       } else {
         console.error(`course_id missing.`);
       }
@@ -732,14 +699,12 @@ function CoursePage() {
   if (sessionError) {
     return (
       <>
-        <main className="pt-16">
-          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="container mx-auto px-4 py-8">
-              <h2 className="text-2xl font-bold text-red-600 mb-4">セッションエラー</h2>
-              <p>ログインが必要です。</p>
-            </div>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+          <div className="container mx-auto px-4 py-8">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">セッションエラー</h2>
+            <p>ログインが必要です。</p>
           </div>
-        </main>
+        </div>
       </>
     );
   }
@@ -747,53 +712,31 @@ function CoursePage() {
   if (loading) {
     return (
       <>
-        <main className="pt-16">
-          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="container mx-auto px-4 py-8">
-              <p>読み込み中...</p>
-            </div>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+          <div className="container mx-auto px-4 py-8">
+            <p>読み込み中...</p>
           </div>
-        </main>
+        </div>
       </>
     );
   }
 
   return (
     <>
-      <main className="pt-16">
-        <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-6xl mx-auto">
               {course && (
-                <div className="mb-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-primary">{course.subject_name}</h1>
-                    <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">必修</span>
-                    <span className="bg-purple-100 text-purple-800 text-sm font-medium px-3 py-1 rounded-full">
-                      基礎
-                    </span>
-                  </div>
+                <div className="mb-8">
+                  <h1 className="text-3xl font-bold mb-2">{course.subject_name}</h1>
                   <h2 className="text-xl text-gray-600 mb-4">
                     {course.course_name} / {course.period}
                   </h2>
-                  {course.course_description && (
-                    <blockquote className="text-gray-600 mt-4 p-4 bg-gray-50 rounded-lg border-l-4 border-primary">
-                      <p className="italic">{course.course_description}</p>
-                    </blockquote>
-                  )}
                 </div>
               )}
 
               <div className="mb-6">
                 <div className="flex items-center justify-end space-x-4">
-                  <Button
-                    onClick={() => router.push(`/t/course/${course_id}/preview`)}
-                    variant="outline"
-                    className="bg-white hover:bg-gray-50 text-gray-700 h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
-                  >
-                    <Eye className="w-5 h-5" />
-                    コースプレビュー
-                  </Button>
                   <Button
                     onClick={() => setIsAddContentDialogOpen(true)}
                     className="bg-primary hover:bg-primary/90 text-white h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
@@ -929,7 +872,7 @@ function CoursePage() {
                                   webkitdirectory="true"
                                   // @ts-ignore
                                   directory=""
-                                  className="h-12 text-base"
+                                  className="h-12 text-base file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                   required
                                 />
                               </label>
@@ -1053,13 +996,13 @@ function CoursePage() {
                   expandedWeekNumbers={expandedWeekNumbers}
                   onToggleWeekNumber={handleToggleWeekNumber}
                   onMoveWeek={handleMoveWeek}
+                  onPreviewWeek={handlePreviewWeek}
                   onMoveFlow={handleMoveFlow}
                 />
               )}
             </div>
           </div>
         </div>
-      </main>
     </>
   );
 }

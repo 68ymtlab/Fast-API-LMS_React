@@ -238,6 +238,8 @@ function CreateWeekPage() {
                           min="1"
                           placeholder="1"
                           {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          value={field.value}
                           disabled={loading}
                           className="text-base"
                         />
@@ -260,6 +262,8 @@ function CreateWeekPage() {
                           min="1"
                           placeholder="1"
                           {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          value={field.value}
                           disabled={loading}
                           className="text-base"
                         />

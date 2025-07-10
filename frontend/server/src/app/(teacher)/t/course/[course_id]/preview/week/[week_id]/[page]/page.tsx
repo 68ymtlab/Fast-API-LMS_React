@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 import Link from "next/link";
-import { MathJax, MathJaxSetup, MathJaxHTML } from "@/components/shared/MathJax";
+import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 
 interface WeekInfo {
   week_id: number;
@@ -48,8 +48,10 @@ function WeekPreviewPage() {
   
   const currentPage = parseInt(params.page as string) || 1;
 
-  // Vue版のcontent_replace関数を移植
-  const contentReplace = (content: string, assets: ContentAssets): string => {
+  // MathJaxコンポーネントが数式処理を自動で行うため、関数は不要
+
+  // 正常動作している編集ページを完全に模倣したcontentReplace関数
+  const contentReplace = (content: string, assets: ContentAssets | null): string => {
     if (!assets) return content;
 
     let processedContent = content;
@@ -57,14 +59,16 @@ function WeekPreviewPage() {
     // Flow links replacement
     assets.flow.forEach(flow => {
       const regex1 = new RegExp(`\\[(.*?)\\]\\s*\\(\\s*flow/${flow.id_in_yml}\\s*\\)`, 'g');
-      processedContent = processedContent.replace(regex1, `<div class="p-3 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg my-2"><p><a href="/flow/${flow.id}" class="text-blue-600 hover:text-blue-800">$1</a></p></div>`);
+      processedContent = processedContent.replace(regex1, `<div class="p-3 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg my-2"><p><a href="/t/course/${params.course_id}/preview/flow/${flow.id}" class="text-blue-600 hover:text-blue-800">$1</a></p></div>`);
     });
 
     // Image replacement
     assets.image.forEach(image => {
+      // (image/...) 形式を <img> タグに置換
       const regex2 = new RegExp(`\\(\\s*image/${image.name}\\s*\\)`, 'g');
-      processedContent = processedContent.replace(regex2, `![contentsimage](/api/get_image/${image.id})`);
+      processedContent = processedContent.replace(regex2, `<img src="/api/get_image/${image.id}" class="max-w-full h-auto" />`);
 
+      // [image/...] 形式を <img> タグに置換（width/height指定あり）
       const regex3 = new RegExp(`\\[\\s*image/${image.name}(.*?)\\s*\\]`, 'g');
       processedContent = processedContent.replace(regex3, (_, optionsStr) => {
         const widthMatch = optionsStr.match(/width=([0-9]+)/);
@@ -88,51 +92,13 @@ function WeekPreviewPage() {
     processedContent = processedContent.replace(regex4, (match, linkText, weekNum, order, page) => {
       const key = `${weekNum}_${order}`;
       const weekIdToUse = weekNumOrderToWeekId[key] || weekNum;
-      return `<div class="p-3 border-2 border-dashed border-green-300 bg-green-50 rounded-lg my-2"><p><a href="/../${weekIdToUse}/${page}" class="text-green-600 hover:text-green-800">${linkText}</a></p></div>`;
+      return `<div class="p-3 border-2 border-dashed border-green-300 bg-green-50 rounded-lg my-2"><p><a href="/t/course/${params.course_id}/preview/week/${weekIdToUse}/${page}" class="text-green-600 hover:text-green-800">${linkText}</a></p></div>`;
     });
 
     return processedContent;
   };
 
-  // シンプルなmarkdownToHtml関数
-  const markdownToHtml = (markdown: string): string => {
-    let html = markdown;
-    
-    // ヘッダー処理
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
-    
-    // 太字・斜体（数式を避ける）
-    html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
-    
-    // 改行処理
-    html = html.replace(/\n\n+/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    
-    // 段落で囲む
-    if (html && !html.startsWith('<')) {
-      html = '<p>' + html + '</p>';
-    }
-    
-    return html;
-  };
 
-  // 改良された数式処理関数
-  const processMathjax = (content: string): string => {
-    let processed = content;
-    
-    // 1. $$...$$（ブロック数式）を先に処理
-    processed = processed.replace(/\$\$([^$]+?)\$\$/g, '\\[$1\\]');
-    
-    // 2. $...$ （インライン数式）を処理
-    processed = processed.replace(/\$([^$\n]+?)\$/g, '\\($1\\)');
-    
-    // 3. 既存の\(...\)と\[...\]はそのまま保持
-    
-    return processed;
-  };
 
   useEffect(() => {
     if (!isLoadingUser && !loginUser) {
@@ -146,6 +112,52 @@ function WeekPreviewPage() {
     }
   }, [params.course_id, params.week_id, params.page]);
 
+  // MathJaxテストセクションを除去するDOM操作
+  useEffect(() => {
+    const removeMathJaxTestSection = () => {
+      console.log('Running DOM cleanup for MathJax test content');
+      
+      // h4要素でMathJaxテストを含むものを探す
+      const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      headings.forEach(heading => {
+        if (heading.textContent === 'MathJaxテスト') {
+          console.log('Found MathJax test heading:', heading);
+          // 見つかったヘッダー要素を削除
+          let element = heading;
+          const parent = heading.parentElement;
+          
+          // 親要素が存在し、その中身をすべて削除
+          if (parent) {
+            // 次の見出しまでの要素を削除
+            let nextElement = heading.nextElementSibling;
+            while (nextElement && !nextElement.tagName.match(/^H[1-6]$/)) {
+              const toRemove = nextElement;
+              nextElement = nextElement.nextElementSibling;
+              toRemove.remove();
+            }
+            heading.remove();
+          }
+        }
+      });
+    };
+
+    // 初回実行とMutationObserverの設定
+    setTimeout(removeMathJaxTestSection, 100);
+    setTimeout(removeMathJaxTestSection, 500);
+    setTimeout(removeMathJaxTestSection, 1000);
+
+    // MutationObserverでDOM変更を監視
+    const observer = new MutationObserver(() => {
+      removeMathJaxTestSection();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => observer.disconnect();
+  }, [processedContent]);
 
   const fetchWeekData = async () => {
     try {
@@ -159,46 +171,62 @@ function WeekPreviewPage() {
         currentPage
       });
       
-      // 週次コンテンツデータを取得
-      const response = await axios.get(`/get_week_content/${params.week_id}/${currentPage}`);
-      console.log('Week content response:', response.data);
+      // 編集ページと同じAPIエンドポイントを使用
+      const assetsResponse = await axios.get(`/get_week_origin_content/${params.course_id}/${params.week_id}`);
+      console.log('Assets response:', assetsResponse.data);
+      
+      const assets = {
+        image: assetsResponse.data.image || [],
+        flow: assetsResponse.data.flow || [],
+        page: assetsResponse.data.page || []
+      };
+      setContentAssets(assets);
 
-      // コンテンツアセット情報を取得（Vue版のget_week_origin_contentに相当）
-      let assets: ContentAssets = { image: [], flow: [], page: [] };
-      try {
-        const assetsResponse = await axios.get(`/get_week_origin_content/${params.course_id}/${params.week_id}`);
-        console.log('Content assets response:', assetsResponse.data);
-        assets = {
-          image: assetsResponse.data.image || [],
-          flow: assetsResponse.data.flow || [],
-          page: assetsResponse.data.page || []
-        };
-        setContentAssets(assets);
-      } catch (assetsError) {
-        console.warn("Content assets not available:", assetsError);
+      // 編集ページと同じように、現在ページのコンテンツを取得
+      const pageContent = assetsResponse.data.block.find((block: any) => block.page === currentPage);
+      let replacedContent = "";
+      if (pageContent) {
+        const rawContent = pageContent.content || "";
+        replacedContent = contentReplace(rawContent, assets);
+        
+        // デバッグログ
+        console.log('Raw content length:', rawContent.length);
+        console.log('Processed content before filtering:', replacedContent.substring(0, 500));
+        
+        // MathJaxテストセクションを除去
+        const originalLength = replacedContent.length;
+        console.log('Original content (first 1000 chars):', replacedContent.substring(0, 1000));
+        
+        // MathJaxテストセクションを見つけて削除
+        // #### MathJaxテスト から次の見出しまでを削除
+        replacedContent = replacedContent.replace(/####\s*MathJaxテスト[\s\S]*?(?=####\s*学習内容|$)/g, '');
+        replacedContent = replacedContent.replace(/###\s*MathJaxテスト[\s\S]*?(?=###|####|$)/g, '');
+        replacedContent = replacedContent.replace(/##\s*MathJaxテスト[\s\S]*?(?=##|###|####|$)/g, '');
+        replacedContent = replacedContent.replace(/#\s*MathJaxテスト[\s\S]*?(?=#|##|###|####|$)/g, '');
+        
+        // HTMLタグの場合
+        replacedContent = replacedContent.replace(/<h4[^>]*>\s*MathJaxテスト\s*<\/h4>[\s\S]*?(?=<h[1-6][^>]*>\s*学習内容|$)/gi, '');
+        replacedContent = replacedContent.replace(/<h3[^>]*>\s*MathJaxテスト\s*<\/h3>[\s\S]*?(?=<h[1-6]|$)/gi, '');
+        replacedContent = replacedContent.replace(/<h2[^>]*>\s*MathJaxテスト\s*<\/h2>[\s\S]*?(?=<h[1-6]|$)/gi, '');
+        replacedContent = replacedContent.replace(/<h1[^>]*>\s*MathJaxテスト\s*<\/h1>[\s\S]*?(?=<h[1-6]|$)/gi, '');
+        
+        // 空行を整理
+        replacedContent = replacedContent.replace(/\n{3,}/g, '\n\n');
+        replacedContent = replacedContent.trim();
+        
+        console.log('Content filtered from', originalLength, 'to', replacedContent.length, 'chars');
+        
+        setProcessedContent(replacedContent);
       }
 
-      // コンテンツを処理
-      const rawContent = response.data.content || "";
-      const replacedContent = contentReplace(rawContent, assets);
-      const markdownProcessed = markdownToHtml(replacedContent);
-      const finalContent = processMathjax(markdownProcessed);
-      setProcessedContent(finalContent);
-
-      console.log('Content processing:', {
-        rawLength: rawContent.length,
-        processedLength: finalContent.length,
-        hasMath: finalContent.includes('\\(') || finalContent.includes('\\[')
-      });
-
-      // 週情報を設定
+      // 週情報を設定（assetsResponseから取得）
       setWeekInfo({
-        week_id: response.data.week_id,
-        week_name: response.data.week_name,
-        week_detail: response.data.week_detail || "",
-        week_num: response.data.week_num,
-        week_content: finalContent,
-        total_pages: response.data.page_num || 1
+        week_id: parseInt(params.week_id as string),
+        week_name: `第${currentPage}ページ`,
+        week_detail: "",
+        week_num: 1,
+        week_content: replacedContent,
+        total_pages: assetsResponse.data.block?.length || 1
       });
       
       // フロー情報を取得
@@ -299,45 +327,19 @@ function WeekPreviewPage() {
                       )}
                       <div>
                         <h4 className="font-semibold mb-2">学習内容</h4>
-                        <div className="prose prose-sm max-w-none border rounded-lg p-4 bg-gray-50" style={{lineHeight: '2'}}>
-                          {processedContent ? (
-                            <MathJaxHTML html={processedContent} />
-                          ) : (
-                            <div className="text-gray-500 italic">コンテンツを読み込み中...</div>
-                          )}
-                        </div>
-                        {/* デバッグ情報 */}
-                        {process.env.NODE_ENV === 'development' && (
-                          <details className="mt-4">
-                            <summary className="cursor-pointer text-sm text-gray-500">デバッグ情報</summary>
-                            <div className="mt-2 p-2 bg-gray-100 rounded text-xs space-y-2">
-                              <div>
-                                <p><strong>Raw Content Length:</strong> {weekInfo?.week_content?.length || 0}</p>
-                                <p><strong>Processed Content Length:</strong> {processedContent.length}</p>
-                                <p><strong>Has Assets:</strong> {contentAssets ? 'Yes' : 'No'}</p>
-                                {contentAssets && (
-                                  <div>
-                                    <p><strong>Images:</strong> {contentAssets.image.length}</p>
-                                    <p><strong>Flows:</strong> {contentAssets.flow.length}</p>
-                                    <p><strong>Pages:</strong> {contentAssets.page.length}</p>
-                                  </div>
+                        <div className="border border-gray-200 rounded-lg min-h-[600px] bg-white overflow-auto">
+                          <div className="container mx-auto p-0">
+                            <div className="min-h-[300px]">
+                              <div className="p-4">
+                                {processedContent ? (
+                                  <MathJax text={processedContent} />
+                                ) : (
+                                  <div className="text-gray-500 italic">コンテンツを読み込み中...</div>
                                 )}
                               </div>
-                              <div>
-                                <p><strong>Math Detection:</strong></p>
-                                <p>- Inline Math: {processedContent.includes('\\(') ? 'Yes' : 'No'}</p>
-                                <p>- Display Math: {processedContent.includes('\\[') ? 'Yes' : 'No'}</p>
-                                <p>- Align Environment: {processedContent.includes('align') ? 'Yes' : 'No'}</p>
-                              </div>
-                              <details className="mt-2">
-                                <summary className="cursor-pointer text-gray-600">処理済みコンテンツ（先頭500文字）</summary>
-                                <pre className="mt-1 p-2 bg-gray-200 rounded text-xs overflow-auto max-h-32">
-                                  {processedContent.substring(0, 500)}
-                                </pre>
-                              </details>
                             </div>
-                          </details>
-                        )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -439,7 +441,7 @@ function WeekPreviewPage() {
 
                 {/* アクション */}
                 <div className="flex justify-center gap-4">
-                  <Link href={`/course/${params.course_id}/week/${params.week_id}/1`}>
+                  <Link href={`/t/course/${params.course_id}/week/${params.week_id}/1`}>
                     <Button variant="outline" className="flex items-center gap-2">
                       <Eye className="h-4 w-4" />
                       学生画面で表示
@@ -456,108 +458,3 @@ function WeekPreviewPage() {
 }
 
 export default WeekPreviewPage;
-
-// Vue版のスタイルを移植（MathJax対応強化）
-const styles = `
-  .box {
-    background: #c4d9ff;
-    border-left: #4e7bcc 5px solid;
-    padding: 10px;
-  }
-  .box p {
-    margin: 0;
-    padding: 0;
-  }
-  .indent_1 {
-    padding-left: 20px;
-  }
-  .indent_2 {
-    padding-left: 40px;
-  }
-  .solid_border_1 {
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 1px solid #333333;
-  }
-  .dashed_border_1 {
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 1px dashed #333333;
-  }
-  .example {
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 2px dashed #333333;
-  }
-  .answer {
-    text-align: center;
-    width: 40px;
-    margin: 1em;
-    border: solid 2px #000000;
-  }
-  .definition {
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 2px solid #333333;
-  }
-  
-  /* MathJax関連のスタイル */
-  .mathjax-content {
-    font-size: 16px;
-    line-height: 1.8;
-  }
-  
-  .mathjax-content .MathJax {
-    outline: none;
-  }
-  
-  .mathjax-content .MathJax_Display {
-    text-align: center !important;
-    margin: 1em 0 !important;
-  }
-  
-  .mathjax-content .MathJax_Preview {
-    color: #888;
-  }
-  
-  /* MathJax v3向けのスタイル */
-  .mathjax-content mjx-container[display="true"] {
-    margin: 1.5em 0 !important;
-    text-align: center !important;
-  }
-  
-  .mathjax-content mjx-container[jax="CHTML"][display="true"] {
-    margin: 1.5em 0 !important;
-    text-align: center !important;
-  }
-  
-  /* インライン数式の調整 */
-  .mathjax-content mjx-container[display="false"] {
-    display: inline-block;
-    margin: 0 0.1em;
-  }
-  
-  /* 数式フォントの調整 */
-  .mathjax-content mjx-math {
-    font-family: 'MathJax_Math', 'Times New Roman', serif;
-  }
-  
-  /* 数式の読み込み状態表示 */
-  .mathjax-content mjx-container[loading="true"] {
-    color: #888;
-    font-style: italic;
-  }
-`;
-
-// スタイルをページに注入
-if (typeof window !== 'undefined') {
-  const existingStyle = document.getElementById('preview-math-styles');
-  if (existingStyle) {
-    existingStyle.remove();
-  }
-  
-  const styleElement = document.createElement('style');
-  styleElement.id = 'preview-math-styles';
-  styleElement.textContent = styles;
-  document.head.appendChild(styleElement);
-}
