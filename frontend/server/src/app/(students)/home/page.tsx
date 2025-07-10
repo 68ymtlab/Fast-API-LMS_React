@@ -300,23 +300,19 @@ export const StudentHome = () => {
                       <User className="w-12 h-12 text-secondary" />
                     </div>
                     <p className="text-3xl font-bold text-gray-800">{username}</p>
-                    <div className="flex items-center gap-6 ml-8">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-7 h-7 text-secondary" />
-                        <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
+                                          <div className="flex items-center gap-6 ml-8">
+                        <div className="flex items-center gap-2 min-w-[80px]">
+                          <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
+                          <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
+                        </div>
+                        <div className="flex items-center gap-2 min-w-[80px] ml-4">
+                          <Star className="w-7 h-7 text-secondary flex-shrink-0" />
+                          <span className="text-xl font-bold text-gray-800">{point}pt</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Star className="w-7 h-7 text-secondary" />
-                        <span className="text-xl font-bold text-gray-800">{point}pt</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Crown className="w-7 h-7 text-secondary" />
-                        <span className="text-xl font-bold text-gray-800">{userRank}位</span>
-                      </div>
-                    </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
+                    <div className="flex items-center ml-4">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
@@ -328,7 +324,7 @@ export const StudentHome = () => {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 mr-20">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
