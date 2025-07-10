@@ -8,7 +8,7 @@ import SingleTextQuestion from "@/components/flow/SingleTextQuestion"
 import ChoiceQuestion from "@/components/flow/ChoiceQuestion"
 import DescriptiveTextQuestion from "@/components/flow/DescriptiveTextQuestion"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Move } from "lucide-react"
 import withAuth from "@/hocs/withAuth"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { MathJax } from "@/components/shared/MathJax"
@@ -58,6 +58,10 @@ function FlowSessionPage() {
   const [hintText, setHintText] = useState<string>("")
   const [showHintTooltip, setShowHintTooltip] = useState(false)
   const [hintTooltipClosed, setHintTooltipClosed] = useState(false)
+  const [hintPosition, setHintPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const hintRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Session state management functions
@@ -371,6 +375,49 @@ function FlowSessionPage() {
     startHintTimer();
   };
 
+  // ドラッグ機能
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (hintRef.current) {
+      const rect = hintRef.current.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+      setIsDragging(true);
+    }
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging && hintRef.current) {
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      
+      // 画面内に制限
+      const maxX = window.innerWidth - hintRef.current.offsetWidth;
+      const maxY = window.innerHeight - hintRef.current.offsetHeight;
+      
+      setHintPosition({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY))
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
+
   // ページ切り替え時にタイマー開始
   useEffect(() => {
     setShowHintTooltip(false);
@@ -515,32 +562,56 @@ function FlowSessionPage() {
             )}
             <DialogPrimitive.Portal>
               {hintOpen && (
-                <DialogPrimitive.Content
-                  style={{
-                    position: 'fixed',
-                    bottom: '2rem',
-                    right: '2rem',
-                    width: '480px',
-                    minHeight: '220px',
-                    maxHeight: '80vh',
-                    zIndex: 200,
-                    overflow: 'auto',
-                    padding: '0',
-                    borderRadius: '20px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08)',
-                    background: '#fff',
-                    border: '3px solid #FFD600',
-                  }}
-                  className="custom-scrollbar"
-                >
-                  <div style={{ position: 'relative', padding: '24px', fontSize: '1rem', color: '#222', lineHeight: 1.7 }}>
-                    <div style={{ fontWeight: 700, fontSize: '1.08rem', marginBottom: '10px', letterSpacing: '0.01em', color: '#222' }}>ヒント</div>
-                    <DialogPrimitive.Close style={{ position: 'absolute', top: 12, right: 12, background: '#f5f5f5', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#888" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </DialogPrimitive.Close>
-                    <MathJax text={hintText} />
-                  </div>
-                </DialogPrimitive.Content>
+                                                    <DialogPrimitive.Content
+                    ref={hintRef}
+                    style={{
+                      position: 'fixed',
+                      left: hintPosition.x || 'calc(100vw - 520px)',
+                      top: hintPosition.y || 'calc(100vh - 22rem)',
+                      width: '480px',
+                      minHeight: '220px',
+                      maxHeight: '80vh',
+                      zIndex: 200,
+                      overflow: 'auto',
+                      padding: '0',
+                      borderRadius: '20px',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08)',
+                      background: '#fff',
+                      border: '3px solid #FFD600',
+                      cursor: isDragging ? 'grabbing' : 'grab',
+                    }}
+                    className="custom-scrollbar"
+                  >
+                    <div 
+                      style={{ 
+                        position: 'relative', 
+                        padding: '24px', 
+                        fontSize: '1rem', 
+                        color: '#222', 
+                        lineHeight: 1.7,
+                        cursor: 'default'
+                      }}
+                      onMouseDown={handleMouseDown}
+                    >
+                      <div style={{ 
+                        fontWeight: 700, 
+                        fontSize: '1.08rem', 
+                        marginBottom: '10px', 
+                        letterSpacing: '0.01em', 
+                        color: '#222',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Move className="w-4 h-4" style={{ cursor: 'grab' }} />
+                        ヒント
+                      </div>
+                      <DialogPrimitive.Close style={{ position: 'absolute', top: 12, right: 12, background: '#f5f5f5', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#888" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </DialogPrimitive.Close>
+                      <MathJax text={hintText} />
+                    </div>
+                  </DialogPrimitive.Content>
               )}
             </DialogPrimitive.Portal>
           </DialogPrimitive.Root>
