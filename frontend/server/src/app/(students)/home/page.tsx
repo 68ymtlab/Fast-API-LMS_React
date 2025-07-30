@@ -68,13 +68,14 @@ export const StudentHome = () => {
   const [progress, setProgress] = useState(0);
   const [point_list_dialog, setPointListDialog] = useState(false);
   const [ranking_dialog, setRankingDialog] = useState(false);
+  const [open_dialog, setOpenDialog] = useState(true);
   const [newGoal, setNewGoal] = useState("");
   const [goals, setGoals] = useState<Goal[]>([]);
   const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
   const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
-
+  const [step, setStep] = useState(0);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [user_stats_dialog, setUserStatsDialog] = useState(false);
 
@@ -83,6 +84,69 @@ export const StudentHome = () => {
     { id: 2, title: "目標を設定", points: 3, icon: <Target className="w-5 h-5 text-secondary" /> },
     { id: 3, title: "演習問題を解く", points: 10, icon: <BookOpen className="w-5 h-5 text-secondary" /> },
     { id: 4, title: "累計10日ログイン", points: 10, icon: <Calendar className="w-5 h-5 text-secondary" /> },
+  ];
+
+  const steps = [
+    {
+      title: "システム紹介",
+      content: (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Math Peaksへようこそ!</h2>
+          <Card className="max-h-60 overflow-y-auto text-left">
+            <CardContent className="text-sm p-6">
+              <p>あなたの学習を支援します</p>
+            </CardContent>
+          </Card>
+        </div>
+      ),
+    },
+    {
+      title: "利用規約",
+      content: (
+        <div className="space-y-4">
+          <h1 className="text-lg font-semibold">利用規約に同意してください</h1>
+          <Card className="max-h-60 overflow-y-auto text-left">
+            <CardContent className="text-sm p-4 text-center">
+              <p>このサービスを利用するには、以下の利用規約に同意する必要があります。</p>
+              <p className="mt-2">Lorem ipsum dolor sit amet, consectetur adipiscing elit...</p>
+              <label className="text-xl font-bold pr-10">
+                同意する場合はチェック
+                <input type="checkbox" />
+              </label>
+            </CardContent>
+          </Card>
+        </div>
+      ),
+    },
+    {
+      title: "プロフィール入力",
+      content: (
+        <div className="space-y-4 text-left">
+          <h2 className="text-lg font-semibold">プロフィール情報を入力してください</h2>
+          <input type="text" placeholder="ニックネーム" className="w-full border p-2 rounded" />
+        </div>
+      ),
+    },
+    {
+      title: "パスワード更新",
+      content: (
+        <div className="space-y-4 text-left">
+          <h2 className="text-lg font-semibold">プロフィール情報を入力してください</h2>
+          <input type="text" placeholder="名前" className="w-full border p-2 rounded" />
+          <input type="email" placeholder="メールアドレス" className="w-full border p-2 rounded" />
+        </div>
+      ),
+    },
+    {
+      title: "確認",
+      content: (
+        <div className="space-y-4 text-center">
+          <h2 className="text-lg font-semibold">入力内容を確認してください</h2>
+          <p>名前: 山田太郎</p>
+          <p>メール: example@example.com</p>
+        </div>
+      ),
+    },
   ];
 
   const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
@@ -300,16 +364,16 @@ export const StudentHome = () => {
                       <User className="w-12 h-12 text-secondary" />
                     </div>
                     <p className="text-3xl font-bold text-gray-800">{username}</p>
-                                          <div className="flex items-center gap-6 ml-8">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
-                        </div>
-                        <div className="flex items-center gap-2 min-w-[80px] ml-4">
-                          <Star className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{point}pt</span>
-                        </div>
+                    <div className="flex items-center gap-6 ml-8">
+                      <div className="flex items-center gap-2 min-w-[80px]">
+                        <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
+                        <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
                       </div>
+                      <div className="flex items-center gap-2 min-w-[80px] ml-4">
+                        <Star className="w-7 h-7 text-secondary flex-shrink-0" />
+                        <span className="text-xl font-bold text-gray-800">{point}pt</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center ml-4">
@@ -791,6 +855,41 @@ export const StudentHome = () => {
               閉じる
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open_dialog} onOpenChange={setOpenDialog}>
+        <DialogContent className="!max-w-none w-[70vw] max-h-[100vh] overflow-y-auto">
+          {/* ステップバー */}
+          <DialogHeader className="flex-row">
+            {steps.map((s, index) => (
+              <div
+                key={index}
+                onClick={() => setStep(index)}
+                className={`flex-1 text-center pb-2 border-b cursor-pointer transition-colors ${
+                  step === index ? "border-blue-500 font-bold text-blue-600" : "border-gray-300 text-gray-500"
+                }`}
+              >
+                {s.title}
+              </div>
+            ))}
+          </DialogHeader>
+          {/* ステップ内容 */}
+          <Card>
+            <CardContent className="p-20 text-center">{steps[step].content}</CardContent>
+          </Card>
+          {/* ナビゲーション */}
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={() => setStep((prev) => Math.max(prev - 1, 0))} disabled={step === 0}>
+              戻る
+            </Button>
+            <Button
+              onClick={() => setStep((prev) => Math.min(prev + 1, steps.length - 1))}
+              disabled={step === steps.length - 1}
+            >
+              次へ
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>
