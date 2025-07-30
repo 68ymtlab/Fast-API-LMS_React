@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
 
 interface UserInfo {
   id: number;
@@ -125,11 +125,7 @@ const WeekSelectCard = ({
             }
           }}
         >
-          {loadingState[`week-${week.week_id}`] ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            "学習を始める"
-          )}
+          {loadingState[`week-${week.week_id}`] ? <Loader2 className="w-4 h-4 animate-spin" /> : "学習を始める"}
         </Button>
         <Button
           variant="default"
@@ -144,11 +140,7 @@ const WeekSelectCard = ({
             }
           }}
         >
-          {loadingState[`flow-${week.week_id}`] ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            "演習問題"
-          )}
+          {loadingState[`flow-${week.week_id}`] ? <Loader2 className="w-4 h-4 animate-spin" /> : "演習問題"}
         </Button>
       </div>
     </CardContent>
@@ -317,7 +309,10 @@ const WeekSelectTable = ({
                                     try {
                                       await onMoveWeek(content.content_id, true);
                                     } finally {
-                                      setLoadingState((prev) => ({ ...prev, [`content-${content.content_id}`]: false }));
+                                      setLoadingState((prev) => ({
+                                        ...prev,
+                                        [`content-${content.content_id}`]: false,
+                                      }));
                                     }
                                   }}
                                 >
