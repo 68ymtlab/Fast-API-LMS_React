@@ -90,12 +90,41 @@ export const StudentHome = () => {
     {
       title: "システム紹介",
       content: (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Math Peaksへようこそ!</h2>
-          <Card className="max-h-60 overflow-y-auto text-left">
-            <CardContent className="text-sm p-6">
-              <p>あなたの学習を支援します</p>
-            </CardContent>
+        <div className="space-y-6">
+          <h1 className="text-4xl font-bold text-blue-800 text-center">学習支援システムへようこそ!</h1>
+          <p className="text-lg text-gray-600">
+            このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
+          </p>
+
+          {/* システムの特徴 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+              <CardContent className="p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-blue-600">
+                  <Crown />
+                  パーソナライズ学習
+                </h3>
+                <p className="text-sm text-gray-600">
+                  あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+              <CardContent className="p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-blue-600">
+                  <BookOpen />
+                  教科書と演習問題
+                </h3>
+                <p className="text-sm text-gray-600">豊富な演習問題であなたの学習を手助けを行います。</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+            <h2 className="text-xl font-bold text-blue-600">あなたの学習をより効率的に</h2>
+            <p className="text-sm text-blue-800">
+              このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
+            </p>
           </Card>
         </div>
       ),
@@ -103,18 +132,27 @@ export const StudentHome = () => {
     {
       title: "利用規約",
       content: (
-        <div className="space-y-4">
-          <h1 className="text-lg font-semibold">利用規約に同意してください</h1>
-          <Card className="max-h-60 overflow-y-auto text-left">
-            <CardContent className="text-sm p-4 text-center">
-              <p>このサービスを利用するには、以下の利用規約に同意する必要があります。</p>
-              <p className="mt-2">Lorem ipsum dolor sit amet, consectetur adipiscing elit...</p>
-              <label className="text-xl font-bold pr-10">
-                同意する場合はチェック
-                <input type="checkbox" />
-              </label>
+        <div className="space-y-6">
+          <h1 className="text-2xl font-semibold text-gray-800">利用規約への同意</h1>
+
+          <Card className="max-h-60 overflow-y-auto border border-gray-300 shadow-sm bg-white">
+            <CardContent className="text-sm p-6 text-left text-gray-700 space-y-4">
+              <p>このサービスをご利用いただくには、以下の利用規約に同意していただく必要があります。</p>
+              <p>
+                本サービスでは、AIによる学習支援を行うため、ユーザーの学習履歴や操作情報を分析に使用します。個人を特定する情報は含まず、目的は学習体験の最適化のみです。
+              </p>
             </CardContent>
           </Card>
+
+          {/* 同意項目 */}
+          <div className="space-y-4 text-gray-800">
+            <div className="flex items-start gap-3">
+              <input type="checkbox" id="aiConsent" className="w-5 h-5 mt-1" />
+              <label htmlFor="aiConsent" className="text-base font-medium leading-relaxed">
+                学習の質を向上させるために、AIによる学習履歴の活用に同意します（個人は特定されません）
+              </label>
+            </div>
+          </div>
         </div>
       ),
     },
@@ -122,18 +160,66 @@ export const StudentHome = () => {
       title: "プロフィール入力",
       content: (
         <div className="space-y-4 text-left">
-          <h2 className="text-lg font-semibold">プロフィール情報を入力してください</h2>
-          <input type="text" placeholder="ニックネーム" className="w-full border p-2 rounded" />
+          <h2 className="text-xl font-semibold text-gray-800">プロフィール情報を入力してください</h2>
+
+          <div className="space-y-2">
+            <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
+              ニックネーム（8文字以内）
+            </label>
+            <input
+              id="nickname"
+              type="text"
+              maxLength={8}
+              placeholder="例: たろう123"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+            />
+          </div>
         </div>
       ),
     },
     {
       title: "パスワード更新",
       content: (
-        <div className="space-y-4 text-left">
-          <h2 className="text-lg font-semibold">プロフィール情報を入力してください</h2>
-          <input type="text" placeholder="名前" className="w-full border p-2 rounded" />
-          <input type="email" placeholder="メールアドレス" className="w-full border p-2 rounded" />
+        <div className="space-y-6 text-left">
+          <h2 className="text-xl font-semibold text-gray-800">パスワードを更新してください</h2>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                現在のパスワード
+              </label>
+              <input
+                id="currentPassword"
+                type="password"
+                placeholder="現在のパスワード"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                新しいパスワード
+              </label>
+              <input
+                id="newPassword"
+                type="password"
+                placeholder="新しいパスワード"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                新しいパスワード（確認用）
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                placeholder="もう一度入力"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+          </div>
         </div>
       ),
     },
@@ -859,35 +945,58 @@ export const StudentHome = () => {
       </Dialog>
 
       <Dialog open={open_dialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="!max-w-none w-[70vw] max-h-[100vh] overflow-y-auto">
-          {/* ステップバー */}
-          <DialogHeader className="flex-row">
+        <DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
+          {/* ステップインジケーター */}
+          <div className="flex items-center justify-between mb-8 relative">
             {steps.map((s, index) => (
-              <div
-                key={index}
-                onClick={() => setStep(index)}
-                className={`flex-1 text-center pb-2 border-b cursor-pointer transition-colors ${
-                  step === index ? "border-blue-500 font-bold text-blue-600" : "border-gray-300 text-gray-500"
-                }`}
-              >
-                {s.title}
+              <div key={index} className="flex-1 flex flex-col items-center relative">
+                <div
+                  className={`w-9 h-9 flex items-center justify-center rounded-full text-white text-sm font-bold z-10 transition-all
+                    ${step === index ? "bg-blue-600 scale-110 shadow-lg" : "bg-gray-300"}`}
+                  onClick={() => setStep(index)}
+                >
+                  {index + 1}
+                </div>
+                <span
+                  className={`mt-2 text-sm font-medium transition-colors ${step === index ? "text-blue-700" : "text-gray-500"}`}
+                >
+                  {s.title}
+                </span>
+                {/* ライン */}
+                {index < steps.length - 1 && (
+                  <div className="absolute top-[18px] left-1/2 w-full h-1 bg-gray-300 -z-10">
+                    <div
+                      className={`h-full bg-blue-500 transition-all duration-500 ${
+                        step > index ? "w-full" : step === index ? "w-1/2" : "w-0"
+                      }`}
+                    />
+                  </div>
+                )}
               </div>
             ))}
-          </DialogHeader>
-          {/* ステップ内容 */}
-          <Card>
-            <CardContent className="p-20 text-center">{steps[step].content}</CardContent>
+          </div>
+
+          {/* コンテンツ表示 */}
+          <Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
+            <CardContent className="p-10">{steps[step].content}</CardContent>
           </Card>
+
           {/* ナビゲーション */}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={() => setStep((prev) => Math.max(prev - 1, 0))} disabled={step === 0}>
-              戻る
+          <div className="flex justify-between mt-8">
+            <Button
+              variant="ghost"
+              onClick={() => setStep((prev) => Math.max(prev - 1, 0))}
+              disabled={step === 0}
+              className="rounded-full px-6 py-2 text-gray-700 hover:bg-gray-100 transition disabled:opacity-40"
+            >
+              ← 戻る
             </Button>
             <Button
               onClick={() => setStep((prev) => Math.min(prev + 1, steps.length - 1))}
               disabled={step === steps.length - 1}
+              className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
             >
-              次へ
+              次へ →
             </Button>
           </div>
         </DialogContent>
