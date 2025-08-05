@@ -1,32 +1,33 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect, KeyboardEvent } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { MathJax } from '@/components/shared/MathJax'
-import axios from '@/lib/axios'
+import { MathJax } from "@/components/shared/MathJax";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import axios from "@/lib/axios";
+import type React from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 
 interface PageContent {
-  content: string
-  blank_id: number
+  content: string;
+  blank_id: number;
 }
 
 interface BlankAnswer {
-  blank_id: number
-  answer: string | null
+  blank_id: number;
+  answer: string | null;
 }
 
 interface DescriptiveTextQuestionProps {
-  flow_session_id: number
-  page: number
-  page_content: PageContent
-  blank_answers: BlankAnswer[]
-  answer_comment: string
-  onAnswerUpdate?: (page: number, isCorrect: boolean) => void
+  flow_session_id: number;
+  page: number;
+  page_content: PageContent;
+  blank_answers: BlankAnswer[];
+  answer_comment: string;
+  onAnswerUpdate?: (page: number, isCorrect: boolean) => void;
 }
 
 interface AnswerResponse {
-  is_correct: boolean
+  is_correct: boolean;
 }
 
 const DescriptiveTextQuestion: React.FC<DescriptiveTextQuestionProps> = ({
@@ -35,70 +36,72 @@ const DescriptiveTextQuestion: React.FC<DescriptiveTextQuestionProps> = ({
   page_content,
   blank_answers,
   answer_comment,
-  onAnswerUpdate
+  onAnswerUpdate,
 }) => {
-  const [answer, setAnswer] = useState<string>('')
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
-  const [isAnswered, setIsAnswered] = useState(false)
+  const [answer, setAnswer] = useState<string>("");
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
 
   // Initialize answer
   useEffect(() => {
-    const existingAnswer = blank_answers.find(ba => ba.blank_id === page_content.blank_id)
-    setAnswer(existingAnswer?.answer || '')
-  }, [blank_answers, page_content.blank_id])
+    const existingAnswer = blank_answers.find((ba) => ba.blank_id === page_content.blank_id);
+    setAnswer(existingAnswer?.answer || "");
+  }, [blank_answers, page_content.blank_id]);
 
   // Reset state when props change
   useEffect(() => {
     if (!isAnswered) {
-      setIsCorrect(null)
+      setIsCorrect(null);
     }
-    setIsAnswered(false)
-  }, [page_content, blank_answers])
+    setIsAnswered(false);
+  }, [page_content, blank_answers]);
 
   const handleAnswerChange = (value: string) => {
-    setAnswer(value)
-  }
+    setAnswer(value);
+  };
 
   const registerAnswer = async () => {
-    const params = [{
-      flow_session_id,
-      page,
-      blank_id: page_content.blank_id,
-      answer
-    }]
+    const params = [
+      {
+        flow_session_id,
+        page,
+        blank_id: page_content.blank_id,
+        answer,
+      },
+    ];
 
     try {
-      const response = await axios.post<AnswerResponse[]>('/register_blank_answer', params)
-      
-      const isAnswerCorrect = response.data[0].is_correct
-      setIsAnswered(true)
-      setIsCorrect(isAnswerCorrect)
-      
+      const response = await axios.post<AnswerResponse[]>("/register_blank_answer", params);
+
+      const isAnswerCorrect = response.data[0].is_correct;
+      setIsAnswered(true);
+      setIsCorrect(isAnswerCorrect);
+
       // Notify parent component of answer status
       if (onAnswerUpdate) {
-        onAnswerUpdate(page, isAnswerCorrect)
+        onAnswerUpdate(page, isAnswerCorrect);
       }
     } catch (error) {
-      console.error('Error registering answer:', error)
+      console.error("Error registering answer:", error);
     }
-  }
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Ctrl+Enter or Cmd+Enter for submission in textarea
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault()
-      registerAnswer()
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      registerAnswer();
     }
-  }
+  };
 
   return (
-    <div className="container mx-auto p-0">
+    <div className="container mx-auto p-0 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
       <div className="min-h-[300px]">
         <div className="p-4">
           <MathJax text={page_content.content} />
         </div>
       </div>
-      
+
       <div className="p-0">
         <div className="rounded-lg p-8 bg-gray-100">
           <Textarea
@@ -109,9 +112,7 @@ const DescriptiveTextQuestion: React.FC<DescriptiveTextQuestionProps> = ({
             placeholder="解答を記述してください（Ctrl+Enterで送信）"
           />
           <div className="flex justify-end">
-            <Button onClick={registerAnswer}>
-              解答する
-            </Button>
+            <Button onClick={registerAnswer}>解答する</Button>
           </div>
         </div>
       </div>
@@ -136,7 +137,7 @@ const DescriptiveTextQuestion: React.FC<DescriptiveTextQuestionProps> = ({
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default DescriptiveTextQuestion
+export default DescriptiveTextQuestion;

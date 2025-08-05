@@ -167,9 +167,9 @@ const WeekSelectTable = ({
   loadingState: { [key: string]: boolean };
   setLoadingState: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
 }) => (
-  <div className="bg-white rounded-lg shadow-sm border">
+  <div className="bg-white rounded-lg shadow-sm border ">
     <div className="overflow-x-auto">
-      <table className="w-full table-layout-fixed">
+      <table className="w-full table-layout-fixed sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
         <colgroup>
           <col className="w-1/5" />
           <col className="w-2/5" />
@@ -509,7 +509,7 @@ export const CoursePage = () => {
     <>
       <main>
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-          <div className="container mx-auto px-4 py-8">
+          <div className="container mx-auto px-4 py-8 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
             <div className="max-w-6xl mx-auto">
               {course && (
                 <div className="mb-8">
