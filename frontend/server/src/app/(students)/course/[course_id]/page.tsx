@@ -247,6 +247,7 @@ const WeekSelectTable = ({
                               <Button
                                 variant="default"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 disabled={loadingState[`week-${week.week_id}`]}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -269,6 +270,7 @@ const WeekSelectTable = ({
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 disabled={loadingState[`flow-${week.week_id}`]}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -476,6 +478,14 @@ export const CoursePage = () => {
     router.push(`/weekflows/${course_id}/${weekId}`);
   };
 
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setIsCardView(false);
+    } else {
+      setIsCardView(true);
+    }
+  }, []);
+
   if (sessionError) {
     return (
       <>
@@ -509,12 +519,12 @@ export const CoursePage = () => {
     <>
       <main>
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-          <div className="container mx-auto px-4 py-8 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
+          <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-full md:max-w-7xl">
             <div className="max-w-6xl mx-auto">
               {course && (
                 <div className="mb-8">
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-primary">{course.subject_name}</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-primary">{course.subject_name}</h1>
                     <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">必修</span>
                   </div>
                   <h2 className="text-xl text-gray-600 mb-4">

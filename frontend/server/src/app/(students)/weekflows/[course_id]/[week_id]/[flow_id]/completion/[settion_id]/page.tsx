@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle, Trophy, ArrowLeft, RotateCcw } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
+import { AlertCircle, ArrowLeft, CheckCircle, RotateCcw, Trophy } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface CompletionData {
   content?: string;
@@ -70,7 +70,7 @@ function FlowCompletionPage() {
 
   const getPerformanceMessage = (accuracy?: number) => {
     if (!accuracy) return "";
-    
+
     if (accuracy >= 90) return "素晴らしい結果です！";
     if (accuracy >= 70) return "良い結果です！";
     if (accuracy >= 50) return "もう少し頑張りましょう";
@@ -86,7 +86,7 @@ function FlowCompletionPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <div className="container mx-auto py-8 px-4 max-w-4xl sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
       {errorMessage && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -108,12 +108,8 @@ function FlowCompletionPage() {
                   <CheckCircle className="h-16 w-16 text-green-600" />
                 </div>
               </div>
-              <CardTitle className="text-2xl text-green-700">
-                演習完了！
-              </CardTitle>
-              <CardDescription className="text-lg">
-                お疲れ様でした。演習セッションが完了しました。
-              </CardDescription>
+              <CardTitle className="text-2xl text-green-700">演習完了！</CardTitle>
+              <CardDescription className="text-lg">お疲れ様でした。演習セッションが完了しました。</CardDescription>
             </CardHeader>
           </Card>
 
@@ -137,7 +133,7 @@ function FlowCompletionPage() {
                         正答率
                       </Badge>
                     </div>
-                    
+
                     {completionData.total_questions && completionData.correct_answers !== undefined && (
                       <div className="text-center text-sm text-gray-600">
                         {completionData.correct_answers} / {completionData.total_questions} 問正解
@@ -148,17 +144,13 @@ function FlowCompletionPage() {
                   <div className="space-y-3">
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h4 className="font-medium mb-2">評価</h4>
-                      <p className="text-sm text-gray-700">
-                        {getPerformanceMessage(completionData.accuracy_rate)}
-                      </p>
+                      <p className="text-sm text-gray-700">{getPerformanceMessage(completionData.accuracy_rate)}</p>
                     </div>
 
                     {completionData.session_number && (
                       <div className="bg-blue-50 p-4 rounded-lg">
                         <h4 className="font-medium mb-2">セッション情報</h4>
-                        <p className="text-sm text-gray-700">
-                          セッション #{completionData.session_number}
-                        </p>
+                        <p className="text-sm text-gray-700">セッション #{completionData.session_number}</p>
                       </div>
                     )}
                   </div>
@@ -174,7 +166,7 @@ function FlowCompletionPage() {
                 <CardTitle className="text-lg">メッセージ</CardTitle>
               </CardHeader>
               <CardContent>
-                <div 
+                <div
                   className="prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{ __html: completionData.content }}
                 />
@@ -186,22 +178,12 @@ function FlowCompletionPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button
-                  onClick={returnToFlow}
-                  variant="default"
-                  size="lg"
-                  className="flex items-center gap-2"
-                >
+                <Button onClick={returnToFlow} variant="default" size="lg" className="flex items-center gap-2">
                   <ArrowLeft className="h-5 w-5" />
                   演習一覧に戻る
                 </Button>
-                
-                <Button
-                  onClick={startNewSession}
-                  variant="outline"
-                  size="lg"
-                  className="flex items-center gap-2"
-                >
+
+                <Button onClick={startNewSession} variant="outline" size="lg" className="flex items-center gap-2">
                   <RotateCcw className="h-5 w-5" />
                   再度挑戦する
                 </Button>
@@ -214,9 +196,7 @@ function FlowCompletionPage() {
             <CardContent className="pt-6">
               <div className="text-center">
                 <h3 className="font-medium mb-2">復習へ</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  教科書ページに戻り、わからない場所を復習しよう。
-                </p>
+                <p className="text-sm text-gray-600 mb-4">教科書ページに戻り、わからない場所を復習しよう。</p>
                 <Button
                   variant="outline"
                   onClick={() => router.push(`/lesson/${params.course_id}/${params.week_id}/1`)}

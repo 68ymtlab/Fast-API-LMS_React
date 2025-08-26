@@ -61,12 +61,12 @@ export const LessonPage = () => {
       <div className="w-full flex justify-center mb-6 sm:px-4 p-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
         {lesson && (
           <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : "exercise"} className="smart-tabs-bar">
-            <TabsList className="flex underline-tabs-bar">
+            <TabsList className="flex flex-wrap underline-tabs-bar">
               {Array.from({ length: lesson?.page_num ?? 0 }, (_, i) => (
                 <TabsTrigger
                   key={i + 1}
                   value={(i + 1).toString()}
-                  className="smart-tab-btn"
+                  className="smart-tab-btn flex-1 text-center px-1 py-2 text-sm sm:text-base"
                   onClick={() => router.push(`/lesson/${course_id}/${lesson_id}/${i + 1}`)}
                 >
                   {i + 1}
@@ -75,7 +75,7 @@ export const LessonPage = () => {
               <TabsTrigger
                 key="exercise"
                 value="exercise"
-                className="smart-tab-btn exercise"
+                className="smart-tab-btn exercise flex-1 text-center px-1 py-2 text-sm sm:text-base"
                 onClick={() => lesson?.week_id && router.push(`/weekflows/${course_id}/${lesson.week_id}`)}
               >
                 演習問題へ →
