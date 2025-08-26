@@ -6,6 +6,7 @@ import axios from "@/lib/axios";
 import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
+import { useMediaQuery } from "react-responsive";
 
 interface UserInfo {
   id: number;
@@ -478,13 +479,11 @@ export const CoursePage = () => {
     router.push(`/weekflows/${course_id}/${weekId}`);
   };
 
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+
   useEffect(() => {
-    if (window.innerWidth >= 768) {
-      setIsCardView(false);
-    } else {
-      setIsCardView(true);
-    }
-  }, []);
+    setIsCardView(isMobile);
+  }, [isMobile]);
 
   if (sessionError) {
     return (
