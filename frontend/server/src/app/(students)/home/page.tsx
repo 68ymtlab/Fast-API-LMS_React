@@ -290,29 +290,29 @@ export const StudentHome = () => {
   return (
     <>
       <main>
-        <div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-20">
-          <div className="container mx-auto px-8 py-8 max-w-7xl">
-            <div className="flex gap-8 w-full">
-              <div className="flex-1">
-                <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center gap-8 pl-4">
+        <div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-4 sm:pt-8">
+          <div className="container mx-auto px-2 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full">
+              <div className="flex-1 w-full">
+                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col justify-between h-full">
+                  <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 pl-0 sm:pl-4">
                     <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
                       <User className="w-12 h-12 text-secondary" />
                     </div>
-                    <p className="text-3xl font-bold text-gray-800">{username}</p>
-                                          <div className="flex items-center gap-6 ml-8">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
-                        </div>
-                        <div className="flex items-center gap-2 min-w-[80px] ml-4">
-                          <Star className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{point}pt</span>
-                        </div>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800 break-all">{username}</p>
+                    <div className="flex items-center gap-4 sm:gap-6 sm:ml-8 mt-2 sm:mt-0">
+                      <div className="flex items-center gap-2 min-w-[60px] sm:min-w-[80px]">
+                        <Clock className="w-6 h-6 sm:w-7 sm:h-7 text-secondary flex-shrink-0" />
+                        <span className="text-lg sm:text-xl font-bold text-gray-800">{loginNum}日</span>
                       </div>
+                      <div className="flex items-center gap-2 min-w-[60px] sm:min-w-[80px] ml-2 sm:ml-4">
+                        <Star className="w-6 h-6 sm:w-7 sm:h-7 text-secondary flex-shrink-0" />
+                        <span className="text-lg sm:text-xl font-bold text-gray-800">{point}pt</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center ml-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between mt-4 sm:mt-0">
+                    <div className="flex items-center ml-0 sm:ml-4 mb-2 sm:mb-0">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
@@ -324,17 +324,17 @@ export const StudentHome = () => {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <div className="flex items-center gap-4 mr-20">
+                    <div className="flex items-center gap-2 sm:gap-4 sm:mr-20">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              className="h-9 w-9 sm:h-10 sm:w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
                               onClick={() => setPointListDialog(true)}
                             >
-                              <List className="w-7 h-7 text-secondary" />
+                              <List className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -348,10 +348,10 @@ export const StudentHome = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              className="h-9 w-9 sm:h-10 sm:w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
                               onClick={() => setRankingDialog(true)}
                             >
-                              <Medal className="w-7 h-7 text-secondary" />
+                              <Medal className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -365,10 +365,10 @@ export const StudentHome = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              className="h-9 w-9 sm:h-10 sm:w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
                               onClick={() => setUserStatsDialog(true)}
                             >
-                              <BarChart2 className="w-7 h-7 text-secondary" />
+                              <BarChart2 className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -381,42 +381,42 @@ export const StudentHome = () => {
                 </div>
               </div>
 
-              <div className="flex-1">
-                <div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
+              <div className="flex-1 w-full mt-6 md:mt-0">
+                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 h-auto md:h-[230px]">
                   <Tabs defaultValue="goals" className="w-full">
                     <TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
                       <TabsTrigger
                         value="goals"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors text-xs sm:text-base"
                       >
                         設定した目標
                       </TabsTrigger>
                       <TabsTrigger
                         value="completed"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors text-xs sm:text-base"
                       >
                         達成した目標
                       </TabsTrigger>
                       <TabsTrigger
                         value="add"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors text-xs sm:text-base"
                       >
                         目標を設定
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="goals">
-                      <div className="space-y-2 h-32 overflow-y-auto pr-2">
+                      <div className="space-y-2 h-32 sm:h-32 overflow-y-auto pr-2">
                         {goals && goals.length > 0 ? (
                           goals.map((goal) => (
                             <div
                               key={goal.goal_id}
-                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+                              className="flex items-center justify-between p-1 sm:p-2 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/10 rounded-full">
-                                  <Target className="w-4 h-4 text-secondary" />
+                                <div className="p-1 bg-secondary/10 rounded-full">
+                                  <Target className="w-3 h-3 text-secondary" />
                                 </div>
-                                <span className="font-medium text-gray-800">{goal.details}</span>
+                                <span className="text-sm font-medium text-gray-800">{goal.details}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <TooltipProvider>
@@ -472,13 +472,13 @@ export const StudentHome = () => {
                           completeGoals.map((goal) => (
                             <div
                               key={goal.goal_id}
-                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+                              className="flex items-center justify-between p-1 sm:p-2 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/10 rounded-full">
-                                  <Trophy className="w-4 h-4 text-secondary" />
+                                <div className="p-1 bg-secondary/10 rounded-full">
+                                  <Trophy className="w-3 h-3 text-secondary" />
                                 </div>
-                                <span className="font-medium text-gray-800">{goal.details}</span>
+                                <span className="text-sm font-medium text-gray-800">{goal.details}</span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <TooltipProvider>
@@ -538,32 +538,32 @@ export const StudentHome = () => {
             </div>
 
             <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-6">学習科目一覧</h2>
-              <div className="grid grid-cols-2 gap-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">学習科目一覧</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6 m-3">
                 {subjects.map((subject) => (
-                  <Card key={subject.id}>
+                  <Card key={subject.id} className="w-full bg-gray-50">
                     <CardHeader>
-                      <div className="flex items-center gap-4">
-                        <Book className="w-10 h-10 text-secondary" />
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <Book className="w-8 h-8 sm:w-10 sm:h-10 text-secondary" />
                         <div>
-                          <CardTitle className="text-xl">{subject.title}</CardTitle>
-                          <div className="text-sm text-gray-500 mt-2">
-                            <span className="text-base">{subject.course}</span>
-                            <span className="mx-2">|</span>
-                            <span className="text-base">{subject.term}</span>
+                          <CardTitle className="text-lg sm:text-xl">{subject.title}</CardTitle>
+                          <div className="text-xs sm:text-sm text-gray-500 mt-1 sm:mt-2">
+                            <span className="text-sm sm:text-base">{subject.course}</span>
+                            <span className="mx-1 sm:mx-2">|</span>
+                            <span className="text-sm sm:text-base">{subject.term}</span>
                           </div>
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-gray-600 text-lg">完了レッスン</span>
-                          <span className="font-medium text-lg">
+                          <span className="text-gray-600 text-base sm:text-lg">完了レッスン</span>
+                          <span className="font-medium text-base sm:text-lg">
                             {subject.completedLessons}/{subject.totalLessons}
                           </span>
                         </div>
-                        <div className="w-full h-3 bg-gray-200 rounded-full mt-2">
+                        <div className="w-full h-2 sm:h-3 bg-gray-200 rounded-full mt-1 sm:mt-2">
                           <div
                             className="h-full rounded-full bg-secondary"
                             style={{ width: `${(subject.completedLessons / subject.totalLessons) * 100}%` }}
@@ -571,9 +571,9 @@ export const StudentHome = () => {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="flex gap-3">
+                    <CardFooter className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                       <Button
-                        className="flex-1 h-11 text-base font-semibold"
+                        className="w-full sm:flex-1 h-10 sm:h-11 text-base font-semibold"
                         variant="default"
                         onClick={() =>
                           handleButtonClick(`course-${subject.id}`, () => router.push(`/course/${subject.id}`))
@@ -588,14 +588,14 @@ export const StudentHome = () => {
                         )}
                       </Button>
                       <Button
-                        className="flex-1 h-11 text-base font-semibold"
+                        className="w-full sm:flex-1 h-10 sm:h-11 text-base font-semibold"
                         variant="outline"
                         onClick={() => router.push(`/coursescore/${subject.id}`)}
                       >
                         <BarChart className="w-5 h-5 mr-2" />
                         学習状況照会
                       </Button>
-                      <Button className="flex-1 h-11 text-base font-semibold" variant="outline">
+                      <Button className="w-full sm:flex-1 h-10 sm:h-11 text-base font-semibold" variant="outline">
                         <FileText className="w-5 h-5 mr-2" />
                         シラバス情報
                       </Button>
@@ -604,7 +604,7 @@ export const StudentHome = () => {
                 ))}
               </div>
             </div>
-            <Button onClick={logout} className="mt-4">
+            <Button onClick={logout} className="mt-4 w-full sm:w-auto">
               ログアウト
             </Button>
           </div>

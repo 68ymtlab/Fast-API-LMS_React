@@ -1,39 +1,40 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { MathJax } from '@/components/shared/MathJax'
-import axios from '@/lib/axios'
+import { MathJax } from "@/components/shared/MathJax";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import axios from "@/lib/axios";
+import type React from "react";
+import { useEffect, useState } from "react";
 
 interface Choice {
-  id: number
-  order: number
-  content: string
+  id: number;
+  order: number;
+  content: string;
 }
 
 interface PageContent {
-  content: string
-  blank_id: number
-  choices: Choice[]
+  content: string;
+  blank_id: number;
+  choices: Choice[];
 }
 
 interface BlankAnswer {
-  blank_id: number
-  answer: string | null
+  blank_id: number;
+  answer: string | null;
 }
 
 interface ChoiceQuestionProps {
-  flow_session_id: number
-  page: number
-  page_content: PageContent
-  blank_answers: BlankAnswer[]
-  answer_comment: string
-  onAnswerUpdate?: (page: number, isCorrect: boolean) => void
+  flow_session_id: number;
+  page: number;
+  page_content: PageContent;
+  blank_answers: BlankAnswer[];
+  answer_comment: string;
+  onAnswerUpdate?: (page: number, isCorrect: boolean) => void;
 }
 
 interface AnswerResponse {
-  is_correct: boolean
+  is_correct: boolean;
 }
 
 const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
@@ -42,76 +43,81 @@ const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
   page_content,
   blank_answers,
   answer_comment,
-  onAnswerUpdate
+  onAnswerUpdate,
 }) => {
-  const [selectedChoices, setSelectedChoices] = useState<number[]>([])
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
-  const [isAnswered, setIsAnswered] = useState(false)
+  const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
 
   // Initialize selected choices
   useEffect(() => {
-    const existingAnswer = blank_answers.find(ba => ba.blank_id === page_content.blank_id)
+    const existingAnswer = blank_answers.find((ba) => ba.blank_id === page_content.blank_id);
     if (existingAnswer?.answer) {
-      const choiceIds = existingAnswer.answer.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
-      setSelectedChoices(choiceIds)
+      const choiceIds = existingAnswer.answer
+        .split(",")
+        .map((id) => Number.parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
+      setSelectedChoices(choiceIds);
     } else {
-      setSelectedChoices([])
+      setSelectedChoices([]);
     }
-  }, [blank_answers, page_content.blank_id])
+  }, [blank_answers, page_content.blank_id]);
 
   // Reset state when props change
   useEffect(() => {
     if (!isAnswered) {
-      setIsCorrect(null)
+      setIsCorrect(null);
     }
-    setIsAnswered(false)
-  }, [page_content, blank_answers])
+    setIsAnswered(false);
+  }, [page_content, blank_answers]);
 
   const handleChoiceChange = (choiceId: number, checked: boolean) => {
-    setSelectedChoices(prev => {
+    setSelectedChoices((prev) => {
       if (checked) {
-        return [...prev, choiceId]
+        return [...prev, choiceId];
       } else {
-        return prev.filter(id => id !== choiceId)
+        return prev.filter((id) => id !== choiceId);
       }
-    })
-  }
+    });
+  };
 
   const registerAnswer = async () => {
     // Sort the selected choice IDs and convert to comma-separated string
-    const answerString = selectedChoices.sort((a, b) => a - b).join(',')
-    
-    const params = [{
-      flow_session_id,
-      page,
-      blank_id: page_content.blank_id,
-      answer: answerString
-    }]
+    const answerString = selectedChoices.sort((a, b) => a - b).join(",");
+
+    const params = [
+      {
+        flow_session_id,
+        page,
+        blank_id: page_content.blank_id,
+        answer: answerString,
+      },
+    ];
 
     try {
-      const response = await axios.post<AnswerResponse[]>('/register_blank_answer', params)
-      
-      const isAnswerCorrect = response.data[0].is_correct
-      setIsAnswered(true)
-      setIsCorrect(isAnswerCorrect)
-      
+      const response = await axios.post<AnswerResponse[]>("/register_blank_answer", params);
+
+      const isAnswerCorrect = response.data[0].is_correct;
+      setIsAnswered(true);
+      setIsCorrect(isAnswerCorrect);
+
       // Notify parent component of answer status
       if (onAnswerUpdate) {
-        onAnswerUpdate(page, isAnswerCorrect)
+        onAnswerUpdate(page, isAnswerCorrect);
       }
     } catch (error) {
-      console.error('Error registering answer:', error)
+      console.error("Error registering answer:", error);
     }
-  }
+  };
 
   return (
-    <div className="container mx-auto p-0">
+    <div className="container mx-auto p-0 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
       <div className="min-h-[300px]">
         <div className="p-4">
           <MathJax text={page_content.content} />
         </div>
       </div>
-      
+
       <div className="p-0">
         <div className="rounded-lg p-8 pl-12 bg-gray-100">
           <div className="space-y-4 mb-6">
@@ -132,9 +138,7 @@ const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
               ))}
           </div>
           <div className="flex justify-end">
-            <Button onClick={registerAnswer}>
-              解答する
-            </Button>
+            <Button onClick={registerAnswer}>解答する</Button>
           </div>
         </div>
       </div>
@@ -159,7 +163,7 @@ const ChoiceQuestion: React.FC<ChoiceQuestionProps> = ({
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default ChoiceQuestion
+export default ChoiceQuestion;

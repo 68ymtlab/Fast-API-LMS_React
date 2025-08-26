@@ -1,37 +1,38 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect, KeyboardEvent } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { MathJax } from '@/components/shared/MathJax'
-import axios from '@/lib/axios'
+import { MathJax } from "@/components/shared/MathJax";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import axios from "@/lib/axios";
+import type React from "react";
+import { type KeyboardEvent, useEffect, useState } from "react";
 
 interface AnswerColumn {
-  blank_id: number
-  md: string
+  blank_id: number;
+  md: string;
 }
 
 interface PageContent {
-  content: string
-  answer_column_content: AnswerColumn[]
+  content: string;
+  answer_column_content: AnswerColumn[];
 }
 
 interface BlankAnswer {
-  blank_id: number
-  answer: string | null
+  blank_id: number;
+  answer: string | null;
 }
 
 interface MultipleTextQuestionProps {
-  flow_session_id: number
-  page: number
-  page_content: PageContent
-  blank_answers: BlankAnswer[]
-  answer_comment: string
-  onAnswerUpdate?: (page: number, isCorrect: boolean) => void
+  flow_session_id: number;
+  page: number;
+  page_content: PageContent;
+  blank_answers: BlankAnswer[];
+  answer_comment: string;
+  onAnswerUpdate?: (page: number, isCorrect: boolean) => void;
 }
 
 interface AnswerResponse {
-  is_correct: boolean
+  is_correct: boolean;
 }
 
 const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
@@ -40,78 +41,78 @@ const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
   page_content,
   blank_answers,
   answer_comment,
-  onAnswerUpdate
+  onAnswerUpdate,
 }) => {
-  const [blankAnswers, setBlankAnswers] = useState<{ [key: number]: string }>({})
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
-  const [isAnswered, setIsAnswered] = useState(false)
+  const [blankAnswers, setBlankAnswers] = useState<{ [key: number]: string }>({});
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
 
   // Initialize blank answers
   useEffect(() => {
-    const initialAnswers: { [key: number]: string } = {}
-    blank_answers.forEach(ba => {
-      initialAnswers[ba.blank_id] = ba.answer || ''
-    })
-    setBlankAnswers(initialAnswers)
-  }, [blank_answers])
+    const initialAnswers: { [key: number]: string } = {};
+    blank_answers.forEach((ba) => {
+      initialAnswers[ba.blank_id] = ba.answer || "";
+    });
+    setBlankAnswers(initialAnswers);
+  }, [blank_answers]);
 
   // Reset state when props change
   useEffect(() => {
     if (!isAnswered) {
-      setIsCorrect(null)
+      setIsCorrect(null);
     }
-    setIsAnswered(false)
-  }, [page_content, blank_answers])
+    setIsAnswered(false);
+  }, [page_content, blank_answers]);
 
   const handleAnswerChange = (blankId: number, value: string) => {
-    setBlankAnswers(prev => ({
+    setBlankAnswers((prev) => ({
       ...prev,
-      [blankId]: value
-    }))
-  }
+      [blankId]: value,
+    }));
+  };
 
   const registerAnswer = async () => {
     const params = Object.entries(blankAnswers).map(([blankId, answer]) => ({
       flow_session_id,
       page,
       blank_id: Number(blankId),
-      answer
-    }))
+      answer,
+    }));
 
     try {
-      const response = await axios.post<AnswerResponse[]>('/register_blank_answer', params)
-      
+      const response = await axios.post<AnswerResponse[]>("/register_blank_answer", params);
+
       // Check if all answers are correct
-      const blanklength = page_content.answer_column_content.length
-      const correctCount = response.data.filter(item => item.is_correct).length
-      
-      const isAnswerCorrect = correctCount === blanklength
-      setIsAnswered(true)
-      setIsCorrect(isAnswerCorrect)
-      
+      const blanklength = page_content.answer_column_content.length;
+      const correctCount = response.data.filter((item) => item.is_correct).length;
+
+      const isAnswerCorrect = correctCount === blanklength;
+      setIsAnswered(true);
+      setIsCorrect(isAnswerCorrect);
+
       // Notify parent component of answer status
       if (onAnswerUpdate) {
-        onAnswerUpdate(page, isAnswerCorrect)
+        onAnswerUpdate(page, isAnswerCorrect);
       }
     } catch (error) {
-      console.error('Error registering answer:', error)
+      console.error("Error registering answer:", error);
     }
-  }
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      registerAnswer()
+    if (e.key === "Enter") {
+      registerAnswer();
     }
-  }
+  };
 
   return (
-    <div className="container mx-auto p-0">
+    <div className="container mx-auto p-0 sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
       <div className="min-h-[300px]">
         <div className="p-4">
           <MathJax text={page_content.content} />
         </div>
       </div>
-      
+
       <div className="p-0">
         <div className="rounded-lg p-8 bg-gray-100">
           {page_content.answer_column_content.map((answer_column) => (
@@ -119,7 +120,7 @@ const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
               <MathJax text={answer_column.md} />
               <Input
                 type="text"
-                value={blankAnswers[answer_column.blank_id] || ''}
+                value={blankAnswers[answer_column.blank_id] || ""}
                 onChange={(e) => handleAnswerChange(answer_column.blank_id, e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="mt-2"
@@ -128,9 +129,7 @@ const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
             </div>
           ))}
           <div className="flex justify-end mt-4">
-            <Button onClick={registerAnswer}>
-              解答する
-            </Button>
+            <Button onClick={registerAnswer}>解答する</Button>
           </div>
         </div>
       </div>
@@ -155,7 +154,7 @@ const MultipleTextQuestion: React.FC<MultipleTextQuestionProps> = ({
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default MultipleTextQuestion
+export default MultipleTextQuestion;

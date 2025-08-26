@@ -58,15 +58,15 @@ export const LessonPage = () => {
 
   return (
     <>
-      <div className="w-full flex justify-center mb-6">
+      <div className="w-full flex justify-center mb-6 sm:px-4 p-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
         {lesson && (
-          <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : 'exercise'} className="smart-tabs-bar">
-            <TabsList className="flex underline-tabs-bar">
+          <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : "exercise"} className="smart-tabs-bar">
+            <TabsList className="flex flex-wrap underline-tabs-bar">
               {Array.from({ length: lesson?.page_num ?? 0 }, (_, i) => (
                 <TabsTrigger
                   key={i + 1}
                   value={(i + 1).toString()}
-                  className="smart-tab-btn"
+                  className="smart-tab-btn flex-1 text-center px-1 py-2 text-sm sm:text-base"
                   onClick={() => router.push(`/lesson/${course_id}/${lesson_id}/${i + 1}`)}
                 >
                   {i + 1}
@@ -75,7 +75,7 @@ export const LessonPage = () => {
               <TabsTrigger
                 key="exercise"
                 value="exercise"
-                className="smart-tab-btn exercise"
+                className="smart-tab-btn exercise flex-1 text-center px-1 py-2 text-sm sm:text-base"
                 onClick={() => lesson?.week_id && router.push(`/weekflows/${course_id}/${lesson.week_id}`)}
               >
                 演習問題へ →
@@ -85,35 +85,36 @@ export const LessonPage = () => {
         )}
       </div>
       {isMobile ? (
-        <div className="flex flex-col textbook">
+        <div className="flex flex-col textbook p-4">
           <h1>
             第{lesson_id}回 _ {lesson?.week_name}
           </h1>
           <MathJax text={content} />
         </div>
       ) : (
-        <div className="container textbook">
+        <div className="container textbook sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
           <h1>
             第{lesson_id}回 _ {lesson?.week_name}
           </h1>
           <MathJax text={content} />
-          <div className="flex mt-4 justify-between items-center">
+          <div className="flex mt-4 justify-between items-center sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
             {Number(page) !== 1 ? (
               <Button className="default align-middle" onClick={go_previous_page}>
                 前のページ
               </Button>
-            ) : <span />}
+            ) : (
+              <span />
+            )}
             {Number(page) === lesson?.page_num ? (
               <Button className="default align-middle" onClick={go_lesson_page}>
                 コンテンツ一覧に戻る
               </Button>
-            ) : <span />}
+            ) : (
+              <span />
+            )}
           </div>
           {Number(page) < lesson?.page_num && (
-            <Button
-              className="ml-auto mt-8 block"
-              onClick={go_next_page}
-            >
+            <Button className="ml-auto mt-8 block" onClick={go_next_page}>
               次のページ
             </Button>
           )}

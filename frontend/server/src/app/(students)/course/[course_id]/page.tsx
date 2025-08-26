@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
+import { Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { useMediaQuery } from "react-responsive";
 
 interface UserInfo {
   id: number;
@@ -125,11 +126,7 @@ const WeekSelectCard = ({
             }
           }}
         >
-          {loadingState[`week-${week.week_id}`] ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            "学習を始める"
-          )}
+          {loadingState[`week-${week.week_id}`] ? <Loader2 className="w-4 h-4 animate-spin" /> : "学習を始める"}
         </Button>
         <Button
           variant="default"
@@ -144,11 +141,7 @@ const WeekSelectCard = ({
             }
           }}
         >
-          {loadingState[`flow-${week.week_id}`] ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            "演習問題"
-          )}
+          {loadingState[`flow-${week.week_id}`] ? <Loader2 className="w-4 h-4 animate-spin" /> : "演習問題"}
         </Button>
       </div>
     </CardContent>
@@ -175,9 +168,9 @@ const WeekSelectTable = ({
   loadingState: { [key: string]: boolean };
   setLoadingState: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
 }) => (
-  <div className="bg-white rounded-lg shadow-sm border">
+  <div className="bg-white rounded-lg shadow-sm border ">
     <div className="overflow-x-auto">
-      <table className="w-full table-layout-fixed">
+      <table className="w-full table-layout-fixed sm:px-4 md:px-8 py-4 sm:py-8 max-w-full md:max-w-7xl">
         <colgroup>
           <col className="w-1/5" />
           <col className="w-2/5" />
@@ -255,6 +248,7 @@ const WeekSelectTable = ({
                               <Button
                                 variant="default"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 disabled={loadingState[`week-${week.week_id}`]}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -277,6 +271,7 @@ const WeekSelectTable = ({
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 disabled={loadingState[`flow-${week.week_id}`]}
                                 onClick={async (e) => {
                                   e.stopPropagation();
@@ -317,7 +312,10 @@ const WeekSelectTable = ({
                                     try {
                                       await onMoveWeek(content.content_id, true);
                                     } finally {
-                                      setLoadingState((prev) => ({ ...prev, [`content-${content.content_id}`]: false }));
+                                      setLoadingState((prev) => ({
+                                        ...prev,
+                                        [`content-${content.content_id}`]: false,
+                                      }));
                                     }
                                   }}
                                 >
@@ -481,6 +479,12 @@ export const CoursePage = () => {
     router.push(`/weekflows/${course_id}/${weekId}`);
   };
 
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+
+  useEffect(() => {
+    setIsCardView(isMobile);
+  }, [isMobile]);
+
   if (sessionError) {
     return (
       <>
@@ -514,12 +518,12 @@ export const CoursePage = () => {
     <>
       <main>
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-          <div className="container mx-auto px-4 py-8">
+          <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-full md:max-w-7xl">
             <div className="max-w-6xl mx-auto">
               {course && (
                 <div className="mb-8">
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-3xl font-bold text-primary">{course.subject_name}</h1>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-primary">{course.subject_name}</h1>
                     <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">必修</span>
                   </div>
                   <h2 className="text-xl text-gray-600 mb-4">
