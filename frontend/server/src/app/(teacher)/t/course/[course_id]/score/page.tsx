@@ -361,8 +361,8 @@ function CourseScorePage() {
               {/* グラフ */}
               {Object.keys(exerciseStatistics).length > 0 ? (
                 <Card>
-                  <CardContent className="p-6">
-                    <div className="h-96">
+                  <CardContent className="p-6 flex justify-center">
+                    <div className="relative h-96 w-full max-w-4xl">
                       <Bar data={chartData} options={chartOptions} />
                     </div>
                   </CardContent>

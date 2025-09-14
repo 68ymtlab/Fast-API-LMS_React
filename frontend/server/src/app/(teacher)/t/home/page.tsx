@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
-import { BookOpen, Calendar, Loader2, User, Users } from "lucide-react";
+import { BookOpen, Calendar, Loader2, Megaphone, User, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Subject = {
   id: number;
@@ -107,6 +108,18 @@ function TeacherHome() {
               <h2 className="text-3xl font-bold text-gray-800">科目一覧</h2>
               <div className="flex items-center gap-3 bg-white/80 px-4 py-2 rounded-xl shadow-sm">
                 <ThemeSwitcher />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => router.push('/t/announcements')}>
+                        <Megaphone className="h-5 w-5 text-primary" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>お知らせを作成</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="bg-primary/10 p-2 rounded-lg">
                   <User className="h-5 w-5 text-primary" />
                 </div>
@@ -231,9 +244,6 @@ function TeacherHome() {
                 )}
               </>
             )}
-            <Button onClick={logout} className="mt-4">
-              ログアウト
-            </Button>
           </div>
         </div>
       </main>
