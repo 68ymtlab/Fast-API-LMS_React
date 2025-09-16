@@ -1,7 +1,7 @@
 "use client";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,7 @@ import axios from "@/lib/axios";
 import {
   BarChart,
   BarChart2,
+  Bell,
   Book,
   BookOpen,
   Calendar,
@@ -31,6 +32,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+
+import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
 
 interface Course {
   course_id: number;
@@ -59,6 +62,18 @@ interface HighPointer {
   point: number;
 }
 
+interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  start_date_time: string;
+  end_date_time: string;
+  send_date_time: string;
+  sender: string;
+  is_active: boolean;
+  is_read: boolean;
+}
+
 export const StudentHome = () => {
   const router = useRouter();
   const { logout } = useAuth();
@@ -74,6 +89,8 @@ export const StudentHome = () => {
   const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
+  const [hasUnread, setHasUnread] = useState(false);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [user_stats_dialog, setUserStatsDialog] = useState(false);
@@ -188,6 +205,18 @@ export const StudentHome = () => {
         console.error("ログイン日数の取得に失敗しました:", error);
       });
 
+    axios.get("/announcements_list").then((res) => {
+      const currentTime = new Date();
+      const unread = res.data.some((announcement: Announcement) => {
+        const startTime = new Date(announcement.start_date_time);
+        const endTime = new Date(announcement.end_date_time);
+        return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
+      });
+      setHasUnread(unread);
+    }).catch(error => {
+      console.error("お知らせの取得に失敗しました:", error);
+    });
+
     fetchProgress();
   }, [fetchProgress]);
 
@@ -295,27 +324,29 @@ export const StudentHome = () => {
             <div className="flex gap-8 w-full">
               <div className="flex-1">
                 <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center gap-8 pl-4">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
-                      <User className="w-12 h-12 text-secondary" />
-                    </div>
-                    <p className="text-3xl font-bold text-gray-800">{username}</p>
-                                          <div className="flex items-center gap-6 ml-8">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
-                        </div>
-                        <div className="flex items-center gap-2 min-w-[80px] ml-4">
-                          <Star className="w-7 h-7 text-secondary flex-shrink-0" />
-                          <span className="text-xl font-bold text-gray-800">{point}pt</span>
-                        </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-10">
+                      <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
+                        <User className="w-12 h-12 text-secondary" />
                       </div>
+                      <p className="text-3xl font-bold text-gray-800">{username}</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-6 mt-6">
+                      <div className="flex items-center gap-2 min-w-[80px]">
+                        <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
+                        <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
+                      </div>
+                      <div className="flex items-center gap-2 min-w-[80px] ml-4">
+                        <Star className="w-7 h-7 text-secondary flex-shrink-0" />
+                        <span className="text-xl font-bold text-gray-800">{point}pt</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center ml-4">
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger>
+                          <TooltipTrigger asChild>
                             <ThemeSwitcher />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -373,6 +404,26 @@ export const StudentHome = () => {
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>学習進捗</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="relative h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+                              onClick={() => setShowAnnouncements(true)}
+                            >
+                              <Bell className="w-7 h-7 text-secondary" />
+                              {hasUnread && (
+                                <span className="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>お知らせ</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -555,6 +606,7 @@ export const StudentHome = () => {
                         </div>
                       </div>
                     </CardHeader>
+                    {/*
                     <CardContent>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -571,6 +623,7 @@ export const StudentHome = () => {
                         </div>
                       </div>
                     </CardContent>
+                    */}
                     <CardFooter className="flex gap-3">
                       <Button
                         className="flex-1 h-11 text-base font-semibold"
@@ -604,9 +657,6 @@ export const StudentHome = () => {
                 ))}
               </div>
             </div>
-            <Button onClick={logout} className="mt-4">
-              ログアウト
-            </Button>
           </div>
         </div>
       </main>
@@ -793,6 +843,12 @@ export const StudentHome = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AnnouncementsDialog 
+        open={showAnnouncements} 
+        onOpenChange={setShowAnnouncements} 
+        onClose={() => setHasUnread(false)} 
+      />
     </>
   );
 };
