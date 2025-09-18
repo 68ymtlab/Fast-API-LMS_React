@@ -298,11 +298,10 @@ function ProfilePage() {
                                                                   <div className="space-y-4">
                                                                     {flowSession.flow_page &&
                                                                       Array.isArray(flowSession.flow_page) &&
-                                                                      // eslint-disable-next-line react/no-array-index-key
                                                                       flowSession.flow_page.map(
                                                                         (flowpage, flowpageIndex) => (
                                                                           <div
-                                                                            key={`${sessionKey}-flowpage-${flowpageIndex}`}
+                                                                            key={`${sessionKey}-flowpage-${flowpage.content}`}
                                                                             className="p-4 bg-red-50 border border-red-200 rounded-lg"
                                                                           >
                                                                             <MathJax text={flowpage.content} />
