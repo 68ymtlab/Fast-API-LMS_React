@@ -2,3 +2,7 @@
 
 # dependencies
 /node_modules
+
+# certificates
+*.cert
+*.key
