@@ -166,7 +166,7 @@ function ProfilePage() {
                     }
 
                     return (
-                      <div key={weekIndex}>
+                      <div key={Object.keys(week)[0] || weekIndex}>
                         {Object.entries(week).map(([weekKey, weekContent]) => {
                           console.log(`WeekContent for ${weekKey}:`, weekContent);
 
@@ -245,7 +245,7 @@ function ProfilePage() {
 
                                                       return (
                                                         <Card
-                                                          key={sessionIndex}
+                                                          key={sessionKey}
                                                           className="ml-4 border-l-4 border-l-blue-200"
                                                         >
                                                           <Collapsible
@@ -298,10 +298,11 @@ function ProfilePage() {
                                                                   <div className="space-y-4">
                                                                     {flowSession.flow_page &&
                                                                       Array.isArray(flowSession.flow_page) &&
+                                                                      // eslint-disable-next-line react/no-array-index-key
                                                                       flowSession.flow_page.map(
                                                                         (flowpage, flowpageIndex) => (
                                                                           <div
-                                                                            key={flowpageIndex}
+                                                                            key={`${sessionKey}-flowpage-${flowpageIndex}`}
                                                                             className="p-4 bg-red-50 border border-red-200 rounded-lg"
                                                                           >
                                                                             <MathJax text={flowpage.content} />
