@@ -1,42 +1,57 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { AlertCircle, CheckCircle, Calendar, Clock, BookOpen, Edit, Trash2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Calendar, CheckCircle, Clock, Edit, Trash2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
 
-
-const formSchema = z.object({
-  courseName: z.string().min(1, "コース名を入力してください").max(100, "コース名は100文字以内で入力してください"),
-  startYear: z.string().min(4, "年を4桁で入力してください").max(4),
-  startMonth: z.string().min(1, "月を入力してください").max(2),
-  startDay: z.string().min(1, "日を入力してください").max(2),
-  startHour: z.string().min(1, "時を入力してください").max(2),
-  startMinute: z.string().min(1, "分を入力してください").max(2),
-  endYear: z.string().min(4, "年を4桁で入力してください").max(4),
-  endMonth: z.string().min(1, "月を入力してください").max(2),
-  endDay: z.string().min(1, "日を入力してください").max(2),
-  endHour: z.string().min(1, "時を入力してください").max(2),
-  endMinute: z.string().min(1, "分を入力してください").max(2),
-  weeks: z.number().min(1, "週数を入力してください"),
-}).refine((data) => {
-  const startDate = new Date(`${data.startYear}-${data.startMonth.padStart(2, '0')}-${data.startDay.padStart(2, '0')}T${data.startHour.padStart(2, '0')}:${data.startMinute.padStart(2, '0')}:00`);
-  const endDate = new Date(`${data.endYear}-${data.endMonth.padStart(2, '0')}-${data.endDay.padStart(2, '0')}T${data.endHour.padStart(2, '0')}:${data.endMinute.padStart(2, '0')}:00`);
-  return endDate > startDate;
-}, {
-  message: "終了日時は開始日時より後に設定してください",
-  path: ["endYear"],
-});
+const formSchema = z
+  .object({
+    courseName: z.string().min(1, "コース名を入力してください").max(100, "コース名は100文字以内で入力してください"),
+    startYear: z.string().min(4, "年を4桁で入力してください").max(4),
+    startMonth: z.string().min(1, "月を入力してください").max(2),
+    startDay: z.string().min(1, "日を入力してください").max(2),
+    startHour: z.string().min(1, "時を入力してください").max(2),
+    startMinute: z.string().min(1, "分を入力してください").max(2),
+    endYear: z.string().min(4, "年を4桁で入力してください").max(4),
+    endMonth: z.string().min(1, "月を入力してください").max(2),
+    endDay: z.string().min(1, "日を入力してください").max(2),
+    endHour: z.string().min(1, "時を入力してください").max(2),
+    endMinute: z.string().min(1, "分を入力してください").max(2),
+    weeks: z.number().min(1, "週数を入力してください"),
+  })
+  .refine(
+    (data) => {
+      const startDate = new Date(
+        `${data.startYear}-${data.startMonth.padStart(2, "0")}-${data.startDay.padStart(2, "0")}T${data.startHour.padStart(2, "0")}:${data.startMinute.padStart(2, "0")}:00`,
+      );
+      const endDate = new Date(
+        `${data.endYear}-${data.endMonth.padStart(2, "0")}-${data.endDay.padStart(2, "0")}T${data.endHour.padStart(2, "0")}:${data.endMinute.padStart(2, "0")}:00`,
+      );
+      return endDate > startDate;
+    },
+    {
+      message: "終了日時は開始日時より後に設定してください",
+      path: ["endYear"],
+    },
+  );
 
 type FormData = z.infer<typeof formSchema>;
 
@@ -105,7 +120,7 @@ function EditCourseInfoPage() {
   const fetchCourseInfo = async () => {
     try {
       setInitialLoading(true);
-              const response = await axios.get(`/get_course_info/${params.course_id}`);
+      const response = await axios.get(`/get_course_info/${params.course_id}`);
       const data = response.data;
       setCourseInfo(data);
 
@@ -135,7 +150,7 @@ function EditCourseInfoPage() {
   };
 
   const combineDateTime = (year: string, month: string, day: string, hour: string, minute: string) => {
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:00`;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`;
   };
 
   const onSubmit = async (data: FormData) => {
@@ -147,12 +162,18 @@ function EditCourseInfoPage() {
       const updateData = {
         course_id: params.course_id,
         course_name: data.courseName,
-        start_date_time: combineDateTime(data.startYear, data.startMonth, data.startDay, data.startHour, data.startMinute),
+        start_date_time: combineDateTime(
+          data.startYear,
+          data.startMonth,
+          data.startDay,
+          data.startHour,
+          data.startMinute,
+        ),
         end_date_time: combineDateTime(data.endYear, data.endMonth, data.endDay, data.endHour, data.endMinute),
         weeks: data.weeks,
       };
 
-              const response = await axios.post("/update_course", updateData);
+      const response = await axios.post("/update_course", updateData);
 
       if (response.data.success) {
         setSuccess(true);
@@ -174,7 +195,7 @@ function EditCourseInfoPage() {
 
   const handleDelete = async () => {
     try {
-              const response = await axios.post("/delete_course", {
+      const response = await axios.post("/delete_course", {
         course_id: params.course_id,
       });
 
@@ -197,7 +218,7 @@ function EditCourseInfoPage() {
   if (isLoadingUser || initialLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary" />
       </div>
     );
   }
@@ -225,9 +246,7 @@ function EditCourseInfoPage() {
             <Edit className="h-6 w-6" />
             コース情報の編集
           </CardTitle>
-          <CardDescription>
-            コースの基本情報を変更できます
-          </CardDescription>
+          <CardDescription>コースの基本情報を変更できます</CardDescription>
         </CardHeader>
         <CardContent>
           {errorMessage && (
@@ -240,9 +259,7 @@ function EditCourseInfoPage() {
           {!canUpdate && (
             <Alert className="mb-6">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                このコースは編集権限がないため、表示のみとなります
-              </AlertDescription>
+              <AlertDescription>このコースは編集権限がないため、表示のみとなります</AlertDescription>
             </Alert>
           )}
 
@@ -294,12 +311,7 @@ function EditCourseInfoPage() {
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="2024"
-                              {...field}
-                              disabled={loading || !canUpdate}
-                            />
+                            <Input type="number" placeholder="2024" {...field} disabled={loading || !canUpdate} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -410,12 +422,7 @@ function EditCourseInfoPage() {
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="2025"
-                              {...field}
-                              disabled={loading || !canUpdate}
-                            />
+                            <Input type="number" placeholder="2025" {...field} disabled={loading || !canUpdate} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -542,21 +549,11 @@ function EditCourseInfoPage() {
               </div>
 
               <div className="flex justify-center gap-4 pt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={loading}
-                  className="px-8"
-                >
+                <Button type="button" variant="outline" onClick={handleCancel} disabled={loading} className="px-8">
                   戻る
                 </Button>
                 {canUpdate && (
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="px-8"
-                  >
+                  <Button type="submit" disabled={loading} className="px-8">
                     {loading ? "更新中..." : "更新"}
                   </Button>
                 )}
@@ -586,9 +583,7 @@ function EditCourseInfoPage() {
               <CheckCircle className="h-16 w-16 text-green-500" />
             </div>
             <DialogTitle className="text-xl">更新完了</DialogTitle>
-            <DialogDescription>
-              コース情報が正常に更新されました
-            </DialogDescription>
+            <DialogDescription>コース情報が正常に更新されました</DialogDescription>
           </DialogHeader>
         </DialogContent>
       </Dialog>
@@ -598,23 +593,13 @@ function EditCourseInfoPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl text-red-600">コースの削除</DialogTitle>
-            <DialogDescription>
-              このコースを削除しますか？この操作は取り消すことができません。
-            </DialogDescription>
+            <DialogDescription>このコースを削除しますか？この操作は取り消すことができません。</DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setShowDeleteDialog(false)}>
               キャンセル
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-            >
+            <Button type="button" variant="destructive" onClick={handleDelete}>
               削除する
             </Button>
           </DialogFooter>
