@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,7 +64,9 @@ function SyllabusPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-6xl">
+    <>
+      <TcAccessTime page="student_course_syllabus" />
+      <div className="container mx-auto py-8 px-4 max-w-6xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl flex items-center gap-2">
@@ -248,6 +252,7 @@ function SyllabusPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
 

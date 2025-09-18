@@ -1,4 +1,5 @@
 "use client";
+import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import withAuth from "@/hocs/withAuth";
@@ -512,6 +513,7 @@ export const CoursePage = () => {
 
   return (
     <>
+      <TcAccessTime page="student_course_detail" />
       <main>
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
           <div className="container mx-auto px-4 py-8">

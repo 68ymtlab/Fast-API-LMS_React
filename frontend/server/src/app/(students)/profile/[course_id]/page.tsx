@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import React, { useEffect, useState } from "react";
 import axios from "@/lib/axios";
 import { useParams } from "next/navigation";
@@ -58,7 +60,9 @@ const ProfilePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white p-4">
+    <>
+      <TcAccessTime page="student_profile_detail" />
+      <div className="min-h-screen bg-white p-4">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">演習履歴</h1>
@@ -229,6 +233,7 @@ const ProfilePage = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

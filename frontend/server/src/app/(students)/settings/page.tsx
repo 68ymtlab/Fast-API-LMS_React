@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -34,7 +36,9 @@ function StudentSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <>
+      <TcAccessTime page="student_settings" />
+      <div className="container mx-auto py-8 px-4 max-w-4xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">ユーザー設定</CardTitle>
@@ -125,6 +129,7 @@ function StudentSettingsPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
 

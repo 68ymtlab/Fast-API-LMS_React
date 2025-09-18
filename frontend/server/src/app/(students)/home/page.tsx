@@ -34,6 +34,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
+import TcAccessTime from "@/components/tc_access_time";
 
 interface Course {
   course_id: number;
@@ -318,6 +319,7 @@ export const StudentHome = () => {
 
   return (
     <>
+      <TcAccessTime page="student_home" />
       <main>
         <div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-20">
           <div className="container mx-auto px-8 py-8 max-w-7xl">
@@ -648,7 +650,11 @@ export const StudentHome = () => {
                         <BarChart className="w-5 h-5 mr-2" />
                         学習状況照会
                       </Button>
-                      <Button className="flex-1 h-11 text-base font-semibold" variant="outline">
+                      <Button
+                        className="flex-1 h-11 text-base font-semibold"
+                        variant="outline"
+                        onClick={() => router.push(`/course/${subject.id}/syllabus`)}
+                      >
                         <FileText className="w-5 h-5 mr-2" />
                         シラバス情報
                       </Button>

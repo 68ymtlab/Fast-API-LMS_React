@@ -1,4 +1,5 @@
 "use client";
+import TcAccessTime from "@/components/tc_access_time";
 import axios from "@/lib/axios";
 import {
   BarElement,
@@ -252,84 +253,87 @@ const Page = () => {
   };
 
   return (
-    <div
-      style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        margin: "32px 0 0 0",
-        padding: "0 16px",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: 40 }}>
-        <h1
-          style={{
-            fontSize: "2.8rem",
-            fontWeight: 800,
-            color: primaryColor,
-            letterSpacing: "0.08em",
-            margin: 0,
-            textShadow: "0 2px 16px rgba(0,0,0,0.08)",
-            lineHeight: 1.15,
-          }}
-        >
-          学生スコア表示
-        </h1>
+    <>
+      <TcAccessTime page="student_coursescore" />
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          margin: "32px 0 0 0",
+          padding: "0 16px",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <h1
+            style={{
+              fontSize: "2.8rem",
+              fontWeight: 800,
+              color: primaryColor,
+              letterSpacing: "0.08em",
+              margin: 0,
+              textShadow: "0 2px 16px rgba(0,0,0,0.08)",
+              lineHeight: 1.15,
+            }}
+          >
+            学生スコア表示
+          </h1>
+          <div
+            style={{
+              color: secondaryColor,
+              fontSize: "1.15rem",
+              marginTop: 12,
+              fontWeight: 500,
+              letterSpacing: "0.03em",
+              textShadow: "0 1px 6px rgba(0,0,0,0.06)",
+            }}
+          >
+            あなたの演習問題ごとの得点と推移をグラフで確認できます
+          </div>
+        </div>
         <div
+          className="bar"
           style={{
-            color: secondaryColor,
-            fontSize: "1.15rem",
-            marginTop: 12,
-            fontWeight: 500,
-            letterSpacing: "0.03em",
-            textShadow: "0 1px 6px rgba(0,0,0,0.06)",
+            width: "100%",
+            maxWidth: 1000,
+            margin: "20px auto 0 auto",
+            padding: 24,
+            borderRadius: 18,
+            backgroundColor: "#f9f9f9",
+            boxShadow: "0 6px 24px rgba(0,0,0,0.10)",
+            display: "flex",
+            justifyContent: "center",
+            height: "420px",
+            marginBottom: 40,
           }}
         >
-          あなたの演習問題ごとの得点と推移をグラフで確認できます
+          <div style={{ width: "100%", maxWidth: 1000 }}>
+            <Bar data={chartData} options={chartOptions} height={350} />
+          </div>
+        </div>
+        <div
+          className="line"
+          style={{
+            width: "100%",
+            maxWidth: 1000,
+            margin: "30px auto 0 auto",
+            padding: 24,
+            borderRadius: 18,
+            backgroundColor: "#f9f9f9",
+            boxShadow: "0 6px 24px rgba(0,0,0,0.10)",
+            display: "flex",
+            justifyContent: "center",
+            height: "500px",
+            marginBottom: 40,
+          }}
+        >
+          <div style={{ width: "100%", maxWidth: 1000 }}>
+            <Line data={lineChartData} options={lineChartOptions} height={400} />
+          </div>
         </div>
       </div>
-      <div
-        className="bar"
-        style={{
-          width: "100%",
-          maxWidth: 1000,
-          margin: "20px auto 0 auto",
-          padding: 24,
-          borderRadius: 18,
-          backgroundColor: "#f9f9f9",
-          boxShadow: "0 6px 24px rgba(0,0,0,0.10)",
-          display: "flex",
-          justifyContent: "center",
-          height: "420px",
-          marginBottom: 40,
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 1000 }}>
-          <Bar data={chartData} options={chartOptions} height={350} />
-        </div>
-      </div>
-      <div
-        className="line"
-        style={{
-          width: "100%",
-          maxWidth: 1000,
-          margin: "30px auto 0 auto",
-          padding: 24,
-          borderRadius: 18,
-          backgroundColor: "#f9f9f9",
-          boxShadow: "0 6px 24px rgba(0,0,0,0.10)",
-          display: "flex",
-          justifyContent: "center",
-          height: "500px",
-          marginBottom: 40,
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 1000 }}>
-          <Line data={lineChartData} options={lineChartOptions} height={400} />
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 

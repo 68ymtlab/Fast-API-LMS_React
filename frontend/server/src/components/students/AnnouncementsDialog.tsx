@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertCircle, Megaphone } from "lucide-react";
+import { AlertCircle, FileText, Megaphone } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import axios from "@/lib/axios";
 import ReactMarkdown from "react-markdown";
@@ -114,27 +114,34 @@ export function AnnouncementsDialog({ open, onOpenChange, onClose }: Announcemen
               <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
           ) : announcements.length > 0 ? (
-            <ul className="divide-y divide-gray-200 max-h-[60vh] overflow-y-auto">
-              {announcements.map((announcement) => (
-                <li
-                  key={announcement.id}
-                  onClick={() => handleShowDetails(announcement)}
-                  className={`p-4 cursor-pointer hover:bg-gray-50 ${!announcement.is_read ? 'font-bold' : ''}`}
-                >
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-2 text-sm text-gray-600">
-                      {formatDate(announcement.send_date_time)}
-                    </div>
-                    <div className="col-span-8">
-                      {announcement.title}
-                    </div>
-                    <div className="col-span-2 text-sm text-gray-600">
-                      {announcement.sender}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="border rounded-lg max-h-[60vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-primary text-primary-foreground">
+                  <tr>
+                    <th className="text-left font-medium p-3 w-32">日付</th>
+                    <th className="text-left font-medium p-3">タイトル</th>
+                    <th className="text-left font-medium p-3 w-40">作成者</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {announcements.map((announcement) => (
+                    <tr
+                      key={announcement.id}
+                      onClick={() => handleShowDetails(announcement)}
+                      className={`cursor-pointer hover:bg-muted/50 ${!announcement.is_read ? "font-semibold bg-primary/5" : ""}`}
+                    >
+                      <td className="p-3 text-muted-foreground">
+                        {formatDate(announcement.send_date_time)}
+                      </td>
+                      <td className="p-3">{announcement.title}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {announcement.sender}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="text-center py-8">
               <Megaphone className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -150,36 +157,41 @@ export function AnnouncementsDialog({ open, onOpenChange, onClose }: Announcemen
 
         <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
             <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-                <DialogTitle>メッセージ 確認</DialogTitle>
-            </DialogHeader>
-            {selectedAnnouncement && (
-                <div className="space-y-4 p-4">
-                <div className="flex items-center">
-                    <strong className="w-24">表示期間</strong>
-                    <span>{processDate(selectedAnnouncement.start_date_time)} ～ {processDate(selectedAnnouncement.end_date_time)}</span>
-                </div>
-                <div className="flex items-start">
-                    <strong className="w-24">タイトル</strong>
-                    <span>{selectedAnnouncement.title}</span>
-                </div>
-                <div className="flex items-start">
-                    <strong className="w-24">本文</strong>
-                    <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>{selectedAnnouncement.content}</ReactMarkdown>
-                    </div>
-                </div>
-                <div className="flex items-center">
-                    <strong className="w-24">発信者</strong>
-                    <span>{selectedAnnouncement.sender}</span>
-                </div>
-                </div>
-            )}
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>
-                閉じる
-                </Button>
-            </DialogFooter>
+              <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-primary">
+                      <FileText className="h-6 w-6" />
+                      お知らせ詳細
+                  </DialogTitle>
+              </DialogHeader>
+              {selectedAnnouncement && (
+                  <div className="space-y-6 py-4">
+                      <div>
+                          <strong className="text-sm font-semibold text-primary">タイトル</strong>
+                          <p className="mt-1 text-xl font-bold">{selectedAnnouncement.title}</p>
+                      </div>
+                      <div className="border-t pt-6">
+                          <strong className="text-sm font-semibold text-primary">本文</strong>
+                          <div className="prose prose-sm max-w-none mt-2">
+                              <ReactMarkdown>{selectedAnnouncement.content}</ReactMarkdown>
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 pt-6 border-t">
+                        <div>
+                            <strong className="text-sm font-semibold text-primary">表示期間</strong>
+                            <p className="mt-1 text-sm text-muted-foreground">{processDate(selectedAnnouncement.start_date_time)} ～ {processDate(selectedAnnouncement.end_date_time)}</p>
+                        </div>
+                        <div>
+                            <strong className="text-sm font-semibold text-primary">発信者</strong>
+                            <p className="mt-1 text-sm text-muted-foreground">{selectedAnnouncement.sender}</p>
+                        </div>
+                      </div>
+                  </div>
+              )}
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>
+                  閉じる
+                  </Button>
+              </DialogFooter>
             </DialogContent>
         </Dialog>
       </DialogContent>

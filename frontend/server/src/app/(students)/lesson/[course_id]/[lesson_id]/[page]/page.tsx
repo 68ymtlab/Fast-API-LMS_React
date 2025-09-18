@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { MathJax } from "@/components/shared/MathJax";
 import axios from "@/lib/axios";
 import { useParams, useRouter } from "next/navigation";
@@ -58,6 +60,7 @@ export const LessonPage = () => {
 
   return (
     <>
+      <TcAccessTime page="student_lesson_page" />
       <div className="w-full flex justify-center mb-6">
         {lesson && (
           <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : 'exercise'} className="smart-tabs-bar">

@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -86,7 +88,9 @@ function FlowCompletionPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <>
+      <TcAccessTime page="student_weekflows_completion" />
+      <div className="container mx-auto py-8 px-4 max-w-4xl">
       {errorMessage && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -231,6 +235,7 @@ function FlowCompletionPage() {
         </div>
       )}
     </div>
+    </>
   );
 }
 
