@@ -139,7 +139,7 @@ function EditCourseInfoPage() {
         endDay: endDateTime.day,
         endHour: endDateTime.hour,
         endMinute: endDateTime.minute,
-        weeks: data.weeks.toString(),
+        weeks: data.weeks,
       });
     } catch (error) {
       console.error("Error fetching course info:", error);
@@ -185,9 +185,14 @@ function EditCourseInfoPage() {
       } else {
         setErrorMessage(response.data.error_msg || "コースの更新に失敗しました");
       }
-    } catch (error: any) {
-      console.error("Error updating course:", error);
-      setErrorMessage("コースの更新に失敗しました");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error updating course:", error);
+        setErrorMessage(`コースの更新に失敗しました: ${error.message}`);
+      } else {
+        console.error("An unexpected error occurred:", error);
+        setErrorMessage("予期せぬエラーが発生しました");
+      }
     } finally {
       setLoading(false);
     }
@@ -204,9 +209,14 @@ function EditCourseInfoPage() {
       } else {
         setErrorMessage("コースの削除に失敗しました");
       }
-    } catch (error) {
-      console.error("Error deleting course:", error);
-      setErrorMessage("コースの削除に失敗しました");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error deleting course:", error);
+        setErrorMessage(`コースの削除に失敗しました: ${error.message}`);
+      } else {
+        console.error("An unexpected error occurred:", error);
+        setErrorMessage("予期せぬエラーが発生しました");
+      }
     }
     setShowDeleteDialog(false);
   };
