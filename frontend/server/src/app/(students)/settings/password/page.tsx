@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -92,7 +94,9 @@ function PasswordUpdatePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-2xl">
+    <>
+      <TcAccessTime page="student_settings_password" />
+      <div className="container mx-auto py-8 px-4 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">パスワードの更新</CardTitle>
@@ -190,6 +194,7 @@ function PasswordUpdatePage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
 

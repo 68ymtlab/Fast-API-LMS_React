@@ -1,5 +1,7 @@
 "use client";
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,6 +135,7 @@ export const WeekFlowsPage = () => {
 
   return (
     <>
+      <TcAccessTime page="student_weekflows" />
       <main>
         <div className="min-h-screen bg-gray-100">
           <div className="container mx-auto px-4 py-8">

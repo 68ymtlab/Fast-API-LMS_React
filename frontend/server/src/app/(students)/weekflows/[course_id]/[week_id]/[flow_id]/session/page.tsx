@@ -1,5 +1,7 @@
 "use client"
 
+import TcAccessTime from "@/components/tc_access_time";
+
 import { useEffect, useState, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import axios from "@/lib/axios"
@@ -443,7 +445,9 @@ function FlowSessionPage() {
   }
 
   return (
-    <main>
+    <>
+      <TcAccessTime page="student_weekflows_session" />
+      <main>
       <div className="container mx-auto py-8">
         {/* Header */}
         <div className="mb-6">
@@ -657,6 +661,7 @@ function FlowSessionPage() {
         </div>
       </div>
     </main>
+    </>
   )
 }
 

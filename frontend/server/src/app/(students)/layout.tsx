@@ -4,7 +4,7 @@ import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { SidebarGroups } from "@/types/sidebarGroups";
-import { Book, Home, Settings, ShieldQuestion, Users } from "lucide-react";
+import { Home, Settings, ShieldQuestion } from "lucide-react";
 import { type ReactNode, memo } from "react";
 
 const sidebarGroups: SidebarGroups[] = [
@@ -16,21 +16,24 @@ const sidebarGroups: SidebarGroups[] = [
         url: "/home",
         icon: Home,
       },
+      /*
       {
         title: "コース",
         url: "/courses",
         icon: Book,
       },
+      */
     ],
   },
   {
     groupLabel: "ユーザー設定",
     groupItems: [
+      /*
       {
         title: "プロフィール",
         url: "/profile",
         icon: Users,
-      },
+      },*/
       {
         title: "アカウント設定",
         url: "/settings",

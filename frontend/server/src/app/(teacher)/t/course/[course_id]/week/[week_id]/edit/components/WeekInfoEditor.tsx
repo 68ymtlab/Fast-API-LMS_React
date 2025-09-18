@@ -14,6 +14,7 @@ import { AlertCircle, CheckCircle, Info, Image, Hash, BookOpen, Trash2 } from "l
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import axios from "@/lib/axios";
+import WeekImageEditor from "./WeekImageEditor";
 
 const formSchema = z.object({
   weekName: z.string().min(1, "コンテンツ名を入力してください").max(100, "コンテンツ名は100文字以内で入力してください"),
@@ -317,14 +318,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
         </TabsContent>
 
         <TabsContent value="image" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-xl">画像管理</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 text-center py-8">画像管理機能は実装予定です</p>
-            </CardContent>
-          </Card>
+          <WeekImageEditor />
         </TabsContent>
 
         <TabsContent value="keyword" className="mt-6">
