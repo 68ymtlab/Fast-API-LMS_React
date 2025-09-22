@@ -1,20 +1,24 @@
 "use client";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
 import {
+  AlertCircle,
   BarChart,
   BarChart2,
   Book,
   BookOpen,
   Calendar,
+  CheckCircle2,
   Clock,
   Crown,
   FileText,
@@ -28,6 +32,7 @@ import {
   Trash2,
   Trophy,
   User,
+  Wand2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -59,6 +64,127 @@ interface HighPointer {
   point: number;
 }
 
+// パスワード更新フォームコンポーネント
+const PasswordUpdateForm = ({ username, onSuccess }: { username: string; onSuccess: () => void }) => {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleUpdatePassword = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setErrorMessage("すべてのフィールドを入力してください。");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMessage("新しいパスワードが一致しません。");
+      return;
+    }
+    if (oldPassword === newPassword) {
+      setErrorMessage("現在のパスワードと新しいパスワードが同じです。");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post("/update_password", {
+        email: username,
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+
+      if (response.data.success) {
+        setSuccessMessage("パスワードが正常に更新されました。自動的に次のステップに進みます。");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => {
+          onSuccess();
+        }, 2000); // 2秒後に次のステップへ
+      } else {
+        setErrorMessage(response.data.error_msg || "パスワードの更新に失敗しました。");
+      }
+    } catch (error) {
+      console.error("Error updating password:", error);
+      setErrorMessage("パスワードの更新中にエラーが発生しました。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-left">
+      <h2 className="text-xl font-semibold text-gray-800">パスワードを更新してください</h2>
+      <p className="text-sm text-gray-600">セキュリティのため、初期パスワードから変更することを推奨します。</p>
+
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>エラー</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+      {successMessage && (
+        <Alert className="bg-green-100 border-green-300 text-green-800">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertTitle>成功</AlertTitle>
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="currentPassword">現在のパスワード</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            placeholder="現在のパスワード"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <Label htmlFor="newPassword">新しいパスワード</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            placeholder="新しいパスワード"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">新しいパスワード（確認用）</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            placeholder="もう一度入力"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button onClick={handleUpdatePassword} disabled={loading || !!successMessage}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          パスワードを変更する
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 export const StudentHome = () => {
   const router = useRouter();
   const { logout } = useAuth();
@@ -79,6 +205,12 @@ export const StudentHome = () => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [user_stats_dialog, setUserStatsDialog] = useState(false);
 
+  const handleNextStep = () => {
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    }
+  };
+
   const pointItems = [
     { id: 1, title: "ログイン", points: 1, icon: <LogIn className="w-5 h-5 text-secondary" /> },
     { id: 2, title: "目標を設定", points: 3, icon: <Target className="w-5 h-5 text-secondary" /> },
@@ -88,20 +220,39 @@ export const StudentHome = () => {
 
   const steps = [
     {
-      title: "システム紹介",
+      title: "ページの紹介",
+      content: (
+        <div className="space-y-6 text-center">
+          <h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
+          <p className="text-lg text-gray-600">
+            このシステムは、あなたの学習をサポートするために設計されています。
+            <br />
+            日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
+          </p>
+          <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+            <h2 className="text-xl font-bold text-blue-600">まずは、いくつかの初期設定を行いましょう。</h2>
+            <p className="text-sm text-blue-800">簡単なステップで、あなたに最適な学習環境を整えることができます。</p>
+          </Card>
+        </div>
+      ),
+    },
+    {
+      title: "パスワード変更",
+      content: <PasswordUpdateForm username={username} onSuccess={handleNextStep} />,
+    },
+    {
+      title: "システムの紹介",
       content: (
         <div className="space-y-6">
           <h1 className="text-4xl font-bold text-blue-800 text-center">学習支援システムへようこそ!</h1>
           <p className="text-lg text-gray-600">
             このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
           </p>
-
-          {/* システムの特徴 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="p-6 space-y-4">
-                <h3 className="text-xl font-semibold text-blue-600">
-                  <Crown />
+                <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+                  <Wand2 />
                   パーソナライズ学習
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -111,7 +262,7 @@ export const StudentHome = () => {
             </Card>
             <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="p-6 space-y-4">
-                <h3 className="text-xl font-semibold text-blue-600">
+                <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
                   <BookOpen />
                   教科書と演習問題
                 </h3>
@@ -119,117 +270,12 @@ export const StudentHome = () => {
               </CardContent>
             </Card>
           </div>
-
           <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
             <h2 className="text-xl font-bold text-blue-600">あなたの学習をより効率的に</h2>
             <p className="text-sm text-blue-800">
               このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
             </p>
           </Card>
-        </div>
-      ),
-    },
-    {
-      title: "利用規約",
-      content: (
-        <div className="space-y-6">
-          <h1 className="text-2xl font-semibold text-gray-800">利用規約への同意</h1>
-
-          <Card className="max-h-60 overflow-y-auto border border-gray-300 shadow-sm bg-white">
-            <CardContent className="text-sm p-6 text-left text-gray-700 space-y-4">
-              <p>このサービスをご利用いただくには、以下の利用規約に同意していただく必要があります。</p>
-              <p>
-                本サービスでは、AIによる学習支援を行うため、ユーザーの学習履歴や操作情報を分析に使用します。個人を特定する情報は含まず、目的は学習体験の最適化のみです。
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* 同意項目 */}
-          <div className="space-y-4 text-gray-800">
-            <div className="flex items-start gap-3">
-              <input type="checkbox" id="aiConsent" className="w-5 h-5 mt-1" />
-              <label htmlFor="aiConsent" className="text-base font-medium leading-relaxed">
-                学習の質を向上させるために、AIによる学習履歴の活用に同意します（個人は特定されません）
-              </label>
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "プロフィール入力",
-      content: (
-        <div className="space-y-4 text-left">
-          <h2 className="text-xl font-semibold text-gray-800">プロフィール情報を入力してください</h2>
-
-          <div className="space-y-2">
-            <label htmlFor="nickname" className="block text-sm font-medium text-gray-700">
-              ニックネーム（8文字以内）
-            </label>
-            <input
-              id="nickname"
-              type="text"
-              maxLength={8}
-              placeholder="例: たろう123"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-            />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "パスワード更新",
-      content: (
-        <div className="space-y-6 text-left">
-          <h2 className="text-xl font-semibold text-gray-800">パスワードを更新してください</h2>
-
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                現在のパスワード
-              </label>
-              <input
-                id="currentPassword"
-                type="password"
-                placeholder="現在のパスワード"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                新しいパスワード
-              </label>
-              <input
-                id="newPassword"
-                type="password"
-                placeholder="新しいパスワード"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                新しいパスワード（確認用）
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                placeholder="もう一度入力"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 transition"
-              />
-            </div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "確認",
-      content: (
-        <div className="space-y-4 text-center">
-          <h2 className="text-lg font-semibold">入力内容を確認してください</h2>
-          <p>名前: 山田太郎</p>
-          <p>メール: example@example.com</p>
         </div>
       ),
     },
@@ -359,6 +405,19 @@ export const StudentHome = () => {
       });
   }, [username]);
 
+  useEffect(() => {
+    axios
+      .get("/get_accsess_log")
+      .then((res) => {
+        const hasAccessed = res.data;
+        setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
+      })
+      .catch((error) => {
+        console.error("アクセスログの取得に失敗しました:", error);
+        setOpenDialog(true); // Show on error
+      });
+  }, []);
+
   const handleAddGoal = () => {
     if (newGoal.trim() === "") {
       return;
@@ -435,6 +494,19 @@ export const StudentHome = () => {
       .catch((error) => {
         console.error("目標の削除に失敗しました:", error);
       });
+  };
+
+  const handleDialogNavigation = () => {
+    if (step === 1) {
+      // パスワード変更ステップでは、フォーム内のボタンで遷移を制御
+      return;
+    }
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
+      // 最後のステップならダイアログを閉じる
+      setOpenDialog(false);
+    }
   };
 
   return (
@@ -946,14 +1018,12 @@ export const StudentHome = () => {
 
       <Dialog open={open_dialog} onOpenChange={setOpenDialog}>
         <DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
-          {/* ステップインジケーター */}
           <div className="flex items-center justify-between mb-8 relative">
             {steps.map((s, index) => (
               <div key={index} className="flex-1 flex flex-col items-center relative">
                 <div
                   className={`w-9 h-9 flex items-center justify-center rounded-full text-white text-sm font-bold z-10 transition-all
                     ${step === index ? "bg-blue-600 scale-110 shadow-lg" : "bg-gray-300"}`}
-                  onClick={() => setStep(index)}
                 >
                   {index + 1}
                 </div>
@@ -962,13 +1032,10 @@ export const StudentHome = () => {
                 >
                   {s.title}
                 </span>
-                {/* ライン */}
                 {index < steps.length - 1 && (
                   <div className="absolute top-[18px] left-1/2 w-full h-1 bg-gray-300 -z-10">
                     <div
-                      className={`h-full bg-blue-500 transition-all duration-500 ${
-                        step > index ? "w-full" : step === index ? "w-1/2" : "w-0"
-                      }`}
+                      className={`h-full bg-blue-500 transition-all duration-500 ${step > index ? "w-full" : "w-0"}`}
                     />
                   </div>
                 )}
@@ -976,28 +1043,27 @@ export const StudentHome = () => {
             ))}
           </div>
 
-          {/* コンテンツ表示 */}
           <Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
             <CardContent className="p-10">{steps[step].content}</CardContent>
           </Card>
 
-          {/* ナビゲーション */}
           <div className="flex justify-between mt-8">
             <Button
               variant="ghost"
               onClick={() => setStep((prev) => Math.max(prev - 1, 0))}
-              disabled={step === 0}
+              disabled={step === 0 || step === 1}
               className="rounded-full px-6 py-2 text-gray-700 hover:bg-gray-100 transition disabled:opacity-40"
             >
               ← 戻る
             </Button>
-            <Button
-              onClick={() => setStep((prev) => Math.min(prev + 1, steps.length - 1))}
-              disabled={step === steps.length - 1}
-              className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
-            >
-              次へ →
-            </Button>
+            {step !== 1 && ( // パスワード変更ステップでは独自のボタンがあるので、共通の「次へ」ボタンを非表示にする
+              <Button
+                onClick={handleDialogNavigation}
+                className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
+              >
+                {step === steps.length - 1 ? "完了" : "次へ →"}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
