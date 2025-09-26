@@ -16,6 +16,7 @@ type LessonType = {
   page_num: number;
   content: string;
   week_id?: string;
+  week_num: number;
 };
 
 export const LessonPage = () => {
@@ -63,7 +64,7 @@ export const LessonPage = () => {
       <TcAccessTime page="student_lesson_page" />
       <div className="w-full flex justify-center mb-6">
         {lesson && (
-          <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : 'exercise'} className="smart-tabs-bar">
+          <Tabs value={Number(page) <= (lesson?.page_num ?? 0) ? page : "exercise"} className="smart-tabs-bar">
             <TabsList className="flex underline-tabs-bar">
               {Array.from({ length: lesson?.page_num ?? 0 }, (_, i) => (
                 <TabsTrigger
@@ -90,14 +91,14 @@ export const LessonPage = () => {
       {isMobile ? (
         <div className="flex flex-col textbook">
           <h1>
-            第{lesson_id}回 _ {lesson?.week_name}
+            第{lesson?.week_num}回 _ {lesson?.week_name}
           </h1>
           <MathJax text={content} />
         </div>
       ) : (
         <div className="container textbook">
           <h1>
-            第{lesson_id}回 _ {lesson?.week_name}
+            第{lesson?.week_num}回 _ {lesson?.week_name}
           </h1>
           <MathJax text={content} />
           <div className="flex mt-4 justify-between items-center">
@@ -105,18 +106,19 @@ export const LessonPage = () => {
               <Button className="default align-middle" onClick={go_previous_page}>
                 前のページ
               </Button>
-            ) : <span />}
+            ) : (
+              <span />
+            )}
             {Number(page) === lesson?.page_num ? (
               <Button className="default align-middle" onClick={go_lesson_page}>
                 コンテンツ一覧に戻る
               </Button>
-            ) : <span />}
+            ) : (
+              <span />
+            )}
           </div>
           {Number(page) < lesson?.page_num && (
-            <Button
-              className="ml-auto mt-8 block"
-              onClick={go_next_page}
-            >
+            <Button className="ml-auto mt-8 block" onClick={go_next_page}>
               次のページ
             </Button>
           )}
