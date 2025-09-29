@@ -15,7 +15,6 @@ import {
   AlertCircle,
   BarChart,
   BarChart2,
-  Bell,
   Book,
   BookOpen,
   Calendar,
@@ -254,7 +253,7 @@ export const StudentHome = () => {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-              <CardContent className="p-6 space-y-4">
+              <div className="p-6 space-y-4">
                 <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
                   <Wand2 />
                   パーソナライズ学習
@@ -262,16 +261,16 @@ export const StudentHome = () => {
                 <p className="text-sm text-gray-600">
                   あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
                 </p>
-              </CardContent>
+              </div>
             </Card>
             <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-              <CardContent className="p-6 space-y-4">
+              <div className="p-6 space-y-4">
                 <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
                   <BookOpen />
                   教科書と演習問題
                 </h3>
                 <p className="text-sm text-gray-600">豊富な演習問題であなたの学習を手助けを行います。</p>
-              </CardContent>
+              </div>
             </Card>
           </div>
           <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
@@ -388,20 +387,20 @@ export const StudentHome = () => {
         console.error("ログイン日数の取得に失敗しました:", error);
       });
 
-    axios
-      .get("/announcements_list")
-      .then((res) => {
-        const currentTime = new Date();
-        const unread = res.data.some((announcement: Announcement) => {
-          const startTime = new Date(announcement.start_date_time);
-          const endTime = new Date(announcement.end_date_time);
-          return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
-        });
-        setHasUnread(unread);
-      })
-      .catch((error) => {
-        console.error("お知らせの取得に失敗しました:", error);
-      });
+    // axios
+    //   .get("/announcements_list")
+    //   .then((res) => {
+    //     const currentTime = new Date();
+    //     const unread = res.data.some((announcement: Announcement) => {
+    //       const startTime = new Date(announcement.start_date_time);
+    //       const endTime = new Date(announcement.end_date_time);
+    //       return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
+    //     });
+    //     setHasUnread(unread);
+    //   })
+    //   .catch((error) => {
+    //     console.error("お知らせの取得に失敗しました:", error);
+    //   });
 
     fetchProgress();
   }, [fetchProgress]);
@@ -618,7 +617,7 @@ export const StudentHome = () => {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <TooltipProvider>
+                      {/* <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -637,7 +636,7 @@ export const StudentHome = () => {
                             <p>お知らせ</p>
                           </TooltipContent>
                         </Tooltip>
-                      </TooltipProvider>
+                      </TooltipProvider> */}
                     </div>
                   </div>
                 </div>
@@ -1087,7 +1086,7 @@ export const StudentHome = () => {
           </div>
 
           <Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
-            <CardContent className="p-10">{steps[step].content}</CardContent>
+            <div className="p-10">{steps[step].content}</div>
           </Card>
 
           <div className="flex justify-between mt-8">
