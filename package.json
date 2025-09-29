@@ -3,6 +3,7 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
+		"prepare": "lefthook install",
 		"lint": "biome check .",
 		"format": "biome check . --write --unsafe"
 	},
