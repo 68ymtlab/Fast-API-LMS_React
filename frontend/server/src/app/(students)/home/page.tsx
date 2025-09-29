@@ -1,21 +1,25 @@
 "use client";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
 import {
+  AlertCircle,
   BarChart,
   BarChart2,
   Bell,
   Book,
   BookOpen,
   Calendar,
+  CheckCircle2,
   Clock,
   Crown,
   FileText,
@@ -29,11 +33,12 @@ import {
   Trash2,
   Trophy,
   User,
+  Wand2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
+// import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
 import TcAccessTime from "@/components/tc_access_time";
 
 interface Course {
@@ -63,17 +68,126 @@ interface HighPointer {
   point: number;
 }
 
-interface Announcement {
-  id: number;
-  title: string;
-  content: string;
-  start_date_time: string;
-  end_date_time: string;
-  send_date_time: string;
-  sender: string;
-  is_active: boolean;
-  is_read: boolean;
-}
+// パスワード更新フォームコンポーネント
+const PasswordUpdateForm = ({ username, onSuccess }: { username: string; onSuccess: () => void }) => {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleUpdatePassword = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setErrorMessage("すべてのフィールドを入力してください。");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMessage("新しいパスワードが一致しません。");
+      return;
+    }
+    if (oldPassword === newPassword) {
+      setErrorMessage("現在のパスワードと新しいパスワードが同じです。");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post("/update_password", {
+        email: username,
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+
+      if (response.data.success) {
+        setSuccessMessage("パスワードが正常に更新されました。自動的に次のステップに進みます。");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => {
+          onSuccess();
+        }, 2000); // 2秒後に次のステップへ
+      } else {
+        setErrorMessage(response.data.error_msg || "パスワードの更新に失敗しました。");
+      }
+    } catch (error) {
+      console.error("Error updating password:", error);
+      setErrorMessage("パスワードの更新中にエラーが発生しました。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 text-left">
+      <h2 className="text-xl font-semibold text-gray-800">パスワードを更新してください</h2>
+      <p className="text-sm text-gray-600">セキュリティのため、初期パスワードから変更することを推奨します。</p>
+
+      {errorMessage && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>エラー</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+      {successMessage && (
+        <Alert className="bg-green-100 border-green-300 text-green-800">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertTitle>成功</AlertTitle>
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="currentPassword">現在のパスワード</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            placeholder="現在のパスワード"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <Label htmlFor="newPassword">新しいパスワード</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            placeholder="新しいパスワード"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">新しいパスワード（確認用）</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            placeholder="もう一度入力"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="mt-1"
+            disabled={loading}
+          />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button onClick={handleUpdatePassword} disabled={loading || !!successMessage}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          パスワードを変更する
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 export const StudentHome = () => {
   const router = useRouter();
@@ -84,23 +198,91 @@ export const StudentHome = () => {
   const [progress, setProgress] = useState(0);
   const [point_list_dialog, setPointListDialog] = useState(false);
   const [ranking_dialog, setRankingDialog] = useState(false);
+  const [open_dialog, setOpenDialog] = useState(true);
   const [newGoal, setNewGoal] = useState("");
   const [goals, setGoals] = useState<Goal[]>([]);
   const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
   const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
   const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
-  const [hasUnread, setHasUnread] = useState(false);
-  const [showAnnouncements, setShowAnnouncements] = useState(false);
-
+  const [step, setStep] = useState(0);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [user_stats_dialog, setUserStatsDialog] = useState(false);
+
+  const handleNextStep = () => {
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    }
+  };
 
   const pointItems = [
     { id: 1, title: "ログイン", points: 1, icon: <LogIn className="w-5 h-5 text-secondary" /> },
     { id: 2, title: "目標を設定", points: 3, icon: <Target className="w-5 h-5 text-secondary" /> },
     { id: 3, title: "演習問題を解く", points: 10, icon: <BookOpen className="w-5 h-5 text-secondary" /> },
     { id: 4, title: "累計10日ログイン", points: 10, icon: <Calendar className="w-5 h-5 text-secondary" /> },
+  ];
+
+  const steps = [
+    {
+      title: "ページの紹介",
+      content: (
+        <div className="space-y-6 text-center">
+          <h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
+          <p className="text-lg text-gray-600">
+            このシステムは、あなたの学習をサポートするために設計されています。
+            <br />
+            日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
+          </p>
+          <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+            <h2 className="text-xl font-bold text-blue-600">まずは、いくつかの初期設定を行いましょう。</h2>
+            <p className="text-sm text-blue-800">簡単なステップで、あなたに最適な学習環境を整えることができます。</p>
+          </Card>
+        </div>
+      ),
+    },
+    {
+      title: "パスワード変更",
+      content: <PasswordUpdateForm username={username} onSuccess={handleNextStep} />,
+    },
+    {
+      title: "システムの紹介",
+      content: (
+        <div className="space-y-6">
+          <h1 className="text-4xl font-bold text-blue-800 text-center">学習支援システムへようこそ!</h1>
+          <p className="text-lg text-gray-600">
+            このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+              <CardContent className="p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+                  <Wand2 />
+                  パーソナライズ学習
+                </h3>
+                <p className="text-sm text-gray-600">
+                  あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+              <CardContent className="p-6 space-y-4">
+                <h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+                  <BookOpen />
+                  教科書と演習問題
+                </h3>
+                <p className="text-sm text-gray-600">豊富な演習問題であなたの学習を手助けを行います。</p>
+              </CardContent>
+            </Card>
+          </div>
+          <Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+            <h2 className="text-xl font-bold text-blue-600">あなたの学習をより効率的に</h2>
+            <p className="text-sm text-blue-800">
+              このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
+            </p>
+          </Card>
+        </div>
+      ),
+    },
   ];
 
   const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
@@ -206,17 +388,20 @@ export const StudentHome = () => {
         console.error("ログイン日数の取得に失敗しました:", error);
       });
 
-    axios.get("/announcements_list").then((res) => {
-      const currentTime = new Date();
-      const unread = res.data.some((announcement: Announcement) => {
-        const startTime = new Date(announcement.start_date_time);
-        const endTime = new Date(announcement.end_date_time);
-        return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
+    axios
+      .get("/announcements_list")
+      .then((res) => {
+        const currentTime = new Date();
+        const unread = res.data.some((announcement: Announcement) => {
+          const startTime = new Date(announcement.start_date_time);
+          const endTime = new Date(announcement.end_date_time);
+          return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
+        });
+        setHasUnread(unread);
+      })
+      .catch((error) => {
+        console.error("お知らせの取得に失敗しました:", error);
       });
-      setHasUnread(unread);
-    }).catch(error => {
-      console.error("お知らせの取得に失敗しました:", error);
-    });
 
     fetchProgress();
   }, [fetchProgress]);
@@ -238,6 +423,19 @@ export const StudentHome = () => {
         console.error("ハイスコアの取得に失敗しました:", error);
       });
   }, [username]);
+
+  useEffect(() => {
+    axios
+      .get("/get_accsess_log")
+      .then((res) => {
+        const hasAccessed = res.data;
+        setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
+      })
+      .catch((error) => {
+        console.error("アクセスログの取得に失敗しました:", error);
+        setOpenDialog(true); // Show on error
+      });
+  }, []);
 
   const handleAddGoal = () => {
     if (newGoal.trim() === "") {
@@ -317,6 +515,19 @@ export const StudentHome = () => {
       });
   };
 
+  const handleDialogNavigation = () => {
+    if (step === 1) {
+      // パスワード変更ステップでは、フォーム内のボタンで遷移を制御
+      return;
+    }
+    if (step < steps.length - 1) {
+      setStep(step + 1);
+    } else {
+      // 最後のステップならダイアログを閉じる
+      setOpenDialog(false);
+    }
+  };
+
   return (
     <>
       <TcAccessTime page="student_home" />
@@ -326,14 +537,12 @@ export const StudentHome = () => {
             <div className="flex gap-8 w-full">
               <div className="flex-1">
                 <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-center gap-10">
-                      <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
-                        <User className="w-12 h-12 text-secondary" />
-                      </div>
-                      <p className="text-3xl font-bold text-gray-800">{username}</p>
+                  <div className="flex items-center gap-8 pl-4">
+                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
+                      <User className="w-12 h-12 text-secondary" />
                     </div>
-                    <div className="flex items-center justify-center gap-6 mt-6">
+                    <p className="text-3xl font-bold text-gray-800">{username}</p>
+                    <div className="flex items-center gap-6 ml-8">
                       <div className="flex items-center gap-2 min-w-[80px]">
                         <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
                         <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
@@ -850,11 +1059,57 @@ export const StudentHome = () => {
         </DialogContent>
       </Dialog>
 
-      <AnnouncementsDialog 
-        open={showAnnouncements} 
-        onOpenChange={setShowAnnouncements} 
-        onClose={() => setHasUnread(false)} 
-      />
+      <Dialog open={open_dialog} onOpenChange={setOpenDialog}>
+        <DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
+          <div className="flex items-center justify-between mb-8 relative">
+            {steps.map((s, index) => (
+              <div key={index} className="flex-1 flex flex-col items-center relative">
+                <div
+                  className={`w-9 h-9 flex items-center justify-center rounded-full text-white text-sm font-bold z-10 transition-all
+                    ${step === index ? "bg-blue-600 scale-110 shadow-lg" : "bg-gray-300"}`}
+                >
+                  {index + 1}
+                </div>
+                <span
+                  className={`mt-2 text-sm font-medium transition-colors ${step === index ? "text-blue-700" : "text-gray-500"}`}
+                >
+                  {s.title}
+                </span>
+                {index < steps.length - 1 && (
+                  <div className="absolute top-[18px] left-1/2 w-full h-1 bg-gray-300 -z-10">
+                    <div
+                      className={`h-full bg-blue-500 transition-all duration-500 ${step > index ? "w-full" : "w-0"}`}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
+            <CardContent className="p-10">{steps[step].content}</CardContent>
+          </Card>
+
+          <div className="flex justify-between mt-8">
+            <Button
+              variant="ghost"
+              onClick={() => setStep((prev) => Math.max(prev - 1, 0))}
+              disabled={step === 0 || step === 1}
+              className="rounded-full px-6 py-2 text-gray-700 hover:bg-gray-100 transition disabled:opacity-40"
+            >
+              ← 戻る
+            </Button>
+            {step !== 1 && ( // パスワード変更ステップでは独自のボタンがあるので、共通の「次へ」ボタンを非表示にする
+              <Button
+                onClick={handleDialogNavigation}
+                className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
+              >
+                {step === steps.length - 1 ? "完了" : "次へ →"}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
