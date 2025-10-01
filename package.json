@@ -8,7 +8,9 @@
 		"format": "biome check . --write --unsafe"
 	},
 	"dependencies": {
-		"@biomejs/biome": "^1.9.4",
 		"lefthook": "^1.11.13"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.4"
 	}
 }

@@ -1,7 +1,7 @@
 interface File {
-  webkitRelativePath: string;
+	webkitRelativePath: string;
 }
 
 interface HTMLInputElement {
-  webkitdirectory: boolean;
+	webkitdirectory: boolean;
 }

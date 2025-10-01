@@ -4,10 +4,10 @@ import config from "../config";
  * デバッグログのレベル
  */
 export enum LogLevel {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  DEBUG = 3,
+	ERROR = 0,
+	WARN = 1,
+	INFO = 2,
+	DEBUG = 3,
 }
 
 /**
@@ -16,26 +16,30 @@ export enum LogLevel {
  * @param data 追加データ（オプション）
  * @param level ログレベル（デフォルト: INFO）
  */
-export function debugLog(_message: string, data?: unknown, level: LogLevel = LogLevel.INFO): void {
-  // デバッグモードがオフの場合は何もしない
-  if (!config.debug) return;
+export function debugLog(
+	_message: string,
+	data?: unknown,
+	level: LogLevel = LogLevel.INFO,
+): void {
+	// デバッグモードがオフの場合は何もしない
+	if (!config.debug) return;
 
-  // 設定されたデバッグレベルより高いレベルのログは出力しない
-  if (level > config.debugLevel) return;
+	// 設定されたデバッグレベルより高いレベルのログは出力しない
+	if (level > config.debugLevel) return;
 
-  const _timestamp = new Date().toISOString();
-  const _prefix = getLogPrefix(level);
+	const _timestamp = new Date().toISOString();
+	const _prefix = getLogPrefix(level);
 
-  // メッセージのみの場合
-  if (data === undefined) {
-    return;
-  }
+	// メッセージのみの場合
+	if (data === undefined) {
+		return;
+	}
 
-  // データの種類に応じて適切な出力方法を選択
-  if (typeof data === "object" && data !== null) {
-    console.dir(data, { depth: null, colors: true });
-  } else {
-  }
+	// データの種類に応じて適切な出力方法を選択
+	if (typeof data === "object" && data !== null) {
+		console.dir(data, { depth: null, colors: true });
+	} else {
+	}
 }
 
 /**
@@ -44,7 +48,7 @@ export function debugLog(_message: string, data?: unknown, level: LogLevel = Log
  * @param error エラーオブジェクト（オプション）
  */
 export function debugError(message: string, error?: unknown): void {
-  debugLog(message, error, LogLevel.ERROR);
+	debugLog(message, error, LogLevel.ERROR);
 }
 
 /**
@@ -53,7 +57,7 @@ export function debugError(message: string, error?: unknown): void {
  * @param data 追加データ（オプション）
  */
 export function debugWarn(message: string, data?: unknown): void {
-  debugLog(message, data, LogLevel.WARN);
+	debugLog(message, data, LogLevel.WARN);
 }
 
 /**
@@ -62,7 +66,7 @@ export function debugWarn(message: string, data?: unknown): void {
  * @param data 追加データ（オプション）
  */
 export function debugInfo(message: string, data?: unknown): void {
-  debugLog(message, data, LogLevel.INFO);
+	debugLog(message, data, LogLevel.INFO);
 }
 
 /**
@@ -71,7 +75,7 @@ export function debugInfo(message: string, data?: unknown): void {
  * @param data 追加データ（オプション）
  */
 export function debugVerbose(message: string, data?: unknown): void {
-  debugLog(message, data, LogLevel.DEBUG);
+	debugLog(message, data, LogLevel.DEBUG);
 }
 
 /**
@@ -80,18 +84,18 @@ export function debugVerbose(message: string, data?: unknown): void {
  * @returns プレフィックス文字列
  */
 function getLogPrefix(level: LogLevel): string {
-  switch (level) {
-    case LogLevel.ERROR:
-      return "🔴 ERROR";
-    case LogLevel.WARN:
-      return "🟠 WARN";
-    case LogLevel.INFO:
-      return "🔵 INFO";
-    case LogLevel.DEBUG:
-      return "🟢 DEBUG";
-    default:
-      return "LOG";
-  }
+	switch (level) {
+		case LogLevel.ERROR:
+			return "🔴 ERROR";
+		case LogLevel.WARN:
+			return "🟠 WARN";
+		case LogLevel.INFO:
+			return "🔵 INFO";
+		case LogLevel.DEBUG:
+			return "🟢 DEBUG";
+		default:
+			return "LOG";
+	}
 }
 
 /**
@@ -100,8 +104,12 @@ function getLogPrefix(level: LogLevel): string {
  * @param url リクエストURL
  * @param data リクエストデータ（オプション）
  */
-export function debugRequest(method: string, url: string, data?: unknown): void {
-  debugVerbose(`API Request: ${method} ${url}`, data);
+export function debugRequest(
+	method: string,
+	url: string,
+	data?: unknown,
+): void {
+	debugVerbose(`API Request: ${method} ${url}`, data);
 }
 
 /**
@@ -111,9 +119,14 @@ export function debugRequest(method: string, url: string, data?: unknown): void 
  * @param response レスポンスデータ
  * @param time 処理時間（ミリ秒）
  */
-export function debugResponse(method: string, url: string, response: unknown, time?: number): void {
-  const timeInfo = time ? ` (${time}ms)` : "";
-  debugVerbose(`API Response: ${method} ${url}${timeInfo}`, response);
+export function debugResponse(
+	method: string,
+	url: string,
+	response: unknown,
+	time?: number,
+): void {
+	const timeInfo = time ? ` (${time}ms)` : "";
+	debugVerbose(`API Response: ${method} ${url}${timeInfo}`, response);
 }
 
 /**
@@ -122,17 +135,21 @@ export function debugResponse(method: string, url: string, response: unknown, ti
  * @param url リクエストURL
  * @param error エラーオブジェクト
  */
-export function debugApiError(method: string, url: string, error: unknown): void {
-  debugError(`API Error: ${method} ${url}`, error);
+export function debugApiError(
+	method: string,
+	url: string,
+	error: unknown,
+): void {
+	debugError(`API Error: ${method} ${url}`, error);
 }
 
 export default {
-  log: debugLog,
-  error: debugError,
-  warn: debugWarn,
-  info: debugInfo,
-  verbose: debugVerbose,
-  request: debugRequest,
-  response: debugResponse,
-  apiError: debugApiError,
+	log: debugLog,
+	error: debugError,
+	warn: debugWarn,
+	info: debugInfo,
+	verbose: debugVerbose,
+	request: debugRequest,
+	response: debugResponse,
+	apiError: debugApiError,
 };
