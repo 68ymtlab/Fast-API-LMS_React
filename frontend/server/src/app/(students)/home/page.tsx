@@ -22,14 +22,21 @@ import {
 	User,
 	Wand2,
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 // import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
 import TcAccessTime from "@/components/tc_access_time";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -91,6 +98,7 @@ const PasswordUpdateForm = ({
 	const [errorMessage, setErrorMessage] = useState("");
 	const [successMessage, setSuccessMessage] = useState("");
 	const [loading, setLoading] = useState(false);
+	const id = useId();
 
 	const handleUpdatePassword = async () => {
 		setErrorMessage("");
@@ -168,7 +176,7 @@ const PasswordUpdateForm = ({
 				<div>
 					<Label htmlFor="currentPassword">現在のパスワード</Label>
 					<Input
-						id="currentPassword"
+						id={id}
 						type="password"
 						placeholder="現在のパスワード"
 						value={oldPassword}
@@ -180,7 +188,7 @@ const PasswordUpdateForm = ({
 				<div>
 					<Label htmlFor="newPassword">新しいパスワード</Label>
 					<Input
-						id="newPassword"
+						id={id}
 						type="password"
 						placeholder="新しいパスワード"
 						value={newPassword}
@@ -192,7 +200,7 @@ const PasswordUpdateForm = ({
 				<div>
 					<Label htmlFor="confirmPassword">新しいパスワード（確認用）</Label>
 					<Input
-						id="confirmPassword"
+						id={id}
 						type="password"
 						placeholder="もう一度入力"
 						value={confirmPassword}
@@ -270,80 +278,86 @@ export const StudentHome = () => {
 		},
 	];
 
-	const steps = [
-		{
-			title: "ページの紹介",
-			content: (
-				<div className="space-y-6 text-center">
-					<h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
-					<p className="text-lg text-gray-600">
-						このシステムは、あなたの学習をサポートするために設計されています。
-						<br />
-						日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
-					</p>
-					<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
-						<h2 className="text-xl font-bold text-blue-600">
-							まずは、いくつかの初期設定を行いましょう。
-						</h2>
-						<p className="text-sm text-blue-800">
-							簡単なステップで、あなたに最適な学習環境を整えることができます。
+	// biome-ignore lint/correctness/useExhaustiveDependencies: handleNextStep is stable
+	const steps = useMemo(
+		() => [
+			{
+				title: "ページの紹介",
+				content: (
+					<div className="space-y-6 text-center">
+						<h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
+						<p className="text-lg text-gray-600">
+							このシステムは、あなたの学習をサポートするために設計されています。
+							<br />
+							日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
 						</p>
-					</Card>
-				</div>
-			),
-		},
-		{
-			title: "パスワード変更",
-			content: (
-				<PasswordUpdateForm username={username} onSuccess={handleNextStep} />
-			),
-		},
-		{
-			title: "システムの紹介",
-			content: (
-				<div className="space-y-6">
-					<h1 className="text-4xl font-bold text-blue-800 text-center">
-						学習支援システムへようこそ!
-					</h1>
-					<p className="text-lg text-gray-600">
-						このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
-					</p>
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-							<div className="p-6 space-y-4">
-								<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
-									<Wand2 />
-									パーソナライズ学習
-								</h3>
-								<p className="text-sm text-gray-600">
-									あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
-								</p>
-							</div>
-						</Card>
-						<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-							<div className="p-6 space-y-4">
-								<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
-									<BookOpen />
-									教科書と演習問題
-								</h3>
-								<p className="text-sm text-gray-600">
-									豊富な演習問題であなたの学習を手助けを行います。
-								</p>
-							</div>
+						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+							<h2 className="text-xl font-bold text-blue-600">
+								まずは、いくつかの初期設定を行いましょう。
+							</h2>
+							<p className="text-sm text-blue-800">
+								簡単なステップで、あなたに最適な学習環境を整えることができます。
+							</p>
 						</Card>
 					</div>
-					<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
-						<h2 className="text-xl font-bold text-blue-600">
-							あなたの学習をより効率的に
-						</h2>
-						<p className="text-sm text-blue-800">
-							このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
+				),
+			},
+			{
+				title: "パスワード変更",
+				content: (
+					<PasswordUpdateForm username={username} onSuccess={handleNextStep} />
+				),
+			},
+			{
+				title: "システムの紹介",
+				content: (
+					<div className="space-y-6">
+						<h1 className="text-4xl font-bold text-blue-800 text-center">
+							学習支援システムへようこそ!
+						</h1>
+						<p className="text-lg text-gray-600">
+							このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
 						</p>
-					</Card>
-				</div>
-			),
-		},
-	];
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+								<div className="p-6 space-y-4">
+									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+										<Wand2 />
+										パーソナライズ学習
+									</h3>
+									<p className="text-sm text-gray-600">
+										あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
+									</p>
+								</div>
+							</Card>
+							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+								<div className="p-6 space-y-4">
+									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+										<BookOpen />
+										教科書と演習問題
+									</h3>
+									<p className="text-sm text-gray-600">
+										豊富な演習問題であなたの学習を手助けを行います。
+									</p>
+								</div>
+							</Card>
+						</div>
+						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+							<h2 className="text-xl font-bold text-blue-600">
+								あなたの学習をより効率的に
+							</h2>
+							<p className="text-sm text-blue-800">
+								このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
+							</p>
+						</Card>
+					</div>
+				),
+			},
+		],
+		[username],
+	);
+
+	const stepKeys = useMemo(() => steps.map(() => nanoid()), [steps]);
 
 	const handleButtonClick = async (
 		buttonId: string,
@@ -1195,7 +1209,7 @@ export const StudentHome = () => {
 					<div className="flex items-center justify-between mb-8 relative">
 						{steps.map((s, index) => (
 							<div
-								key={index}
+								key={stepKeys[index]}
 								className="flex-1 flex flex-col items-center relative"
 							>
 								<div
