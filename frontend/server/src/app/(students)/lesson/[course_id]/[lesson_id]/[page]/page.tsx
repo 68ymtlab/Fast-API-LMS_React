@@ -10,10 +10,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
 
 type LessonType = {
-	week_name: string;
-	page_num: number;
-	content: string;
-	week_id?: string;
+  week_name: string;
+  page_num: number;
+  content: string;
+  week_id?: string;
+  week_num: number;
 };
 
 export const LessonPage = () => {
@@ -96,14 +97,14 @@ export const LessonPage = () => {
 			{isMobile ? (
 				<div className="flex flex-col textbook">
 					<h1>
-						第{lesson_id}回 _ {lesson?.week_name}
+						第{lesson?.week_num}回 _ {lesson?.week_name}
 					</h1>
 					<MathJax text={content} />
 				</div>
 			) : (
 				<div className="container textbook">
 					<h1>
-						第{lesson_id}回 _ {lesson?.week_name}
+						第{lesson?.week_num}回 _ {lesson?.week_name}
 					</h1>
 					<MathJax text={content} />
 					<div className="flex mt-4 justify-between items-center">
