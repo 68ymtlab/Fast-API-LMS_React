@@ -3,11 +3,15 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
+		"prepare": "lefthook install",
 		"lint": "biome check .",
 		"format": "biome check . --write --unsafe"
 	},
 	"dependencies": {
-		"@biomejs/biome": "^1.9.4",
-		"lefthook": "^1.11.13"
+		"lefthook": "^1.11.13",
+		"nanoid": "^5.1.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.4"
 	}
 }

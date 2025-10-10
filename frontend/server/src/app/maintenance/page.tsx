@@ -1,3 +1,3 @@
 export default function Maintenance() {
-  return <div>メンテナンスモード</div>;
+	return <div>メンテナンスモード</div>;
 }

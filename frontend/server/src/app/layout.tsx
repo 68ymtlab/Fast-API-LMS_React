@@ -2,19 +2,19 @@ import Providers from "../providers/AppProviders";
 import "./globals.css";
 
 export const metadata = {
-  title: "学習支援システム",
+	title: "学習支援システム",
 };
 
 export default function RootLayout({
-  children,
+	children,
 }: {
-  children: React.ReactNode;
+	children: React.ReactNode;
 }) {
-  return (
-    <html lang="ja">
-      <body color="background.default">
-        <Providers>{children}</Providers>
-      </body>
-    </html>
-  );
+	return (
+		<html lang="ja">
+			<body color="background.default">
+				<Providers>{children}</Providers>
+			</body>
+		</html>
+	);
 }

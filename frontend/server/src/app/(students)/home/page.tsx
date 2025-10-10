@@ -1,415 +1,717 @@
 "use client";
+import {
+	AlertCircle,
+	BarChart,
+	BarChart2,
+	Book,
+	BookOpen,
+	Calendar,
+	CheckCircle2,
+	Clock,
+	Crown,
+	FileText,
+	List,
+	Loader2,
+	LogIn,
+	Medal,
+	Play,
+	Star,
+	Target,
+	Trash2,
+	Trophy,
+	User,
+	Wand2,
+} from "lucide-react";
+import { nanoid } from "nanoid";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+// import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
+import TcAccessTime from "@/components/tc_access_time";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+	Card,
+	CardContent,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import withAuth from "@/hocs/withAuth";
 import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
-import {
-  BarChart,
-  BarChart2,
-  Bell,
-  Book,
-  BookOpen,
-  Calendar,
-  Clock,
-  Crown,
-  FileText,
-  List,
-  Loader2,
-  LogIn,
-  Medal,
-  Play,
-  Star,
-  Target,
-  Trash2,
-  Trophy,
-  User,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-
-import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
-import TcAccessTime from "@/components/tc_access_time";
 
 interface Course {
-  course_id: number;
-  course_name: string;
-  subject_name: string;
-  period: string;
+	course_id: number;
+	course_name: string;
+	subject_name: string;
+	period: string;
 }
 
 interface Goal {
-  goal_id: number;
-  details: string;
-  completed: boolean;
+	goal_id: number;
+	details: string;
+	completed: boolean;
 }
 
 interface Subject {
-  id: number;
-  title: string;
-  course: string;
-  term: string;
-  completedLessons: number;
-  totalLessons: number;
+	id: number;
+	title: string;
+	course: string;
+	term: string;
+	completedLessons: number;
+	totalLessons: number;
 }
 
 interface HighPointer {
-  mail: string;
-  point: number;
+	mail: string;
+	point: number;
 }
 
-interface Announcement {
-  id: number;
-  title: string;
-  content: string;
-  start_date_time: string;
-  end_date_time: string;
-  send_date_time: string;
-  sender: string;
-  is_active: boolean;
-  is_read: boolean;
-}
+// パスワード更新フォームコンポーネント
+const PasswordUpdateForm = ({
+	username,
+	onSuccess,
+}: {
+	username: string;
+	onSuccess: () => void;
+}) => {
+	const [oldPassword, setOldPassword] = useState("");
+	const [newPassword, setNewPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	const [errorMessage, setErrorMessage] = useState("");
+	const [successMessage, setSuccessMessage] = useState("");
+	const [loading, setLoading] = useState(false);
+	const id = useId();
+
+	const handleUpdatePassword = async () => {
+		setErrorMessage("");
+		setSuccessMessage("");
+
+		if (!oldPassword || !newPassword || !confirmPassword) {
+			setErrorMessage("すべてのフィールドを入力してください。");
+			return;
+		}
+		if (newPassword !== confirmPassword) {
+			setErrorMessage("新しいパスワードが一致しません。");
+			return;
+		}
+		if (oldPassword === newPassword) {
+			setErrorMessage("現在のパスワードと新しいパスワードが同じです。");
+			return;
+		}
+
+		setLoading(true);
+		try {
+			const response = await axios.post("/update_password", {
+				email: username,
+				old_password: oldPassword,
+				new_password: newPassword,
+			});
+
+			if (response.data.success) {
+				setSuccessMessage(
+					"パスワードが正常に更新されました。自動的に次のステップに進みます。",
+				);
+				setOldPassword("");
+				setNewPassword("");
+				setConfirmPassword("");
+				setTimeout(() => {
+					onSuccess();
+				}, 2000); // 2秒後に次のステップへ
+			} else {
+				setErrorMessage(
+					response.data.error_msg || "パスワードの更新に失敗しました。",
+				);
+			}
+		} catch (error) {
+			console.error("Error updating password:", error);
+			setErrorMessage("パスワードの更新中にエラーが発生しました。");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="space-y-6 text-left">
+			<h2 className="text-xl font-semibold text-gray-800">
+				パスワードを更新してください
+			</h2>
+			<p className="text-sm text-gray-600">
+				セキュリティのため、初期パスワードから変更することを推奨します。
+			</p>
+
+			{errorMessage && (
+				<Alert variant="destructive">
+					<AlertCircle className="h-4 w-4" />
+					<AlertTitle>エラー</AlertTitle>
+					<AlertDescription>{errorMessage}</AlertDescription>
+				</Alert>
+			)}
+			{successMessage && (
+				<Alert className="bg-green-100 border-green-300 text-green-800">
+					<CheckCircle2 className="h-4 w-4 text-green-600" />
+					<AlertTitle>成功</AlertTitle>
+					<AlertDescription>{successMessage}</AlertDescription>
+				</Alert>
+			)}
+
+			<div className="space-y-4">
+				<div>
+					<Label htmlFor="currentPassword">現在のパスワード</Label>
+					<Input
+						id={id}
+						type="password"
+						placeholder="現在のパスワード"
+						value={oldPassword}
+						onChange={(e) => setOldPassword(e.target.value)}
+						className="mt-1"
+						disabled={loading}
+					/>
+				</div>
+				<div>
+					<Label htmlFor="newPassword">新しいパスワード</Label>
+					<Input
+						id={id}
+						type="password"
+						placeholder="新しいパスワード"
+						value={newPassword}
+						onChange={(e) => setNewPassword(e.target.value)}
+						className="mt-1"
+						disabled={loading}
+					/>
+				</div>
+				<div>
+					<Label htmlFor="confirmPassword">新しいパスワード（確認用）</Label>
+					<Input
+						id={id}
+						type="password"
+						placeholder="もう一度入力"
+						value={confirmPassword}
+						onChange={(e) => setConfirmPassword(e.target.value)}
+						className="mt-1"
+						disabled={loading}
+					/>
+				</div>
+			</div>
+			<div className="flex justify-end">
+				<Button
+					onClick={handleUpdatePassword}
+					disabled={loading || !!successMessage}
+				>
+					{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+					パスワードを変更する
+				</Button>
+			</div>
+		</div>
+	);
+};
 
 export const StudentHome = () => {
-  const router = useRouter();
-  const { logout } = useAuth();
-  const [username, setUsername] = useState("");
-  const [point, setPoint] = useState("0");
-  const [loginNum, setLoginNum] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [point_list_dialog, setPointListDialog] = useState(false);
-  const [ranking_dialog, setRankingDialog] = useState(false);
-  const [newGoal, setNewGoal] = useState("");
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
-  const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
-  const [userRank, setUserRank] = useState<number>(0);
-  const [loadingButtons, setLoadingButtons] = useState<{ [key: string]: boolean }>({});
-  const [hasUnread, setHasUnread] = useState(false);
-  const [showAnnouncements, setShowAnnouncements] = useState(false);
+	const router = useRouter();
+	const { logout } = useAuth();
+	const [username, setUsername] = useState("");
+	const [point, setPoint] = useState("0");
+	const [loginNum, setLoginNum] = useState(0);
+	const [progress, setProgress] = useState(0);
+	const [point_list_dialog, setPointListDialog] = useState(false);
+	const [ranking_dialog, setRankingDialog] = useState(false);
+	const [open_dialog, setOpenDialog] = useState(true);
+	const [newGoal, setNewGoal] = useState("");
+	const [goals, setGoals] = useState<Goal[]>([]);
+	const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
+	const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
+	const [userRank, setUserRank] = useState<number>(0);
+	const [loadingButtons, setLoadingButtons] = useState<{
+		[key: string]: boolean;
+	}>({});
+	const [step, setStep] = useState(0);
+	const [subjects, setSubjects] = useState<Subject[]>([]);
+	const [user_stats_dialog, setUserStatsDialog] = useState(false);
 
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [user_stats_dialog, setUserStatsDialog] = useState(false);
+	const handleNextStep = () => {
+		if (step < steps.length - 1) {
+			setStep(step + 1);
+		}
+	};
 
-  const pointItems = [
-    { id: 1, title: "ログイン", points: 1, icon: <LogIn className="w-5 h-5 text-secondary" /> },
-    { id: 2, title: "目標を設定", points: 3, icon: <Target className="w-5 h-5 text-secondary" /> },
-    { id: 3, title: "演習問題を解く", points: 10, icon: <BookOpen className="w-5 h-5 text-secondary" /> },
-    { id: 4, title: "累計10日ログイン", points: 10, icon: <Calendar className="w-5 h-5 text-secondary" /> },
-  ];
+	const pointItems = [
+		{
+			id: 1,
+			title: "ログイン",
+			points: 1,
+			icon: <LogIn className="w-5 h-5 text-secondary" />,
+		},
+		{
+			id: 2,
+			title: "目標を設定",
+			points: 3,
+			icon: <Target className="w-5 h-5 text-secondary" />,
+		},
+		{
+			id: 3,
+			title: "演習問題を解く",
+			points: 10,
+			icon: <BookOpen className="w-5 h-5 text-secondary" />,
+		},
+		{
+			id: 4,
+			title: "累計10日ログイン",
+			points: 10,
+			icon: <Calendar className="w-5 h-5 text-secondary" />,
+		},
+	];
 
-  const handleButtonClick = async (buttonId: string, callback: () => Promise<void> | void) => {
-    setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
-    try {
-      await callback();
-    } finally {
-      setTimeout(() => {
-        setLoadingButtons((prev) => ({ ...prev, [buttonId]: false }));
-      }, 500);
-    }
-  };
+	// biome-ignore lint/correctness/useExhaustiveDependencies: handleNextStep is stable
+	const steps = useMemo(
+		() => [
+			{
+				title: "ページの紹介",
+				content: (
+					<div className="space-y-6 text-center">
+						<h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
+						<p className="text-lg text-gray-600">
+							このシステムは、あなたの学習をサポートするために設計されています。
+							<br />
+							日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
+						</p>
+						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+							<h2 className="text-xl font-bold text-blue-600">
+								まずは、いくつかの初期設定を行いましょう。
+							</h2>
+							<p className="text-sm text-blue-800">
+								簡単なステップで、あなたに最適な学習環境を整えることができます。
+							</p>
+						</Card>
+					</div>
+				),
+			},
+			{
+				title: "パスワード変更",
+				content: (
+					<PasswordUpdateForm username={username} onSuccess={handleNextStep} />
+				),
+			},
+			{
+				title: "システムの紹介",
+				content: (
+					<div className="space-y-6">
+						<h1 className="text-4xl font-bold text-blue-800 text-center">
+							学習支援システムへようこそ!
+						</h1>
+						<p className="text-lg text-gray-600">
+							このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
+						</p>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+								<div className="p-6 space-y-4">
+									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+										<Wand2 />
+										パーソナライズ学習
+									</h3>
+									<p className="text-sm text-gray-600">
+										あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
+									</p>
+								</div>
+							</Card>
+							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
+								<div className="p-6 space-y-4">
+									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
+										<BookOpen />
+										教科書と演習問題
+									</h3>
+									<p className="text-sm text-gray-600">
+										豊富な演習問題であなたの学習を手助けを行います。
+									</p>
+								</div>
+							</Card>
+						</div>
+						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
+							<h2 className="text-xl font-bold text-blue-600">
+								あなたの学習をより効率的に
+							</h2>
+							<p className="text-sm text-blue-800">
+								このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
+							</p>
+						</Card>
+					</div>
+				),
+			},
+		],
+		[username],
+	);
 
-  const fetchProgress = useCallback(async () => {
-    try {
-      const coursesResponse = await axios.get("/get_courses");
-      const courseIds = coursesResponse.data.map((course: Course) => course.course_id);
+	const stepKeys = useMemo(() => steps.map(() => nanoid()), [steps]);
 
-      const progressPromises = courseIds.map((courseId: number) => axios.get(`/get_progress/${courseId}`));
+	const handleButtonClick = async (
+		buttonId: string,
+		callback: () => Promise<void> | void,
+	) => {
+		setLoadingButtons((prev) => ({ ...prev, [buttonId]: true }));
+		try {
+			await callback();
+		} finally {
+			setTimeout(() => {
+				setLoadingButtons((prev) => ({ ...prev, [buttonId]: false }));
+			}, 500);
+		}
+	};
 
-      const progressResponses = await Promise.all(progressPromises);
-      const progresses = progressResponses.map((response) => response.data);
+	const fetchProgress = useCallback(async () => {
+		try {
+			const coursesResponse = await axios.get("/get_courses");
+			const courseIds = coursesResponse.data.map(
+				(course: Course) => course.course_id,
+			);
 
-      if (progresses.length > 0) {
-        const total = progresses.reduce((sum, score) => sum + score, 0);
-        const average = Number.parseFloat((total / progresses.length).toFixed(2));
-        setProgress(average);
-      } else {
-        setProgress(0);
-      }
-    } catch (error) {
-      console.error("進捗の取得に失敗しました:", error);
-    }
-  }, []);
+			const progressPromises = courseIds.map((courseId: number) =>
+				axios.get(`/get_progress/${courseId}`),
+			);
 
-  useEffect(() => {
-    axios
-      .get("/get_courses")
-      .then((res) => {
-        if (res.status === 200) {
-          const courses: Course[] = res.data;
-          const formattedSubjects: Subject[] = courses.map((course) => ({
-            id: course.course_id,
-            title: course.subject_name,
-            course: course.course_name,
-            term: course.period,
-            completedLessons: 0,
-            totalLessons: 15,
-          }));
-          setSubjects(formattedSubjects);
-        }
-      })
-      .catch((error) => {
-        console.error("コースの取得に失敗しました:", error);
-      });
+			const progressResponses = await Promise.all(progressPromises);
+			const progresses = progressResponses.map((response) => response.data);
 
-    axios
-      .get("/get_goal")
-      .then((res) => {
-        if (res.status === 200) {
-          const goalsData: Goal[] = res.data;
-          const uncompletedGoals = goalsData.filter((goal) => !goal.completed);
-          const completedGoals = goalsData.filter((goal) => goal.completed);
-          setGoals(uncompletedGoals);
-          setCompleteGoals(completedGoals);
-        }
-      })
-      .catch((error) => {
-        console.error("目標の取得に失敗しました:", error);
-      });
+			if (progresses.length > 0) {
+				const total = progresses.reduce((sum, score) => sum + score, 0);
+				const average = Number.parseFloat(
+					(total / progresses.length).toFixed(2),
+				);
+				setProgress(average);
+			} else {
+				setProgress(0);
+			}
+		} catch (error) {
+			console.error("進捗の取得に失敗しました:", error);
+		}
+	}, []);
 
-    axios
-      .get("/get_point")
-      .then((res) => {
-        if (res.status === 200) {
-          setPoint(res.data?.toString());
-        }
-      })
-      .catch((error) => {
-        console.error("ポイントの取得に失敗しました:", error);
-      });
+	useEffect(() => {
+		axios
+			.get("/get_courses")
+			.then((res) => {
+				if (res.status === 200) {
+					const courses: Course[] = res.data;
+					const formattedSubjects: Subject[] = courses.map((course) => ({
+						id: course.course_id,
+						title: course.subject_name,
+						course: course.course_name,
+						term: course.period,
+						completedLessons: 0,
+						totalLessons: 15,
+					}));
+					setSubjects(formattedSubjects);
+				}
+			})
+			.catch((error) => {
+				console.error("コースの取得に失敗しました:", error);
+			});
 
-    axios
-      .get("/user_name")
-      .then((res) => {
-        if (res.status === 200) {
-          setUsername(res.data);
-        }
-      })
-      .catch((error) => {
-        console.error("ユーザー名の取得に失敗しました:", error);
-      });
+		axios
+			.get("/get_goal")
+			.then((res) => {
+				if (res.status === 200) {
+					const goalsData: Goal[] = res.data;
+					const uncompletedGoals = goalsData.filter((goal) => !goal.completed);
+					const completedGoals = goalsData.filter((goal) => goal.completed);
+					setGoals(uncompletedGoals);
+					setCompleteGoals(completedGoals);
+				}
+			})
+			.catch((error) => {
+				console.error("目標の取得に失敗しました:", error);
+			});
 
-    // ログイン日数の取得
-    axios
-      .post("/login_num")
-      .then((res) => {
-        if (res.status === 200) {
-          setLoginNum(res.data);
-        }
-      })
-      .catch((error) => {
-        console.error("ログイン日数の取得に失敗しました:", error);
-      });
+		axios
+			.get("/get_point")
+			.then((res) => {
+				if (res.status === 200) {
+					setPoint(res.data?.toString());
+				}
+			})
+			.catch((error) => {
+				console.error("ポイントの取得に失敗しました:", error);
+			});
 
-    axios.get("/announcements_list").then((res) => {
-      const currentTime = new Date();
-      const unread = res.data.some((announcement: Announcement) => {
-        const startTime = new Date(announcement.start_date_time);
-        const endTime = new Date(announcement.end_date_time);
-        return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
-      });
-      setHasUnread(unread);
-    }).catch(error => {
-      console.error("お知らせの取得に失敗しました:", error);
-    });
+		axios
+			.get("/user_name")
+			.then((res) => {
+				if (res.status === 200) {
+					setUsername(res.data);
+				}
+			})
+			.catch((error) => {
+				console.error("ユーザー名の取得に失敗しました:", error);
+			});
 
-    fetchProgress();
-  }, [fetchProgress]);
+		// ログイン日数の取得
+		axios
+			.post("/login_num")
+			.then((res) => {
+				if (res.status === 200) {
+					setLoginNum(res.data);
+				}
+			})
+			.catch((error) => {
+				console.error("ログイン日数の取得に失敗しました:", error);
+			});
 
-  // username取得後にランキング取得
-  useEffect(() => {
-    if (!username) return;
-    axios
-      .get("/get_high_pointer")
-      .then((res) => {
-        if (res.status === 200) {
-          const pointers: HighPointer[] = res.data;
-          setHighPointers(pointers);
-          const rank = pointers.findIndex((p) => p.mail === username) + 1;
-          setUserRank(rank);
-        }
-      })
-      .catch((error) => {
-        console.error("ハイスコアの取得に失敗しました:", error);
-      });
-  }, [username]);
+		// axios
+		//   .get("/announcements_list")
+		//   .then((res) => {
+		//     const currentTime = new Date();
+		//     const unread = res.data.some((announcement: Announcement) => {
+		//       const startTime = new Date(announcement.start_date_time);
+		//       const endTime = new Date(announcement.end_date_time);
+		//       return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
+		//     });
+		//     setHasUnread(unread);
+		//   })
+		//   .catch((error) => {
+		//     console.error("お知らせの取得に失敗しました:", error);
+		//   });
 
-  const handleAddGoal = () => {
-    if (newGoal.trim() === "") {
-      return;
-    }
+		fetchProgress();
+	}, [fetchProgress]);
 
-    axios
-      .post("/add_goal", {
-        details: newGoal,
-      })
-      .then((res) => {
-        if (res.status === 200) {
-          // 新しい目標を追加
-          const newGoalData: Goal = {
-            goal_id: res.data.goal_id,
-            details: newGoal,
-            completed: false,
-          };
-          setGoals([...goals, newGoalData]);
-          setNewGoal("");
-        }
-      })
-      .catch((error) => {
-        console.error("目標の追加に失敗しました:", error);
-      });
-  };
+	// username取得後にランキング取得
+	useEffect(() => {
+		if (!username) return;
+		axios
+			.get("/get_high_pointer")
+			.then((res) => {
+				if (res.status === 200) {
+					const pointers: HighPointer[] = res.data;
+					setHighPointers(pointers);
+					const rank = pointers.findIndex((p) => p.mail === username) + 1;
+					setUserRank(rank);
+				}
+			})
+			.catch((error) => {
+				console.error("ハイスコアの取得に失敗しました:", error);
+			});
+	}, [username]);
 
-  const handleToggleCompleted = (goalId: number, currentCompleted: boolean) => {
-    axios
-      .post("/toggle_completed", {
-        goal_id: goalId,
-        completed: !currentCompleted,
-      })
-      .then((res) => {
-        if (res.status === 200) {
-          // 現在の目標リストを結合
-          const allGoals = [...goals, ...completeGoals];
+	useEffect(() => {
+		axios
+			.get("/get_accsess_log")
+			.then((res) => {
+				const hasAccessed = res.data;
+				setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
+			})
+			.catch((error) => {
+				console.error("アクセスログの取得に失敗しました:", error);
+				setOpenDialog(true); // Show on error
+			});
+	}, []);
 
-          // 目標の状態を更新
-          const updatedGoals = allGoals.map((goal) => {
-            if (goal.goal_id === goalId) {
-              return { ...goal, completed: !currentCompleted };
-            }
-            return goal;
-          });
+	const handleAddGoal = () => {
+		if (newGoal.trim() === "") {
+			return;
+		}
 
-          // 完了/未完了の目標を振り分け
-          const uncompletedGoals = updatedGoals.filter((goal) => !goal.completed);
-          const completedGoals = updatedGoals.filter((goal) => goal.completed);
+		axios
+			.post("/add_goal", {
+				details: newGoal,
+			})
+			.then((res) => {
+				if (res.status === 200) {
+					// 新しい目標を追加
+					const newGoalData: Goal = {
+						goal_id: res.data.goal_id,
+						details: newGoal,
+						completed: false,
+					};
+					setGoals([...goals, newGoalData]);
+					setNewGoal("");
+				}
+			})
+			.catch((error) => {
+				console.error("目標の追加に失敗しました:", error);
+			});
+	};
 
-          setGoals(uncompletedGoals);
-          setCompleteGoals(completedGoals);
-        }
-      })
-      .catch((error) => {
-        console.error("目標の状態更新に失敗しました:", error);
-      });
-  };
+	const handleToggleCompleted = (goalId: number, currentCompleted: boolean) => {
+		axios
+			.post("/toggle_completed", {
+				goal_id: goalId,
+				completed: !currentCompleted,
+			})
+			.then((res) => {
+				if (res.status === 200) {
+					// 現在の目標リストを結合
+					const allGoals = [...goals, ...completeGoals];
 
-  const handleDeleteGoal = (goalId: number) => {
-    axios
-      .delete("/delete_goal", {
-        data: { goal_id: goalId },
-      })
-      .then((res) => {
-        if (res.status === 200) {
-          // 目標を削除
-          const updatedGoals = goals.filter((goal) => goal.goal_id !== goalId);
-          const updatedCompleteGoals = completeGoals.filter((goal) => goal.goal_id !== goalId);
+					// 目標の状態を更新
+					const updatedGoals = allGoals.map((goal) => {
+						if (goal.goal_id === goalId) {
+							return { ...goal, completed: !currentCompleted };
+						}
+						return goal;
+					});
 
-          setGoals(updatedGoals);
-          setCompleteGoals(updatedCompleteGoals);
-        }
-      })
-      .catch((error) => {
-        console.error("目標の削除に失敗しました:", error);
-      });
-  };
+					// 完了/未完了の目標を振り分け
+					const uncompletedGoals = updatedGoals.filter(
+						(goal) => !goal.completed,
+					);
+					const completedGoals = updatedGoals.filter((goal) => goal.completed);
 
-  return (
-    <>
-      <TcAccessTime page="student_home" />
-      <main>
-        <div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-20">
-          <div className="container mx-auto px-8 py-8 max-w-7xl">
-            <div className="flex gap-8 w-full">
-              <div className="flex-1">
-                <div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-center gap-10">
-                      <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
-                        <User className="w-12 h-12 text-secondary" />
-                      </div>
-                      <p className="text-3xl font-bold text-gray-800">{username}</p>
-                    </div>
-                    <div className="flex items-center justify-center gap-6 mt-6">
-                      <div className="flex items-center gap-2 min-w-[80px]">
-                        <Clock className="w-7 h-7 text-secondary flex-shrink-0" />
-                        <span className="text-xl font-bold text-gray-800">{loginNum}日</span>
-                      </div>
-                      <div className="flex items-center gap-2 min-w-[80px] ml-4">
-                        <Star className="w-7 h-7 text-secondary flex-shrink-0" />
-                        <span className="text-xl font-bold text-gray-800">{point}pt</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center ml-4">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <ThemeSwitcher />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>テーマ切り替え</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="flex items-center gap-4 mr-20">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-                              onClick={() => setPointListDialog(true)}
-                            >
-                              <List className="w-7 h-7 text-secondary" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>ポイントリスト</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-                              onClick={() => setRankingDialog(true)}
-                            >
-                              <Medal className="w-7 h-7 text-secondary" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>ポイントランキング</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-                              onClick={() => setUserStatsDialog(true)}
-                            >
-                              <BarChart2 className="w-7 h-7 text-secondary" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>学習進捗</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
+					setGoals(uncompletedGoals);
+					setCompleteGoals(completedGoals);
+				}
+			})
+			.catch((error) => {
+				console.error("目標の状態更新に失敗しました:", error);
+			});
+	};
+
+	const handleDeleteGoal = (goalId: number) => {
+		axios
+			.delete("/delete_goal", {
+				data: { goal_id: goalId },
+			})
+			.then((res) => {
+				if (res.status === 200) {
+					// 目標を削除
+					const updatedGoals = goals.filter((goal) => goal.goal_id !== goalId);
+					const updatedCompleteGoals = completeGoals.filter(
+						(goal) => goal.goal_id !== goalId,
+					);
+
+					setGoals(updatedGoals);
+					setCompleteGoals(updatedCompleteGoals);
+				}
+			})
+			.catch((error) => {
+				console.error("目標の削除に失敗しました:", error);
+			});
+	};
+
+	const handleDialogNavigation = () => {
+		if (step === 1) {
+			// パスワード変更ステップでは、フォーム内のボタンで遷移を制御
+			return;
+		}
+		if (step < steps.length - 1) {
+			setStep(step + 1);
+		} else {
+			// 最後のステップならダイアログを閉じる
+			setOpenDialog(false);
+		}
+	};
+
+	return (
+		<>
+			<TcAccessTime page="student_home" />
+			<main>
+				<div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-20">
+					<div className="container mx-auto px-8 py-8 max-w-7xl">
+						<div className="flex gap-8 w-full">
+							<div className="flex-1">
+								<div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
+									<div className="flex items-center gap-8 pl-4">
+										<div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
+											<User className="w-12 h-12 text-secondary" />
+										</div>
+										<p className="text-3xl font-bold text-gray-800">
+											{username}
+										</p>
+										<div className="flex items-center gap-6 ml-8">
+											<div className="flex items-center gap-2 min-w-[80px]">
+												<Clock className="w-7 h-7 text-secondary flex-shrink-0" />
+												<span className="text-xl font-bold text-gray-800">
+													{loginNum}日
+												</span>
+											</div>
+											<div className="flex items-center gap-2 min-w-[80px] ml-4">
+												<Star className="w-7 h-7 text-secondary flex-shrink-0" />
+												<span className="text-xl font-bold text-gray-800">
+													{point}pt
+												</span>
+											</div>
+										</div>
+									</div>
+									<div className="flex items-center justify-between">
+										<div className="flex items-center ml-4">
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<ThemeSwitcher />
+													</TooltipTrigger>
+													<TooltipContent>
+														<p>テーマ切り替え</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
+										<div className="flex items-center gap-4 mr-20">
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+															onClick={() => setPointListDialog(true)}
+														>
+															<List className="w-7 h-7 text-secondary" />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														<p>ポイントリスト</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+															onClick={() => setRankingDialog(true)}
+														>
+															<Medal className="w-7 h-7 text-secondary" />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														<p>ポイントランキング</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
+															onClick={() => setUserStatsDialog(true)}
+														>
+															<BarChart2 className="w-7 h-7 text-secondary" />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														<p>学習進捗</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+											{/* <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -428,187 +730,206 @@ export const StudentHome = () => {
                             <p>お知らせ</p>
                           </TooltipContent>
                         </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                      </TooltipProvider> */}
+										</div>
+									</div>
+								</div>
+							</div>
 
-              <div className="flex-1">
-                <div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
-                  <Tabs defaultValue="goals" className="w-full">
-                    <TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
-                      <TabsTrigger
-                        value="goals"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-                      >
-                        設定した目標
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="completed"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-                      >
-                        達成した目標
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="add"
-                        className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-                      >
-                        目標を設定
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="goals">
-                      <div className="space-y-2 h-32 overflow-y-auto pr-2">
-                        {goals && goals.length > 0 ? (
-                          goals.map((goal) => (
-                            <div
-                              key={goal.goal_id}
-                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/10 rounded-full">
-                                  <Target className="w-4 h-4 text-secondary" />
-                                </div>
-                                <span className="font-medium text-gray-800">{goal.details}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
-                                        onClick={() => handleToggleCompleted(goal.goal_id, goal.completed)}
-                                      >
-                                        <Trophy className="w-4 h-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>目標達成へ</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-                                        onClick={() => handleDeleteGoal(goal.goal_id)}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>目標を削除</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full">
-                            <div className="flex flex-col items-center gap-2">
-                              <Target className="w-10 h-10 text-secondary/30" />
-                              <p className="text-gray-500">目標が設定されていません</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="completed">
-                      <div className="space-y-2 h-32 overflow-y-auto pr-2">
-                        {completeGoals && completeGoals.length > 0 ? (
-                          completeGoals.map((goal) => (
-                            <div
-                              key={goal.goal_id}
-                              className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-secondary/10 rounded-full">
-                                  <Trophy className="w-4 h-4 text-secondary" />
-                                </div>
-                                <span className="font-medium text-gray-800">{goal.details}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-                                        onClick={() => handleDeleteGoal(goal.goal_id)}
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>目標を削除</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full">
-                            <div className="flex flex-col items-center gap-2">
-                              <Trophy className="w-10 h-10 text-secondary/30" />
-                              <p className="text-gray-500">達成した目標はありません</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="add">
-                      <div className="py-4">
-                        <Input
-                          placeholder="目標を入力してください"
-                          value={newGoal}
-                          onChange={(e) => setNewGoal(e.target.value)}
-                          className="w-full"
-                        />
-                        <div className="flex justify-end gap-2 mt-4">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setNewGoal("");
-                            }}
-                          >
-                            キャンセル
-                          </Button>
-                          <Button onClick={handleAddGoal}>設定する</Button>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </div>
-            </div>
+							<div className="flex-1">
+								<div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
+									<Tabs defaultValue="goals" className="w-full">
+										<TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
+											<TabsTrigger
+												value="goals"
+												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+											>
+												設定した目標
+											</TabsTrigger>
+											<TabsTrigger
+												value="completed"
+												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+											>
+												達成した目標
+											</TabsTrigger>
+											<TabsTrigger
+												value="add"
+												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
+											>
+												目標を設定
+											</TabsTrigger>
+										</TabsList>
+										<TabsContent value="goals">
+											<div className="space-y-2 h-32 overflow-y-auto pr-2">
+												{goals && goals.length > 0 ? (
+													goals.map((goal) => (
+														<div
+															key={goal.goal_id}
+															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+														>
+															<div className="flex items-center gap-3">
+																<div className="p-2 bg-secondary/10 rounded-full">
+																	<Target className="w-4 h-4 text-secondary" />
+																</div>
+																<span className="font-medium text-gray-800">
+																	{goal.details}
+																</span>
+															</div>
+															<div className="flex items-center gap-2">
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="icon"
+																				className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
+																				onClick={() =>
+																					handleToggleCompleted(
+																						goal.goal_id,
+																						goal.completed,
+																					)
+																				}
+																			>
+																				<Trophy className="w-4 h-4" />
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>
+																			<p>目標達成へ</p>
+																		</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="icon"
+																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
+																				onClick={() =>
+																					handleDeleteGoal(goal.goal_id)
+																				}
+																			>
+																				<Trash2 className="w-4 h-4" />
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>
+																			<p>目標を削除</p>
+																		</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+															</div>
+														</div>
+													))
+												) : (
+													<div className="flex flex-col items-center justify-center h-full">
+														<div className="flex flex-col items-center gap-2">
+															<Target className="w-10 h-10 text-secondary/30" />
+															<p className="text-gray-500">
+																目標が設定されていません
+															</p>
+														</div>
+													</div>
+												)}
+											</div>
+										</TabsContent>
+										<TabsContent value="completed">
+											<div className="space-y-2 h-32 overflow-y-auto pr-2">
+												{completeGoals && completeGoals.length > 0 ? (
+													completeGoals.map((goal) => (
+														<div
+															key={goal.goal_id}
+															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
+														>
+															<div className="flex items-center gap-3">
+																<div className="p-2 bg-secondary/10 rounded-full">
+																	<Trophy className="w-4 h-4 text-secondary" />
+																</div>
+																<span className="font-medium text-gray-800">
+																	{goal.details}
+																</span>
+															</div>
+															<div className="flex items-center gap-2">
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="icon"
+																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
+																				onClick={() =>
+																					handleDeleteGoal(goal.goal_id)
+																				}
+																			>
+																				<Trash2 className="w-4 h-4" />
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>
+																			<p>目標を削除</p>
+																		</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+															</div>
+														</div>
+													))
+												) : (
+													<div className="flex flex-col items-center justify-center h-full">
+														<div className="flex flex-col items-center gap-2">
+															<Trophy className="w-10 h-10 text-secondary/30" />
+															<p className="text-gray-500">
+																達成した目標はありません
+															</p>
+														</div>
+													</div>
+												)}
+											</div>
+										</TabsContent>
+										<TabsContent value="add">
+											<div className="py-4">
+												<Input
+													placeholder="目標を入力してください"
+													value={newGoal}
+													onChange={(e) => setNewGoal(e.target.value)}
+													className="w-full"
+												/>
+												<div className="flex justify-end gap-2 mt-4">
+													<Button
+														variant="outline"
+														onClick={() => {
+															setNewGoal("");
+														}}
+													>
+														キャンセル
+													</Button>
+													<Button onClick={handleAddGoal}>設定する</Button>
+												</div>
+											</div>
+										</TabsContent>
+									</Tabs>
+								</div>
+							</div>
+						</div>
 
-            <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-6">学習科目一覧</h2>
-              <div className="grid grid-cols-2 gap-6">
-                {subjects.map((subject) => (
-                  <Card key={subject.id}>
-                    <CardHeader>
-                      <div className="flex items-center gap-4">
-                        <Book className="w-10 h-10 text-secondary" />
-                        <div>
-                          <CardTitle className="text-xl">{subject.title}</CardTitle>
-                          <div className="text-sm text-gray-500 mt-2">
-                            <span className="text-base">{subject.course}</span>
-                            <span className="mx-2">|</span>
-                            <span className="text-base">{subject.term}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    {/*
+						<div className="mt-8">
+							<h2 className="text-2xl font-bold mb-6">学習科目一覧</h2>
+							<div className="grid grid-cols-2 gap-6">
+								{subjects.map((subject) => (
+									<Card key={subject.id}>
+										<CardHeader>
+											<div className="flex items-center gap-4">
+												<Book className="w-10 h-10 text-secondary" />
+												<div>
+													<CardTitle className="text-xl">
+														{subject.title}
+													</CardTitle>
+													<div className="text-sm text-gray-500 mt-2">
+														<span className="text-base">{subject.course}</span>
+														<span className="mx-2">|</span>
+														<span className="text-base">{subject.term}</span>
+													</div>
+												</div>
+											</div>
+										</CardHeader>
+										{/*
                     <CardContent>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
@@ -626,237 +947,319 @@ export const StudentHome = () => {
                       </div>
                     </CardContent>
                     */}
-                    <CardFooter className="flex gap-3">
-                      <Button
-                        className="flex-1 h-11 text-base font-semibold"
-                        variant="default"
-                        onClick={() =>
-                          handleButtonClick(`course-${subject.id}`, () => router.push(`/course/${subject.id}`))
-                        }
-                        disabled={loadingButtons[`course-${subject.id}`]}
-                      >
-                        <Play className="w-5 h-5 mr-2" />
-                        {loadingButtons[`course-${subject.id}`] ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          "学習を始める"
-                        )}
-                      </Button>
-                      <Button
-                        className="flex-1 h-11 text-base font-semibold"
-                        variant="outline"
-                        onClick={() => router.push(`/coursescore/${subject.id}`)}
-                      >
-                        <BarChart className="w-5 h-5 mr-2" />
-                        学習状況照会
-                      </Button>
-                      <Button
-                        className="flex-1 h-11 text-base font-semibold"
-                        variant="outline"
-                        onClick={() => router.push(`/course/${subject.id}/syllabus`)}
-                      >
-                        <FileText className="w-5 h-5 mr-2" />
-                        シラバス情報
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+										<CardFooter className="flex gap-3">
+											<Button
+												className="flex-1 h-11 text-base font-semibold"
+												variant="default"
+												onClick={() =>
+													handleButtonClick(`course-${subject.id}`, () =>
+														router.push(`/course/${subject.id}`),
+													)
+												}
+												disabled={loadingButtons[`course-${subject.id}`]}
+											>
+												<Play className="w-5 h-5 mr-2" />
+												{loadingButtons[`course-${subject.id}`] ? (
+													<Loader2 className="w-4 h-4 animate-spin" />
+												) : (
+													"学習を始める"
+												)}
+											</Button>
+											<Button
+												className="flex-1 h-11 text-base font-semibold"
+												variant="outline"
+												onClick={() =>
+													router.push(`/coursescore/${subject.id}`)
+												}
+											>
+												<BarChart className="w-5 h-5 mr-2" />
+												学習状況照会
+											</Button>
+											<Button
+												className="flex-1 h-11 text-base font-semibold"
+												variant="outline"
+												onClick={() =>
+													router.push(`/course/${subject.id}/syllabus`)
+												}
+											>
+												<FileText className="w-5 h-5 mr-2" />
+												シラバス情報
+											</Button>
+										</CardFooter>
+									</Card>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			</main>
 
-      <Dialog open={point_list_dialog} onOpenChange={setPointListDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Star className="w-5 h-5 text-secondary" />
-              ポイントリスト
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-3">
-              {pointItems.map((item) => (
-                <div
-                  key={`point-item-${item.id}`}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-all duration-200"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-secondary/10 rounded-lg ring-1 ring-secondary/20">{item.icon}</div>
-                    <div className="flex flex-col">
-                      <span className="font-medium text-gray-800">{item.title}</span>
-                      <span className="text-xs text-gray-500">獲得可能なポイント</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-lg font-bold text-secondary">+{item.points}</span>
-                    <span className="text-sm text-secondary">pt</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-secondary" />
-                  <span className="font-medium text-gray-800">現在のポイント</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-lg font-bold text-secondary">{point}</span>
-                  <span className="text-sm text-secondary">pt</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPointListDialog(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+			<Dialog open={point_list_dialog} onOpenChange={setPointListDialog}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle className="text-xl font-bold flex items-center gap-2">
+							<Star className="w-5 h-5 text-secondary" />
+							ポイントリスト
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-3">
+							{pointItems.map((item) => (
+								<div
+									key={`point-item-${item.id}`}
+									className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-all duration-200"
+								>
+									<div className="flex items-center gap-3">
+										<div className="p-2 bg-secondary/10 rounded-lg ring-1 ring-secondary/20">
+											{item.icon}
+										</div>
+										<div className="flex flex-col">
+											<span className="font-medium text-gray-800">
+												{item.title}
+											</span>
+											<span className="text-xs text-gray-500">
+												獲得可能なポイント
+											</span>
+										</div>
+									</div>
+									<div className="flex items-center gap-1">
+										<span className="text-lg font-bold text-secondary">
+											+{item.points}
+										</span>
+										<span className="text-sm text-secondary">pt</span>
+									</div>
+								</div>
+							))}
+						</div>
+						<div className="pt-4 border-t border-gray-200">
+							<div className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Trophy className="w-5 h-5 text-secondary" />
+									<span className="font-medium text-gray-800">
+										現在のポイント
+									</span>
+								</div>
+								<div className="flex items-center gap-1">
+									<span className="text-lg font-bold text-secondary">
+										{point}
+									</span>
+									<span className="text-sm text-secondary">pt</span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setPointListDialog(false)}>
+							閉じる
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
-      <Dialog open={ranking_dialog} onOpenChange={setRankingDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <Crown className="w-6 h-6 text-secondary" />
-              ポイントランキング
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="flex flex-col items-center gap-4 p-6 bg-secondary/5 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
-                  <Crown className="w-6 h-6 text-secondary" />
-                </div>
-                <div className="flex flex-col">
-                  <div className="text-lg font-medium text-gray-600">あなたの順位</div>
-                  <div className="text-3xl font-bold text-secondary">#{userRank}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
-                  <Star className="w-6 h-6 text-secondary" />
-                </div>
-                <div className="flex flex-col">
-                  <div className="text-lg font-medium text-gray-600">獲得ポイント</div>
-                  <div className="text-3xl font-bold text-secondary">{point}pt</div>
-                </div>
-              </div>
-            </div>
+			<Dialog open={ranking_dialog} onOpenChange={setRankingDialog}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle className="text-2xl font-bold flex items-center gap-2">
+							<Crown className="w-6 h-6 text-secondary" />
+							ポイントランキング
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-6 py-4">
+						<div className="flex flex-col items-center gap-4 p-6 bg-secondary/5 rounded-lg">
+							<div className="flex items-center gap-3">
+								<div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+									<Crown className="w-6 h-6 text-secondary" />
+								</div>
+								<div className="flex flex-col">
+									<div className="text-lg font-medium text-gray-600">
+										あなたの順位
+									</div>
+									<div className="text-3xl font-bold text-secondary">
+										#{userRank}
+									</div>
+								</div>
+							</div>
+							<div className="flex items-center gap-3">
+								<div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+									<Star className="w-6 h-6 text-secondary" />
+								</div>
+								<div className="flex flex-col">
+									<div className="text-lg font-medium text-gray-600">
+										獲得ポイント
+									</div>
+									<div className="text-3xl font-bold text-secondary">
+										{point}pt
+									</div>
+								</div>
+							</div>
+						</div>
 
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-lg font-medium text-gray-600" />
-            </div>
-            <div className="w-[300px] flex flex-col items-center gap-1 justify-center mx-auto">
-              <div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-yellow-600" />
-                  <span className="font-medium text-yellow-800">S</span>
-                </div>
-                <span className="text-xs text-yellow-800">500pt以上</span>
-              </div>
-              <div className="w-3/5 flex items-center justify-between p-2 bg-purple-100 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-purple-600" />
-                  <span className="font-medium text-purple-800">A</span>
-                </div>
-                <span className="text-xs text-purple-800">200pt以上</span>
-              </div>
-              <div className="w-4/5 flex items-center justify-between p-2 bg-blue-100 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-blue-800">B</span>
-                </div>
-                <span className="text-xs text-blue-800">100pt以上</span>
-              </div>
-              <div className="w-11/12 flex items-center justify-between p-2 bg-green-100 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Crown className="w-4 h-4 text-green-600" />
-                  <span className="font-medium text-green-800">C</span>
-                </div>
-                <span className="text-xs text-green-800">50pt以上</span>
-              </div>
-              <div className="w-full flex items-center justify-between p-2 bg-secondary/10 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-secondary" />
-                  <span className="font-medium text-gray-800">D</span>
-                </div>
-                <span className="text-xs text-gray-800">20pt以下</span>
-              </div>
-            </div>
-            <div className="w-full p-3 bg-secondary/5 rounded-lg">
-              <div className="text-center text-sm text-gray-600">
-                あなたは
-                <span className="font-bold text-secondary mx-1">
-                  {Number(point) >= 500
-                    ? "S"
-                    : Number(point) >= 200
-                      ? "A"
-                      : Number(point) >= 100
-                        ? "B"
-                        : Number(point) >= 50
-                          ? "C"
-                          : "D"}
-                </span>
-                ランクです
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRankingDialog(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+						<div className="flex flex-col items-center gap-4">
+							<div className="text-lg font-medium text-gray-600" />
+						</div>
+						<div className="w-[300px] flex flex-col items-center gap-1 justify-center mx-auto">
+							<div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Crown className="w-4 h-4 text-yellow-600" />
+									<span className="font-medium text-yellow-800">S</span>
+								</div>
+								<span className="text-xs text-yellow-800">500pt以上</span>
+							</div>
+							<div className="w-3/5 flex items-center justify-between p-2 bg-purple-100 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Crown className="w-4 h-4 text-purple-600" />
+									<span className="font-medium text-purple-800">A</span>
+								</div>
+								<span className="text-xs text-purple-800">200pt以上</span>
+							</div>
+							<div className="w-4/5 flex items-center justify-between p-2 bg-blue-100 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Crown className="w-4 h-4 text-blue-600" />
+									<span className="font-medium text-blue-800">B</span>
+								</div>
+								<span className="text-xs text-blue-800">100pt以上</span>
+							</div>
+							<div className="w-11/12 flex items-center justify-between p-2 bg-green-100 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Crown className="w-4 h-4 text-green-600" />
+									<span className="font-medium text-green-800">C</span>
+								</div>
+								<span className="text-xs text-green-800">50pt以上</span>
+							</div>
+							<div className="w-full flex items-center justify-between p-2 bg-secondary/10 rounded-lg">
+								<div className="flex items-center gap-2">
+									<Star className="w-4 h-4 text-secondary" />
+									<span className="font-medium text-gray-800">D</span>
+								</div>
+								<span className="text-xs text-gray-800">20pt以下</span>
+							</div>
+						</div>
+						<div className="w-full p-3 bg-secondary/5 rounded-lg">
+							<div className="text-center text-sm text-gray-600">
+								あなたは
+								<span className="font-bold text-secondary mx-1">
+									{Number(point) >= 500
+										? "S"
+										: Number(point) >= 200
+											? "A"
+											: Number(point) >= 100
+												? "B"
+												: Number(point) >= 50
+													? "C"
+													: "D"}
+								</span>
+								ランクです
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setRankingDialog(false)}>
+							閉じる
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
-      <Dialog open={user_stats_dialog} onOpenChange={setUserStatsDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <BarChart2 className="w-6 h-6 text-secondary" />
-              学習進捗
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="flex flex-col items-center gap-2 p-4 bg-secondary/5 rounded-lg">
-              <div className="flex items-center gap-2">
-                <BarChart2 className="w-5 h-5 text-secondary" />
-                <span className="font-medium text-gray-600">ログイン日数</span>
-              </div>
-              <span className="text-2xl font-bold text-secondary">{loginNum}日</span>
-            </div>
-            <div className="p-4 bg-secondary/5 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <BookOpen className="w-5 h-5 text-secondary" />
-                <span className="font-medium text-gray-600">学習進捗率</span>
-              </div>
-              <div className="w-full h-4 bg-gray-200 rounded-full">
-                <div className="h-full rounded-full bg-secondary" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            <div className="text-right mt-1">
-              <span className="text-sm font-medium text-secondary">{progress}%</span>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUserStatsDialog(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+			<Dialog open={user_stats_dialog} onOpenChange={setUserStatsDialog}>
+				<DialogContent className="sm:max-w-[425px]">
+					<DialogHeader>
+						<DialogTitle className="text-2xl font-bold flex items-center gap-2">
+							<BarChart2 className="w-6 h-6 text-secondary" />
+							学習進捗
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-6 py-4">
+						<div className="flex flex-col items-center gap-2 p-4 bg-secondary/5 rounded-lg">
+							<div className="flex items-center gap-2">
+								<BarChart2 className="w-5 h-5 text-secondary" />
+								<span className="font-medium text-gray-600">ログイン日数</span>
+							</div>
+							<span className="text-2xl font-bold text-secondary">
+								{loginNum}日
+							</span>
+						</div>
+						<div className="p-4 bg-secondary/5 rounded-lg">
+							<div className="flex items-center gap-2 mb-3">
+								<BookOpen className="w-5 h-5 text-secondary" />
+								<span className="font-medium text-gray-600">学習進捗率</span>
+							</div>
+							<div className="w-full h-4 bg-gray-200 rounded-full">
+								<div
+									className="h-full rounded-full bg-secondary"
+									style={{ width: `${progress}%` }}
+								/>
+							</div>
+						</div>
+						<div className="text-right mt-1">
+							<span className="text-sm font-medium text-secondary">
+								{progress}%
+							</span>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setUserStatsDialog(false)}>
+							閉じる
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
-      <AnnouncementsDialog 
-        open={showAnnouncements} 
-        onOpenChange={setShowAnnouncements} 
-        onClose={() => setHasUnread(false)} 
-      />
-    </>
-  );
+			<Dialog open={open_dialog} onOpenChange={setOpenDialog}>
+				<DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
+					<div className="flex items-center justify-between mb-8 relative">
+						{steps.map((s, index) => (
+							<div
+								key={stepKeys[index]}
+								className="flex-1 flex flex-col items-center relative"
+							>
+								<div
+									className={`w-9 h-9 flex items-center justify-center rounded-full text-white text-sm font-bold z-10 transition-all
+                    ${step === index ? "bg-blue-600 scale-110 shadow-lg" : "bg-gray-300"}`}
+								>
+									{index + 1}
+								</div>
+								<span
+									className={`mt-2 text-sm font-medium transition-colors ${step === index ? "text-blue-700" : "text-gray-500"}`}
+								>
+									{s.title}
+								</span>
+								{index < steps.length - 1 && (
+									<div className="absolute top-[18px] left-1/2 w-full h-1 bg-gray-300 -z-10">
+										<div
+											className={`h-full bg-blue-500 transition-all duration-500 ${step > index ? "w-full" : "w-0"}`}
+										/>
+									</div>
+								)}
+							</div>
+						))}
+					</div>
+
+					<Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
+						<div className="p-10">{steps[step].content}</div>
+					</Card>
+
+					<div className="flex justify-between mt-8">
+						<Button
+							variant="ghost"
+							onClick={() => setStep((prev) => Math.max(prev - 1, 0))}
+							disabled={step === 0 || step === 1}
+							className="rounded-full px-6 py-2 text-gray-700 hover:bg-gray-100 transition disabled:opacity-40"
+						>
+							← 戻る
+						</Button>
+						{step !== 1 && ( // パスワード変更ステップでは独自のボタンがあるので、共通の「次へ」ボタンを非表示にする
+							<Button
+								onClick={handleDialogNavigation}
+								className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
+							>
+								{step === steps.length - 1 ? "完了" : "次へ →"}
+							</Button>
+						)}
+					</div>
+				</DialogContent>
+			</Dialog>
+		</>
+	);
 };
 
 export default withAuth(StudentHome, ["学生", "テスト"]);
