@@ -4,6 +4,13 @@ import {
 	ArrowLeft,
 	ChevronRight,
 	Home,
+	Book,
+	FileText,
+	ListChecks,
+	Pencil,
+	MessageCircle,
+	BarChart2,
+	Users,
 	Settings,
 	ShieldQuestion,
 } from "lucide-react";
