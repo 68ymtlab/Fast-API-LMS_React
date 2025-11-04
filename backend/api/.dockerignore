@@ -1,0 +1,11 @@
+# Poetryの仮想環境フォルダを無視
+.venv
+
+# Pythonのキャッシュファイルを無視
+__pycache__
+*.pyc
+*.pyo
+
+# ローカルの設定ファイルなどを無視
+.vscode
+.idea

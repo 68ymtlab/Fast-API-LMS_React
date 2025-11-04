@@ -1,0 +1,9 @@
+title: str(required=True)
+page: int(required=True)
+rules: List(include('block_rules'),required=False)
+content: str(required=True)
+---
+block_rules:
+  start_date_time: timestamp(required=False)
+  end_date_time: timestamp(required=False)
+  always: bool(required=False)
