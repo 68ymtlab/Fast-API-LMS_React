@@ -1,0 +1,17 @@
+{
+	"name": "fast-api-lms",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"prepare": "lefthook install",
+		"lint": "biome check .",
+		"format": "biome check . --write --unsafe"
+	},
+	"dependencies": {
+		"lefthook": "^1.11.13",
+		"nanoid": "^5.1.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.2.4"
+	}
+}
