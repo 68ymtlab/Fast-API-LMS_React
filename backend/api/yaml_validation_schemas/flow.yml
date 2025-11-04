@@ -1,0 +1,46 @@
+id: str()
+title: str()
+welcome_page_content: str()
+completion_page_content: str()
+rules: list(include('flow_rules'),required=False)
+page_groups: list(include('page_group'),)
+---
+flow_rules:
+  check_answer_timing: enum("none","submit_page","end_of_flow",required=False)
+  challenge_limit: int(min=1,required=False)
+  restart_session: bool(required=False)
+  time_limit: regex('\d\d:\d\d:\d\d',required=False)
+  start_date_time: timestamp(required=False)
+  end_answer_date_time: timestamp(required=False)
+  end_read_date_time: timestamp(required=False)
+  always: bool(required=False)
+---
+page_group:
+  group_name: str()
+  order: num()
+  pages: list(include('page'))
+---
+page:
+  title: str()
+  content: str()
+  page_type: str()
+  order: num()
+  answer_column: str(required=False)
+  correct_answer: list(include('answer'),required=False)
+  correct_answers: list(include('correct_answer'),required=False)
+  choices: list(include('choice'),required=False)
+  correct_choices: list(str(),required=False)
+  hint_comment: str()
+  answer_comment: str()
+---
+correct_answer:
+  blank_id: str()
+  answers: list(include('answer'),)
+---
+answer:
+  type: str()
+  value: any(str(),num())
+---
+choice:
+  choice_id: str()
+  choice_text: str()

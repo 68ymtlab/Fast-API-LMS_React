@@ -1,0 +1,17 @@
+title: str()
+order: num()
+page_type: enum("multiple_text_question","MultipleTextQuestion")
+content: str()
+answer_column: str()
+correct_answers: list(include('correct_answers'))
+hint_comment: str()
+answer_comment: str()
+---
+correct_answers:
+  blank_id: str()
+  answers: list(include('answer'))
+---
+answer:
+  type: str()
+  value: any(str(),num())
+  

@@ -1,0 +1,221 @@
+"""
+コース関連API
+
+このモジュールでは、コースの履修情報など、
+コースに関連するAPIエンドポイントを定義します。
+"""
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.db.session import get_db
+from api.core.security import get_current_active_user, require_teacher_or_higher, require_admin
+from api.models import users_model
+from api.repositories.courses_repo import CourseRepository
+from api.repositories.users_repo import UserRepository
+from api.repositories.lessons_repo import LessonRepository
+from api.services.courses_service import CourseService
+from api.services.lessons_service import LessonService
+import api.schemas.courses as courses_schema
+import api.schemas.lessons as lessons_schema # New import
+
+
+courses_router = APIRouter(tags=["コース管理"])
+
+#
+# Dependency Injection
+#
+def get_course_repo(db: AsyncSession = Depends(get_db)) -> CourseRepository:
+    """コースリポジトリの依存性注入"""
+    return CourseRepository(db)
+
+def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    """ユーザーリポジトリの依存性注入"""
+    return UserRepository(db)
+
+def get_lesson_repo(db: AsyncSession = Depends(get_db)) -> LessonRepository:
+    """レッスンリポジトリの依存性注入"""
+    return LessonRepository(db)
+
+def get_course_service(
+    course_repo: CourseRepository = Depends(get_course_repo),
+    user_repo: UserRepository = Depends(get_user_repo)
+) -> CourseService:
+    """コースサービスの依存性注入"""
+    return CourseService(course_repo, user_repo)
+
+def get_lesson_service(
+    lesson_repo: LessonRepository = Depends(get_lesson_repo)
+) -> LessonService:
+    """レッスンサービスの依存性注入"""
+    return LessonService(lesson_repo)
+
+#
+# Endpoints
+#
+
+@courses_router.get("/courses/me/enrolled", response_model=List[courses_schema.Course], summary="（学生向け）履修中コース一覧の取得")
+async def get_my_enrolled_courses(
+    current_user: users_model.Users = Depends(get_current_active_user),
+    course_service: CourseService = Depends(get_course_service),
+    include_inactive: bool = Query(False, description="非アクティブなコースを含めるかどうか")
+):
+    """ログイン中のユーザーが現在履修しているコースの一覧を取得します。"""
+    return await course_service.get_enrolled_courses(user_id=current_user.id, include_inactive=include_inactive)
+
+@courses_router.get("/courses/{course_id}", response_model=courses_schema.Course, summary="コース情報の取得")
+async def get_course_info(
+    course_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定されたIDのコース情報を取得します。"""
+    course = await course_service.get_course_by_id(course_id=course_id)
+    if course is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    return course
+
+
+
+@courses_router.get("/courses/teacher/by-subject/{subject_id}", response_model=List[courses_schema.Course], summary="（教師向け）科目別コース一覧の取得")
+async def get_teacher_courses_by_subject(
+    subject_id: int,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service),
+    include_inactive: bool = Query(False, description="非アクティブなコースを含めるかどうか")
+):
+    """ログイン中の教師が、指定した科目（subject_id）の中で閲覧可能なコースの一覧を取得します。"""
+    return await course_service.get_courses_for_teacher(
+        user_id=current_user.id, subject_id=subject_id, include_inactive=include_inactive
+    )
+
+@courses_router.get("/admin/courses/by-subject/{subject_id}", response_model=List[courses_schema.Course], summary="（管理者向け）科目別コース一覧の取得", dependencies=[Depends(require_admin)])
+async def get_admin_courses_by_subject(
+    subject_id: int,
+    course_service: CourseService = Depends(get_course_service),
+    include_inactive: bool = Query(False, description="非アクティブなコースを含めるかどうか")
+):
+    """（管理者向け）指定した科目（subject_id）に紐づく全てのコースの一覧を取得します。"""
+    return await course_service.get_all_courses_by_subject_for_admin(
+        subject_id=subject_id, include_inactive=include_inactive
+    )
+
+#
+# Course Content Permission Endpoints
+#
+
+@courses_router.post("/courses/{course_id}/permissions", response_model=Optional[courses_schema.CourseContentPermission], summary="コースコンテンツ権限の付与/更新/削除")
+async def grant_or_update_course_permission(
+    course_id: int,
+    permission_in: courses_schema.CourseContentPermissionCreate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースに対するユーザーのコンテンツ権限を付与または更新します。
+
+    コース作成者、管理者、またはcan_update_content権限を持つユーザーが実行可能です。
+    管理者アカウントへの権限付与はできません。
+    全ての権限（閲覧、編集、削除）がFalseでリクエストされた場合、既存の権限エントリは削除されます。
+    権限が削除された場合は、HTTP 204 No Contentが返されます。
+    """
+    updated_permission = await course_service.grant_or_update_course_content_permission(
+        course_id=course_id, permission_in=permission_in, current_user=current_user
+    )
+    if updated_permission is None:
+        return status.HTTP_204_NO_CONTENT # 権限が削除された場合
+    return updated_permission
+
+@courses_router.post("/courses/{course_id}/permissions/batch", response_model=List[Optional[courses_schema.CourseContentPermission]], summary="コースコンテンツ権限の一括付与/更新/削除")
+async def grant_or_update_course_permissions_batch(
+    course_id: int,
+    permissions_in: courses_schema.CourseContentPermissionBatchCreate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースに対する複数のユーザーのコンテンツ権限を一括で付与または更新します。
+
+    コース作成者、管理者、またはcan_update_content権限を持つユーザーが実行可能です。
+    管理者アカウントへの権限付与はできません。
+    個々の権限について、全ての権限（閲覧、編集、削除）がFalseでリクエストされた場合、既存の権限エントリは削除されます。
+    """
+    results = await course_service.grant_or_update_course_content_permissions_batch(
+        course_id=course_id, permissions_in=permissions_in.permissions, current_user=current_user
+    )
+    return results
+
+#
+# Course Enrollment Endpoints
+#
+
+@courses_router.post("/courses/{course_id}/enrollments/batch", response_model=List[courses_schema.CourseEnrollment], summary="コースへの学生の一括登録")
+async def enroll_students_batch(
+    course_id: int,
+    enrollments_in: courses_schema.CourseEnrollmentBatchCreate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースに複数の学生を一括で登録します。
+
+    操作ユーザーは教師または管理者である必要があります。
+    登録対象のユーザーは学生である必要があります。
+    担当教師が指定された場合、そのユーザーは教師である必要があります。
+    """
+    results = await course_service.enroll_students_in_course_batch(
+        course_id=course_id, enrollments_in=enrollments_in.enrollments, current_user=current_user
+    )
+    return results
+
+@courses_router.delete("/courses/{course_id}/enrollments/batch", status_code=status.HTTP_204_NO_CONTENT, summary="コースからの学生の一括登録解除")
+async def unenroll_students_batch(
+    course_id: int,
+    user_ids: List[int],
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースから複数の学生を一括で登録解除します。
+
+    操作ユーザーは教師または管理者である必要があります。
+    """
+    await course_service.unenroll_students_from_course_batch(
+        course_id=course_id, user_ids=user_ids, current_user=current_user
+    )
+    return
+
+#
+# Course Management Endpoints
+#
+
+@courses_router.put("/courses/{course_id}", response_model=courses_schema.Course, summary="コース情報の更新")
+async def update_course_info(
+    course_id: int,
+    course_in: courses_schema.CourseUpdate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースの情報を更新します。
+
+    コース作成者、管理者、またはcan_update_content権限を持つユーザーが実行可能です。
+    """
+    updated_course = await course_service.update_course(
+        course_id=course_id, course_in=course_in, current_user=current_user
+    )
+    if updated_course is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    return updated_course
+
+@courses_router.delete("/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT, summary="コースの論理削除")
+async def delete_course_info(
+    course_id: int,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    course_service: CourseService = Depends(get_course_service)
+):
+    """指定したコースを論理削除します。
+
+    コース作成者、管理者、またはcan_delete_content権限を持つユーザーが実行可能です。
+    """
+    success = await course_service.delete_course(
+        course_id=course_id, current_user=current_user
+    )
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    return

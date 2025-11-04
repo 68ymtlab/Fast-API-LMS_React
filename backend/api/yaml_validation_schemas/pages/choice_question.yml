@@ -1,0 +1,12 @@
+title: str()
+order: num()
+page_type: enum("choice_question","ChoiceQuestion")
+content: str()
+correct_choices: list(str())
+choices: list(include('choice'))
+hint_comment: str()
+answer_comment: str()
+---
+choice:
+  choice_id: str()
+  choice_text: str()
