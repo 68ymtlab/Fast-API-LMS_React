@@ -1,0 +1,12 @@
+title: str()
+order: num()
+page_type: enum("single_text_question","SingleTextQuestion")
+content: str()
+hint_comment: str()
+answer_comment: str()
+correct_answer: list(include('answer'))
+---
+answer:
+  type: str()
+  value: any(str(),num())
+  

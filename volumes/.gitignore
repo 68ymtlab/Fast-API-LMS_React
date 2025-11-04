@@ -1,0 +1,9 @@
+# DB関連の無視設定
+# --- Docker volumes ---
+db/init/data/*
+!db/init/data/.gitkeep
+
+# DB initialization logs or dumps
+*.sql~
+*.dump
+*.bak
