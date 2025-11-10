@@ -20,3 +20,8 @@ components.d.ts
 
 # .logを無視
 *.log
+*.log
+
+# 環境変数ファイル
+
+backend/.env
