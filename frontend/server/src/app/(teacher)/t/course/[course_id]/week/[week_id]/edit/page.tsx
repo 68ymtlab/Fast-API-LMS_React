@@ -12,32 +12,16 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import FlowContentEditor from "./components/FlowContentEditor";
 import WeekContentEditor from "./components/WeekContentEditor";
 // 個別タブコンポーネント（今後実装）
 import WeekInfoEditor from "./components/WeekInfoEditor";
 
 function EditWeekPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-7xl">

@@ -49,7 +49,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z.object({
@@ -74,7 +73,6 @@ const creditOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const periodOptions = ["前期", "後期", "通年", "集中", "1Q", "2Q", "3Q", "4Q"];
 
 function EditSyllabusPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -95,12 +93,6 @@ function EditSyllabusPage() {
 			subject_goals: "",
 		},
 	});
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -161,14 +153,6 @@ function EditSyllabusPage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser || fetchLoading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">

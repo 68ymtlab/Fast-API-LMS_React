@@ -11,7 +11,6 @@ import SingleTextQuestion from "@/components/flow/SingleTextQuestion";
 import { MathJax } from "@/components/shared/MathJax";
 import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 
 interface FlowPageData {
@@ -765,4 +764,4 @@ function FlowSessionPage() {
 	);
 }
 
-export default withAuth(FlowSessionPage);
+export default FlowSessionPage;

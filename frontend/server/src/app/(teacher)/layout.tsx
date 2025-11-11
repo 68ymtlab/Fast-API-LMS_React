@@ -16,7 +16,6 @@ import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import withAuth from "@/hocs/withAuth";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 
 const sidebarGroups: SidebarGroups[] = [
@@ -223,7 +222,7 @@ export const TeacherLayoutInner = memo(
 	},
 );
 
-export const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
+const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
 	console.log("[TeacherLayout] Layout rendered");
 	return (
 		<SidebarProvider defaultOpen={false}>
@@ -235,4 +234,4 @@ export const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
 	);
 });
 
-export default withAuth(TeacherLayout, ["教師", "管理者"]);
+export default TeacherLayout;

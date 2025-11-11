@@ -24,7 +24,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 type Subject = {
@@ -43,7 +42,6 @@ type SubjectResponse = {
 function TeacherHome() {
 	console.log("[TeacherHome] Component rendered");
 	const router = useRouter();
-	const { loginUser, logout } = useLoginUser();
 	const [duringSubjects, setDuringSubjects] = useState<Subject[]>([]);
 	const [outsideSubjects, setOutsideSubjects] = useState<Subject[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
@@ -52,14 +50,6 @@ function TeacherHome() {
 	const [loadingButtons, setLoadingButtons] = useState<{
 		[key: string]: boolean;
 	}>({});
-
-	// 認証チェック
-	useEffect(() => {
-		if (!loginUser) {
-			router.push("/login");
-			return;
-		}
-	}, [loginUser, router]);
 
 	const handleButtonClick = async (
 		buttonId: string,
@@ -75,51 +65,49 @@ function TeacherHome() {
 		}
 	};
 
-	useEffect(() => {
-		if (!loginUser) return;
+	// useEffect(() => {
+	// 	const fetchUserName = async () => {
+	// 		try {
+	// 			const response = await axios.get("/user_name");
+	// 			if (response.status === 200) {
+	// 				setUserName(response.data);
+	// 			}
+	// 		} catch (_error) {
+	// 			console.error("ユーザー名の取得に失敗しました");
+	// 		}
+	// 	};
 
-		const fetchUserName = async () => {
-			try {
-				const response = await axios.get("/user_name");
-				if (response.status === 200) {
-					setUserName(response.data);
-				}
-			} catch (_error) {
-				console.error("ユーザー名の取得に失敗しました");
-			}
-		};
+	// 	fetchUserName();
+	// }, [loginUser]);
 
-		fetchUserName();
-	}, [loginUser]);
+	// useEffect(() => {
+	// 	if (!loginUser) return;
 
-	useEffect(() => {
-		if (!loginUser) return;
+	// 	const fetchSubjects = async () => {
+	// 		setIsLoading(true);
+	// 		setError(null);
+	// 		try {
+	// 			const response = await axios.get<SubjectResponse>("/get_subjects");
+	// 			if (response.status === 200) {
+	// 				setDuringSubjects(response.data.during_result);
+	// 				setOutsideSubjects(response.data.outside_result);
+	// 			} else {
+	// 				setError("科目情報の取得に失敗しました");
+	// 			}
+	// 		} catch (_error) {
+	// 			setError("科目情報の取得に失敗しました");
+	// 		} finally {
+	// 			setIsLoading(false);
+	// 		}
+	// 	};
 
-		const fetchSubjects = async () => {
-			setIsLoading(true);
-			setError(null);
-			try {
-				const response = await axios.get<SubjectResponse>("/get_subjects");
-				if (response.status === 200) {
-					setDuringSubjects(response.data.during_result);
-					setOutsideSubjects(response.data.outside_result);
-				} else {
-					setError("科目情報の取得に失敗しました");
-				}
-			} catch (_error) {
-				setError("科目情報の取得に失敗しました");
-			} finally {
-				setIsLoading(false);
-			}
-		};
+	// 	fetchSubjects();
+	// }, [loginUser]);
 
-		fetchSubjects();
-	}, [loginUser]);
-
-	// ログインしていない場合は何も表示しない
-	if (!loginUser) {
-		return null;
-	}
+	// // ログインしていない場合は何も表示しない
+	// if (!loginUser) {
+	// 	return null;
+	// }
 
 	return (
 		<>

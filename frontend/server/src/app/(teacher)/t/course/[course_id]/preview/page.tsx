@@ -22,7 +22,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface CourseInfo {
@@ -44,19 +43,12 @@ interface WeekInfo {
 }
 
 function CoursePreviewPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [courseInfo, setCourseInfo] = useState<CourseInfo | null>(null);
 	const [weeks, setWeeks] = useState<WeekInfo[]>([]);
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -89,14 +81,6 @@ function CoursePreviewPage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser || loading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">

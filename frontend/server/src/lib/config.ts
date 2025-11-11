@@ -22,6 +22,19 @@ export const config = {
 	 * 3: すべて（詳細情報を含む）
 	 */
 	debugLevel: Number(process.env.NEXT_PUBLIC_DEBUG_LEVEL) || 0,
+
+	/**
+	 * JWTのシークレットキー
+	 * 認証トークンの署名と検証に使用される
+	 */
+	secretKey: process.env.NEXTAUTH_SECRET ?? "",
+
+	/**
+	 * JWTのアルゴリズム
+	 * 認証トークンの署名と検証に使用されるアルゴリズム
+	 * HS256: HMAC using SHA-256 hash algorithm
+	 */
+	algorithm: process.env.JWT_ALGORITHM ?? "HS256",
 };
 
 export default config;

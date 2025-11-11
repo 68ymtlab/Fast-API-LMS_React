@@ -53,8 +53,6 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import withAuth from "@/hocs/withAuth";
-import { useAuth } from "@/hooks/useAuth";
 import axios from "@/lib/axios";
 
 interface Course {
@@ -225,7 +223,6 @@ const PasswordUpdateForm = ({
 
 export const StudentHome = () => {
 	const router = useRouter();
-	const { logout } = useAuth();
 	const [username, setUsername] = useState("");
 	const [point, setPoint] = useState("0");
 	const [loginNum, setLoginNum] = useState(0);
@@ -1262,4 +1259,4 @@ export const StudentHome = () => {
 	);
 };
 
-export default withAuth(StudentHome, ["学生", "テスト"]);
+export default StudentHome;

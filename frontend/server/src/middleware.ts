@@ -1,7 +1,7 @@
 import { type JWTPayload, jwtVerify } from "jose";
 import { type NextRequest, NextResponse } from "next/server";
+import { withAuth } from "next-auth/middleware";
 import appConfig from "@/lib/config"; // インポート名を appConfig に変更 (debugLevelアクセス用)
-import { ALGORITHM, SECRET_KEY } from "@/lib/secrets"; // secrets.tsからインポート
 import debug, { LogLevel } from "@/lib/utils/debug"; // src/libs/utils/debug をインポート
 import {
 	authPages,
@@ -31,8 +31,8 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
 		return null;
 	}
 
-	const secretKey = SECRET_KEY; // secrets.ts の SECRET_KEY を使用
-	const algorithm = ALGORITHM; // secrets.ts の ALGORITHM を使用
+	const secretKey = appConfig.secretKey; // secrets.ts の SECRET_KEY を使用
+	const algorithm = appConfig.algorithm; // secrets.ts の ALGORITHM を使用
 
 	if (!secretKey) {
 		debug.error("[Middleware] JWT_SECRET_KEY is not defined in config.");
@@ -57,8 +57,8 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
 	}
 }
 
-export async function middleware(request: NextRequest) {
-	const { pathname } = request.nextUrl;
+export default withAuth(async function middleware(req: NextRequest) {
+	const { pathname } = req.nextUrl;
 
 	// メンテナンスモード時のログ出力 (debugLevel が DEBUG 以上の場合)
 	if (isMaintenanceMode && appConfig.debugLevel >= LogLevel.DEBUG) {
@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
 			}
 			const maintenanceUrl = process.env.NEXT_PUBLIC_APP_BASE_URL
 				? `${process.env.NEXT_PUBLIC_APP_BASE_URL}/maintenance`
-				: new URL("/maintenance", request.url).toString();
+				: new URL("/maintenance", req.url).toString();
 			return NextResponse.redirect(maintenanceUrl);
 		}
 		if (pathname.startsWith("/maintenance")) {
@@ -94,8 +94,8 @@ export async function middleware(request: NextRequest) {
 					`[Middleware] Maintenance mode is OFF. Rewriting ${pathname} to /404`,
 				);
 			}
-			request.nextUrl.pathname = "/404";
-			return NextResponse.rewrite(request.nextUrl);
+			req.nextUrl.pathname = "/404";
+			return NextResponse.rewrite(req.nextUrl);
 		}
 	}
 
@@ -106,7 +106,7 @@ export async function middleware(request: NextRequest) {
 		);
 	}
 	return NextResponse.next();
-}
+});
 
 // This export is for Next.js middleware configuration and should not be confused with the imported appConfig.
 export const config = {

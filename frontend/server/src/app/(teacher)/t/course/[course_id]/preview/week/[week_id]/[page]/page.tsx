@@ -25,7 +25,6 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 // --- 型定義 -----------------------------------------
@@ -56,7 +55,6 @@ interface ContentAssets {
 // ----------------------------------------------------------
 
 function WeekPreviewPage() {
-    const { loginUser, isLoadingUser } = useLoginUser();
     const router = useRouter();
     const params = useParams();
     const [loading, setLoading] = useState(false);
@@ -129,13 +127,6 @@ function WeekPreviewPage() {
         return processedContent;
     };
 
-    // --- ログイン確認 ---
-    useEffect(() => {
-        if (!isLoadingUser && !loginUser) {
-            router.push("/login");
-        }
-    }, [loginUser, isLoadingUser, router]);
-
     // --- データ取得 ---
     useEffect(() => {
         if (params.course_id && params.week_id && params.page) {
@@ -200,14 +191,6 @@ function WeekPreviewPage() {
             `/t/course/${params.course_id}/preview/week/${params.week_id}/${page}`,
         );
     };
-
-    if (isLoadingUser || loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
 
     return (
         <MathJaxSetup>

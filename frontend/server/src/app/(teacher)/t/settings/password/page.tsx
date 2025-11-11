@@ -1,5 +1,7 @@
 "use client";
 
+//// 修正在り
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -24,7 +26,6 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -45,7 +46,6 @@ const formSchema = z
 type FormData = z.infer<typeof formSchema>;
 
 function TeacherPasswordUpdatePage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [success, setSuccess] = useState(false);
@@ -60,12 +60,6 @@ function TeacherPasswordUpdatePage() {
 		},
 	});
 
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
 	const onSubmit = async (data: FormData) => {
 		setLoading(true);
 		setErrorMessage("");
@@ -73,7 +67,7 @@ function TeacherPasswordUpdatePage() {
 
 		try {
 			const params = {
-				email: loginUser?.email,
+				email: "example@example.com", // 仮のメールアドレス、必要に応じて実際のユーザーのメールアドレスに置き換えてください
 				old_password: data.currentPassword,
 				new_password: data.newPassword,
 			};
@@ -99,14 +93,6 @@ function TeacherPasswordUpdatePage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-2xl">

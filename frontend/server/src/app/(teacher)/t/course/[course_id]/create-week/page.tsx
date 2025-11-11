@@ -37,7 +37,6 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z.object({
@@ -57,7 +56,6 @@ interface FileItem {
 }
 
 function CreateWeekPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -74,12 +72,6 @@ function CreateWeekPage() {
 			order: 1,
 		},
 	});
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	const readFileAsText = (file: File): Promise<string> => {
 		return new Promise((resolve, reject) => {
@@ -208,14 +200,6 @@ function CreateWeekPage() {
 	const handleCancel = () => {
 		router.push(`/t/course/${params.course_id}`);
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-4xl">

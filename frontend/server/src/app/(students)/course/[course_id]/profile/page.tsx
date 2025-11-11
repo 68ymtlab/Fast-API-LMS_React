@@ -27,7 +27,6 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface FlowSession {
@@ -45,7 +44,6 @@ interface FlowSessionHistory {
 }
 
 function ProfilePage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -62,12 +60,6 @@ function ProfilePage() {
 	const [expandedSessions, setExpandedSessions] = useState<{
 		[key: string]: boolean;
 	}>({});
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -158,14 +150,6 @@ function ProfilePage() {
 		if (grade >= 60) return "secondary";
 		return "destructive";
 	};
-
-	if (isLoadingUser || loading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary" />
-			</div>
-		);
-	}
 
 	return (
 		<>

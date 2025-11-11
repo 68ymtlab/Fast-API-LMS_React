@@ -24,8 +24,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 ChartJS.register(
@@ -51,7 +49,6 @@ interface ScoreData {
 }
 
 function ScorePage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -60,12 +57,6 @@ function ScorePage() {
 	const [scores, setScores] = useState<number[]>([]);
 	const [names, setNames] = useState<string[]>([]);
 	const [lineData, setLineData] = useState<ScoreData[]>([]);
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -267,14 +258,6 @@ function ScorePage() {
 		},
 	};
 
-	if (isLoadingUser || loading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
-
 	return (
 		<>
 			<TcAccessTime page="student_course_score" />
@@ -401,4 +384,4 @@ function ScorePage() {
 	);
 }
 
-export default withAuth(ScorePage, ["student"]);
+export default ScorePage;

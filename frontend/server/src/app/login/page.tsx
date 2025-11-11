@@ -11,11 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import { roleRedirectMap } from "@/router/router";
 
 export const Login: FC = memo(() => {
-	const { loginUser, isLoadingUser, login } = useLoginUser();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLogging, setIsLogging] = useState(false);
@@ -23,14 +21,14 @@ export const Login: FC = memo(() => {
 	const router = useRouter();
 
 	// ログイン済みユーザーのリダイレクト
-	useEffect(() => {
-		if (!isLoadingUser && loginUser) {
-			const redirectPath =
-				roleRedirectMap[loginUser.kind_name] || roleRedirectMap.default;
-			console.log("[Login] Already logged in, redirecting to:", redirectPath);
-			router.replace(redirectPath);
-		}
-	}, [loginUser, isLoadingUser, router]);
+	// useEffect(() => {
+	// 	if (!isLoadingUser && loginUser) {
+	// 		const redirectPath =
+	// 			roleRedirectMap[loginUser.kind_name] || roleRedirectMap.default;
+	// 		console.log("[Login] Already logged in, redirecting to:", redirectPath);
+	// 		router.replace(redirectPath);
+	// 	}
+	// }, [loginUser, isLoadingUser, router]);
 
 	const onClickLogin = async () => {
 		if (!email || !password) {
@@ -41,36 +39,18 @@ export const Login: FC = memo(() => {
 		setIsLogging(true);
 		setError(null);
 
-		const success = await login(email, password);
+		// const success = await login(email, password);
 
-		if (success) {
-			// ログイン成功時のリダイレクトはuseEffectで処理される
-		} else {
-			setError(
-				"ログインに失敗しました。メールアドレスとパスワードを確認してください。",
-			);
-		}
+		// if (success) {
+		// 	// ログイン成功時のリダイレクトはuseEffectで処理される
+		// } else {
+		// 	setError(
+		// 		"ログインに失敗しました。メールアドレスとパスワードを確認してください。",
+		// 	);
+		// }
 
 		setIsLogging(false);
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex flex-col min-h-screen">
-				<DefaultHeader />
-				<div className="flex flex-col flex-grow item-center justify-center space-y-2">
-					<Loader2 className="h-12 w-12 animate-spin text-primary" />
-					<p className="text-muted-foreground">
-						認証情報を確認しています．．．
-					</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (loginUser) {
-		return null; // リダイレクト中
-	}
 
 	return (
 		<div className="flex flex-col min-h-screen bg-background">

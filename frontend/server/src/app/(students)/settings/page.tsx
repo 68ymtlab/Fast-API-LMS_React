@@ -1,5 +1,7 @@
 "use client";
 
+//// 表示データ変更
+
 import { Edit, EyeOff, Mail, User, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,33 +14,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { useLoginUser } from "@/hooks/useLoginUser";
 
 function StudentSettingsPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
-	const handlePasswordUpdate = () => {
-		router.push("/settings/password/");
-	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
-
-	if (!loginUser) {
-		return null;
-	}
 
 	return (
 		<>
@@ -66,7 +44,7 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ユーザー名
 											</h4>
-											<p className="text-lg">{loginUser?.username}</p>
+											<p className="text-lg">username</p>
 										</div>
 									</div>
 
@@ -76,7 +54,7 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												メールアドレス
 											</h4>
-											<p className="text-lg">{loginUser?.email}</p>
+											<p className="text-lg">email@example.com</p>
 										</div>
 									</div>
 
@@ -86,7 +64,7 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ユーザー種別
 											</h4>
-											<p className="text-lg">{loginUser?.kind_name}</p>
+											<p className="text-lg">Student</p>
 										</div>
 									</div>
 
@@ -96,7 +74,7 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ニックネーム
 											</h4>
-											<p className="text-lg">{loginUser?.username}</p>
+											<p className="text-lg">nickname</p>
 										</div>
 										<Button variant="ghost" size="sm" className="ml-auto">
 											<Edit className="h-4 w-4" />
@@ -121,7 +99,7 @@ function StudentSettingsPage() {
 											<p className="text-lg">●●●●●●●●</p>
 										</div>
 									</div>
-									<Button variant="outline" onClick={handlePasswordUpdate}>
+									<Button variant="outline" onClick={() => console.log("handlePasswordUpdate")}>
 										<Edit className="h-4 w-4 mr-2" />
 										パスワード変更
 									</Button>

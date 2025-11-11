@@ -1,5 +1,7 @@
 "use client";
 
+//// 修正在り
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	AlertCircle,
@@ -49,7 +51,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -98,7 +99,6 @@ const userKindOptions = [
 ];
 
 function AnnouncementManagementPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -134,16 +134,8 @@ function AnnouncementManagementPage() {
 	});
 
 	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
-	useEffect(() => {
-		if (loginUser) {
-			fetchAnnouncements();
-		}
-	}, [loginUser]);
+		fetchAnnouncements();
+	}, []);
 
 	const fetchAnnouncements = async () => {
 		try {
@@ -201,7 +193,7 @@ function AnnouncementManagementPage() {
 				content: data.content,
 				start_date_time: data.start_date_time,
 				end_date_time: data.end_date_time,
-				sender: loginUser?.username || "",
+				sender: "username", //// ここは実際のログインユーザー名に置き換えてください
 				user_kind_id: data.user_kind_id,
 				is_active: true,
 			};
@@ -289,14 +281,6 @@ function AnnouncementManagementPage() {
 		setSelectedAnnouncement(announcement);
 		setShowDetailDialog(true);
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">

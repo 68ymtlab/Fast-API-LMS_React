@@ -20,8 +20,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface SyllabusInfo {
@@ -35,19 +33,11 @@ interface SyllabusInfo {
 }
 
 function SyllabusPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [syllabusInfo, setSyllabusInfo] = useState<SyllabusInfo | null>(null);
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
 	useEffect(() => {
 		if (params.course_id) {
 			fetchSyllabusInfo();
@@ -68,14 +58,6 @@ function SyllabusPage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser || loading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<>
@@ -291,4 +273,4 @@ function SyllabusPage() {
 	);
 }
 
-export default withAuth(SyllabusPage, ["student"]);
+export default SyllabusPage;

@@ -31,7 +31,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface User {
@@ -58,7 +57,6 @@ interface GrantData {
 }
 
 function CourseTakingPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -92,12 +90,6 @@ function CourseTakingPage() {
 	const [activeTab, setActiveTab] = useState<
 		"add_students" | "conf_students" | "add_teachers" | "conf_teachers"
 	>("add_students");
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -328,14 +320,6 @@ function CourseTakingPage() {
 			);
 		}
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">

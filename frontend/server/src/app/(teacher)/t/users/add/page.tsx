@@ -45,7 +45,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -82,7 +81,6 @@ interface User {
 const userTypes = ["学生", "教師"];
 
 function AddUserPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
@@ -103,18 +101,6 @@ function AddUserPage() {
 			userType: "",
 		},
 	});
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
-	useEffect(() => {
-		if (loginUser) {
-			fetchUsers();
-		}
-	}, [loginUser]);
 
 	const fetchUsers = async () => {
 		try {
@@ -305,18 +291,6 @@ function AddUserPage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
-
-	if (!loginUser) {
-		return null;
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-4xl">

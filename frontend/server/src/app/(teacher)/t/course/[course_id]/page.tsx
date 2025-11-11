@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface UserInfo {
@@ -465,7 +464,6 @@ const WeekSelectTable = ({
 };
 
 function CoursePage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const course_id = params.course_id as string;
@@ -662,18 +660,12 @@ function CoursePage() {
 	};
 
 	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
-	useEffect(() => {
-		if (loginUser && course_id) {
+		if (course_id) {
 			getCourseInfo();
 			getWeeksApi();
 			getCourseContents();
 		}
-	}, [loginUser, course_id]);
+	}, [course_id]);
 
 	const homeProfile = () => {
 		// ユーザー情報が既にあるため、この関数は不要だが呼び出し元があるため保持
