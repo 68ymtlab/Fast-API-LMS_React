@@ -99,7 +99,10 @@ function StudentSettingsPage() {
 											<p className="text-lg">●●●●●●●●</p>
 										</div>
 									</div>
-									<Button variant="outline" onClick={() => console.log("handlePasswordUpdate")}>
+									<Button
+										variant="outline"
+										onClick={() => console.log("handlePasswordUpdate")}
+									>
 										<Edit className="h-4 w-4 mr-2" />
 										パスワード変更
 									</Button>

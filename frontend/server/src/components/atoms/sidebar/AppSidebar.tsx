@@ -79,7 +79,7 @@ export const AppSidebar: FC<Props> = memo((props) => {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<SidebarMenuSubButton>
-									<User2 /> ユーザー名	{/* 仮のユーザー名 */}
+									<User2 /> ユーザー名 {/* 仮のユーザー名 */}
 									<ChevronUp className="ml-auto" />
 								</SidebarMenuSubButton>
 							</DropdownMenuTrigger>
