@@ -3,18 +3,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { withAuth } from "next-auth/middleware";
 import appConfig from "@/lib/config"; // インポート名を appConfig に変更 (debugLevelアクセス用)
 import debug, { LogLevel } from "@/lib/utils/debug"; // src/libs/utils/debug をインポート
-import {
-	authPages,
-	maintenanceExclusionPaths,
-	protectedRoutesWithRoles,
-	roleRedirectMap,
-} from "./router/router"; // router.ts からのインポートパスを確認してください
+import { maintenanceExclusionPaths } from "./router/router"; // router.ts からのインポートパスを確認してください
 
+// Treat the env value 'true' (or '1') as maintenance ON. Default to false when unset.
 const isMaintenanceMode: boolean =
-	process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
-
-const isAuthPage = (pathname: string) =>
-	authPages.some((page) => pathname.startsWith(page));
+	String(process.env.NEXT_PUBLIC_MAINTENANCE_MODE).toLowerCase() === "true" ||
+	String(process.env.NEXT_PUBLIC_MAINTENANCE_MODE) === "1";
 
 /**
  * JWTトークンからデコードされたペイロードの型定義。
@@ -26,7 +20,9 @@ interface DecodedTokenPayload extends JWTPayload {
 	exp?: number;
 }
 
-async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
+export async function verifyToken(
+	token: string,
+): Promise<DecodedTokenPayload | null> {
 	if (!token) {
 		return null;
 	}
@@ -45,13 +41,14 @@ async function verifyToken(token: string): Promise<DecodedTokenPayload | null> {
 			algorithms: [algorithm],
 		});
 		return payload;
-	} catch (error: any) {
-		if (error?.code === "ERR_JWT_EXPIRED") {
+	} catch (err: unknown) {
+		const errorObj = err as { code?: string; message?: string };
+		if (errorObj?.code === "ERR_JWT_EXPIRED") {
 			debug.warn("[Middleware] JWT token has expired");
-		} else if (error?.code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") {
+		} else if (errorObj?.code === "ERR_JWS_SIGNATURE_VERIFICATION_FAILED") {
 			debug.warn("[Middleware] JWT signature verification failed");
 		} else {
-			debug.error("[Middleware] JWT verification error:", error?.message);
+			debug.error("[Middleware] JWT verification error:", errorObj?.message);
 		}
 		return null;
 	}
@@ -111,6 +108,7 @@ export default withAuth(async function middleware(req: NextRequest) {
 // This export is for Next.js middleware configuration and should not be confused with the imported appConfig.
 export const config = {
 	matcher: [
-		"/((?!api|_next/static|_next/image|favicon.ico|libs/MathJax|maintenance).*)",
+		// Exclude api routes, next static assets, maintenance and the login page itself
+		"/((?!api|_next/static|_next/image|favicon.ico|libs/MathJax|maintenance|login).*)",
 	],
 };
