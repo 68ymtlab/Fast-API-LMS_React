@@ -15,7 +15,7 @@ from api.repositories.users_repo import UserRepository
 from api.models.users_model import Users
 
 # Bearer 認証スキーム (NextAuthのトークン取得エンドポイントを指定)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", scheme_name="JWT")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token", scheme_name="JWT")
 
 # NextAuth の JWT コールバックで埋め込んでいる想定のクレーム
 class TokenData(BaseModel):

@@ -28,6 +28,7 @@ services:
       - 3000:3000
     volumes:
       - ./frontend/server:/app:cached
+      - node_modules:/app/node_modules
     tty: true
     stdin_open: true
     privileged: true
@@ -554,5 +555,6 @@ services:
 #         "/app/bin/migrate && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"
 #       ]
 
-# volumes:
+volumes:
+  node_modules:
 #   db-config:

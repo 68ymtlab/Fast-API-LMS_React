@@ -1,4 +1,5 @@
 "use client";
+
 import {
 	AlertCircle,
 	BarChart,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 // import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";

@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import { type FC, memo, useEffect, useState } from "react";
 // import { EmailForm } from "@/components/molecules/EmailForm";
 import { EmailInput } from "@/components/atoms/input/EmailInput";
@@ -19,6 +20,7 @@ export const Login: FC = memo(() => {
 	const [isLogging, setIsLogging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
+	const { data: session } = useSession();
 
 	// ログイン済みユーザーのリダイレクト
 	// useEffect(() => {
@@ -39,17 +41,11 @@ export const Login: FC = memo(() => {
 		setIsLogging(true);
 		setError(null);
 
-		// const success = await login(email, password);
-
-		// if (success) {
-		// 	// ログイン成功時のリダイレクトはuseEffectで処理される
-		// } else {
-		// 	setError(
-		// 		"ログインに失敗しました。メールアドレスとパスワードを確認してください。",
-		// 	);
-		// }
-
-		setIsLogging(false);
+		signIn("credentials", {
+			callbackUrl: "/home",
+			username: email,
+			password: password,
+		});
 	};
 
 	return (
@@ -89,9 +85,13 @@ export const Login: FC = memo(() => {
 								</div>
 								<Button type="submit" className="w-full" disabled={isLogging}>
 									{isLogging ? (
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									) : null}
-									ログイン
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											ログイン中
+										</>
+									) : (
+										"ログイン"
+									)}
 								</Button>
 							</div>
 						</form>

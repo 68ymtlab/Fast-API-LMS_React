@@ -32,7 +32,7 @@ export const authOptions: NextAuthOptions = {
 			async authorize(credentials, _req) {
 				if (!credentials) return null;
 				const res = await axios.post(
-					"/api/users/login",
+					"/api/login",
 					qs.stringify({
 						username: credentials.username,
 						password: credentials.password,
