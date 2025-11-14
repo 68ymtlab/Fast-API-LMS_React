@@ -1,7 +1,7 @@
 import { type JWTPayload, jwtVerify } from "jose";
 import { type NextRequest, NextResponse } from "next/server";
 import { withAuth } from "next-auth/middleware";
-import appConfig from "@/lib/config"; // インポート名を appConfig に変更 (debugLevelアクセス用)
+import appConfig from "@/lib/utils/config"; // インポート名を appConfig に変更 (debugLevelアクセス用)
 import debug, { LogLevel } from "@/lib/utils/debug"; // src/libs/utils/debug をインポート
 import { maintenanceExclusionPaths } from "./router/router"; // router.ts からのインポートパスを確認してください
 

@@ -33,7 +33,7 @@ export const authOptions: NextAuthOptions = {
 			async authorize(credentials, _req) {
 				if (!credentials) return null;
 				const res = await axios.post(
-					"/api/login",
+					`${config.internalApiBaseUrl}/api/login`,
 					qs.stringify({
 						username: credentials.username,
 						password: credentials.password,
