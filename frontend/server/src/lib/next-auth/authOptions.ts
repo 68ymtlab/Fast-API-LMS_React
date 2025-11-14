@@ -1,7 +1,8 @@
+import axios from "axios";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import qs from "qs";
-import axios from "@/lib/axios";
+import config from "../utils/config";
 
 export const authOptions: NextAuthOptions = {
 	// シークレットキーの設定

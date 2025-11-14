@@ -1,13 +1,11 @@
 "use client";
 
 import {
-	AlertCircle,
 	BarChart,
 	BarChart2,
 	Book,
 	BookOpen,
 	Calendar,
-	CheckCircle2,
 	Clock,
 	Crown,
 	FileText,
@@ -21,24 +19,14 @@ import {
 	Trash2,
 	Trophy,
 	User,
-	Wand2,
 } from "lucide-react";
-import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { useCallback, useEffect, useState } from "react";
+// import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 // import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
 import TcAccessTime from "@/components/tc_access_time";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -47,7 +35,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Tooltip,
@@ -56,6 +43,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import axios from "@/lib/axios";
+import OnboardingDialog from "./onboarding/00_OnboardingDialog";
 
 interface Course {
 	course_id: number;
@@ -84,145 +72,6 @@ interface HighPointer {
 	point: number;
 }
 
-// パスワード更新フォームコンポーネント
-const PasswordUpdateForm = ({
-	username,
-	onSuccess,
-}: {
-	username: string;
-	onSuccess: () => void;
-}) => {
-	const [oldPassword, setOldPassword] = useState("");
-	const [newPassword, setNewPassword] = useState("");
-	const [confirmPassword, setConfirmPassword] = useState("");
-	const [errorMessage, setErrorMessage] = useState("");
-	const [successMessage, setSuccessMessage] = useState("");
-	const [loading, setLoading] = useState(false);
-	const id = useId();
-
-	const handleUpdatePassword = async () => {
-		setErrorMessage("");
-		setSuccessMessage("");
-
-		if (!oldPassword || !newPassword || !confirmPassword) {
-			setErrorMessage("すべてのフィールドを入力してください。");
-			return;
-		}
-		if (newPassword !== confirmPassword) {
-			setErrorMessage("新しいパスワードが一致しません。");
-			return;
-		}
-		if (oldPassword === newPassword) {
-			setErrorMessage("現在のパスワードと新しいパスワードが同じです。");
-			return;
-		}
-
-		setLoading(true);
-		try {
-			const response = await axios.post("/update_password", {
-				email: username,
-				old_password: oldPassword,
-				new_password: newPassword,
-			});
-
-			if (response.data.success) {
-				setSuccessMessage(
-					"パスワードが正常に更新されました。自動的に次のステップに進みます。",
-				);
-				setOldPassword("");
-				setNewPassword("");
-				setConfirmPassword("");
-				setTimeout(() => {
-					onSuccess();
-				}, 2000); // 2秒後に次のステップへ
-			} else {
-				setErrorMessage(
-					response.data.error_msg || "パスワードの更新に失敗しました。",
-				);
-			}
-		} catch (error) {
-			console.error("Error updating password:", error);
-			setErrorMessage("パスワードの更新中にエラーが発生しました。");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	return (
-		<div className="space-y-6 text-left">
-			<h2 className="text-xl font-semibold text-gray-800">
-				パスワードを更新してください
-			</h2>
-			<p className="text-sm text-gray-600">
-				セキュリティのため、初期パスワードから変更することを推奨します。
-			</p>
-
-			{errorMessage && (
-				<Alert variant="destructive">
-					<AlertCircle className="h-4 w-4" />
-					<AlertTitle>エラー</AlertTitle>
-					<AlertDescription>{errorMessage}</AlertDescription>
-				</Alert>
-			)}
-			{successMessage && (
-				<Alert className="bg-green-100 border-green-300 text-green-800">
-					<CheckCircle2 className="h-4 w-4 text-green-600" />
-					<AlertTitle>成功</AlertTitle>
-					<AlertDescription>{successMessage}</AlertDescription>
-				</Alert>
-			)}
-
-			<div className="space-y-4">
-				<div>
-					<Label htmlFor="currentPassword">現在のパスワード</Label>
-					<Input
-						id={id}
-						type="password"
-						placeholder="現在のパスワード"
-						value={oldPassword}
-						onChange={(e) => setOldPassword(e.target.value)}
-						className="mt-1"
-						disabled={loading}
-					/>
-				</div>
-				<div>
-					<Label htmlFor="newPassword">新しいパスワード</Label>
-					<Input
-						id={id}
-						type="password"
-						placeholder="新しいパスワード"
-						value={newPassword}
-						onChange={(e) => setNewPassword(e.target.value)}
-						className="mt-1"
-						disabled={loading}
-					/>
-				</div>
-				<div>
-					<Label htmlFor="confirmPassword">新しいパスワード（確認用）</Label>
-					<Input
-						id={id}
-						type="password"
-						placeholder="もう一度入力"
-						value={confirmPassword}
-						onChange={(e) => setConfirmPassword(e.target.value)}
-						className="mt-1"
-						disabled={loading}
-					/>
-				</div>
-			</div>
-			<div className="flex justify-end">
-				<Button
-					onClick={handleUpdatePassword}
-					disabled={loading || !!successMessage}
-				>
-					{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-					パスワードを変更する
-				</Button>
-			</div>
-		</div>
-	);
-};
-
 export const StudentHome = () => {
 	const router = useRouter();
 	const [username, setUsername] = useState("");
@@ -240,15 +89,8 @@ export const StudentHome = () => {
 	const [loadingButtons, setLoadingButtons] = useState<{
 		[key: string]: boolean;
 	}>({});
-	const [step, setStep] = useState(0);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [user_stats_dialog, setUserStatsDialog] = useState(false);
-
-	const handleNextStep = () => {
-		if (step < steps.length - 1) {
-			setStep(step + 1);
-		}
-	};
 
 	const pointItems = [
 		{
@@ -276,87 +118,6 @@ export const StudentHome = () => {
 			icon: <Calendar className="w-5 h-5 text-secondary" />,
 		},
 	];
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: handleNextStep is stable
-	const steps = useMemo(
-		() => [
-			{
-				title: "ページの紹介",
-				content: (
-					<div className="space-y-6 text-center">
-						<h1 className="text-4xl font-bold text-blue-800">ようこそ！</h1>
-						<p className="text-lg text-gray-600">
-							このシステムは、あなたの学習をサポートするために設計されています。
-							<br />
-							日々の進捗確認や目標設定、新しいコースへの挑戦など、ここから始めましょう。
-						</p>
-						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
-							<h2 className="text-xl font-bold text-blue-600">
-								まずは、いくつかの初期設定を行いましょう。
-							</h2>
-							<p className="text-sm text-blue-800">
-								簡単なステップで、あなたに最適な学習環境を整えることができます。
-							</p>
-						</Card>
-					</div>
-				),
-			},
-			{
-				title: "パスワード変更",
-				content: (
-					<PasswordUpdateForm username={username} onSuccess={handleNextStep} />
-				),
-			},
-			{
-				title: "システムの紹介",
-				content: (
-					<div className="space-y-6">
-						<h1 className="text-4xl font-bold text-blue-800 text-center">
-							学習支援システムへようこそ!
-						</h1>
-						<p className="text-lg text-gray-600">
-							このシステムは、あなたの学習をサポートするために設計されています。効率的な学習を実現するために、以下のような特長を備えています。
-						</p>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-								<div className="p-6 space-y-4">
-									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
-										<Wand2 />
-										パーソナライズ学習
-									</h3>
-									<p className="text-sm text-gray-600">
-										あなたの進捗に合わせて最適な学習計画を提案し、個別のニーズに対応します。AIを活用して、最適な学習を提案します。
-									</p>
-								</div>
-							</Card>
-							<Card className="shadow-lg border border-gray-300 rounded-lg bg-gradient-to-br from-blue-50 to-white">
-								<div className="p-6 space-y-4">
-									<h3 className="text-xl font-semibold text-blue-600 flex items-center gap-2">
-										<BookOpen />
-										教科書と演習問題
-									</h3>
-									<p className="text-sm text-gray-600">
-										豊富な演習問題であなたの学習を手助けを行います。
-									</p>
-								</div>
-							</Card>
-						</div>
-						<Card className="mt-6 p-6 text-center bg-blue-100 rounded-lg">
-							<h2 className="text-xl font-bold text-blue-600">
-								あなたの学習をより効率的に
-							</h2>
-							<p className="text-sm text-blue-800">
-								このシステムで、あなたの学習を最適化し、効率的に成果を上げましょう。自分のペースで進めるため、学習を楽しみながら達成感を感じることができます。
-							</p>
-						</Card>
-					</div>
-				),
-			},
-		],
-		[username],
-	);
-
-	const stepKeys = useMemo(() => steps.map(() => nanoid()), [steps]);
 
 	const handleButtonClick = async (
 		buttonId: string,
@@ -601,19 +362,6 @@ export const StudentHome = () => {
 			});
 	};
 
-	const handleDialogNavigation = () => {
-		if (step === 1) {
-			// パスワード変更ステップでは、フォーム内のボタンで遷移を制御
-			return;
-		}
-		if (step < steps.length - 1) {
-			setStep(step + 1);
-		} else {
-			// 最後のステップならダイアログを閉じる
-			setOpenDialog(false);
-		}
-	};
-
 	return (
 		<>
 			<TcAccessTime page="student_home" />
@@ -650,7 +398,7 @@ export const StudentHome = () => {
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<ThemeSwitcher />
+														{/* <ThemeSwitcher /> */}
 													</TooltipTrigger>
 													<TooltipContent>
 														<p>テーマ切り替え</p>
@@ -1203,60 +951,10 @@ export const StudentHome = () => {
 				</DialogContent>
 			</Dialog>
 
-			<Dialog open={open_dialog} onOpenChange={setOpenDialog}>
-				<DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
-					<div className="flex items-center justify-between mb-8 relative">
-						{steps.map((s, index) => (
-							<div
-								key={stepKeys[index]}
-								className="flex-1 flex flex-col items-center relative"
-							>
-								<div
-									className={`w-9 h-9 flex items-center justify-center rounded-full text-white text-sm font-bold z-10 transition-all
-                    ${step === index ? "bg-blue-600 scale-110 shadow-lg" : "bg-gray-300"}`}
-								>
-									{index + 1}
-								</div>
-								<span
-									className={`mt-2 text-sm font-medium transition-colors ${step === index ? "text-blue-700" : "text-gray-500"}`}
-								>
-									{s.title}
-								</span>
-								{index < steps.length - 1 && (
-									<div className="absolute top-[18px] left-1/2 w-full h-1 bg-gray-300 -z-10">
-										<div
-											className={`h-full bg-blue-500 transition-all duration-500 ${step > index ? "w-full" : "w-0"}`}
-										/>
-									</div>
-								)}
-							</div>
-						))}
-					</div>
-
-					<Card className="bg-white/80 border border-gray-200 backdrop-blur-md shadow-lg rounded-lg">
-						<div className="p-10">{steps[step].content}</div>
-					</Card>
-
-					<div className="flex justify-between mt-8">
-						<Button
-							variant="ghost"
-							onClick={() => setStep((prev) => Math.max(prev - 1, 0))}
-							disabled={step === 0 || step === 1}
-							className="rounded-full px-6 py-2 text-gray-700 hover:bg-gray-100 transition disabled:opacity-40"
-						>
-							← 戻る
-						</Button>
-						{step !== 1 && ( // パスワード変更ステップでは独自のボタンがあるので、共通の「次へ」ボタンを非表示にする
-							<Button
-								onClick={handleDialogNavigation}
-								className="rounded-full px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-40"
-							>
-								{step === steps.length - 1 ? "完了" : "次へ →"}
-							</Button>
-						)}
-					</div>
-				</DialogContent>
-			</Dialog>
+			<OnboardingDialog
+				open_dialog={open_dialog}
+				setOpenDialog={setOpenDialog}
+			/>
 		</>
 	);
 };

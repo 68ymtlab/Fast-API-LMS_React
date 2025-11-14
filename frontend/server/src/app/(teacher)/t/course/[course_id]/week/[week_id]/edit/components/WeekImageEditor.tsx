@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import axios from "@/lib/axios";
-import config from "@/lib/config";
+import config from "@/lib/utils/config";
 
 interface Image {
 	id: number;

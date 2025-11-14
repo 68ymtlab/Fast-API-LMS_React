@@ -6,9 +6,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import axios from "@/lib/axios";
+import { useApi } from "@/lib/api/useApi";
 
 const InitialPasswordChange = ({ onSuccess }: { onSuccess: () => void }) => {
+	const { put } = useApi();
+
 	const [oldPassword, setOldPassword] = useState("");
 	const [newPassword, setNewPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -36,7 +38,7 @@ const InitialPasswordChange = ({ onSuccess }: { onSuccess: () => void }) => {
 		setLoading(true);
 
 		try {
-			const response = await axios.post("/api/users/me/password", {
+			const response = await put("users/me/password", {
 				old_password: oldPassword,
 				new_password: newPassword,
 			});
@@ -123,6 +125,7 @@ const InitialPasswordChange = ({ onSuccess }: { onSuccess: () => void }) => {
 					/>
 				</div>
 			</div>
+
 			<div className="flex justify-end">
 				<Button
 					onClick={handleUpdatePassword}

@@ -6,6 +6,7 @@ export const config = {
 	 * APIのベースURL
 	 */
 	apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
+	internalApiBaseUrl: process.env.INTERNAL_API_BASE_URL ?? "",
 
 	/**
 	 * デバッグモード

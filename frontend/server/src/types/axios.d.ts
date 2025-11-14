@@ -1,7 +1,7 @@
 import "axios";
 
 declare module "axios" {
-	export interface AxiosRequestConfig {
+	export interface InternalAxiosRequestConfig {
 		metadata?: {
 			startTime: number;
 		};
