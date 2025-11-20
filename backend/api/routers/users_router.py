@@ -11,12 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from api.db.session import get_db
-from api.core.security import require_admin, get_current_active_user, require_teacher_or_higher, create_access_token
+from api.core.security import require_admin, require_teacher_or_higher
 from api.core.config import settings
 from api.repositories.users_repo import UserRepository
 from api.services.users_service import UserService
 import api.schemas.users as user_schema
 import api.models.users_model as user_model
+from api.core.security import TokenManager
 
 users_router = APIRouter(tags=["ユーザー管理"])
 
@@ -49,7 +50,7 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
+    access_token = TokenManager.create_access_token(
         data={"sub": user.email, "id": user.id, "email": user.email, "username": user.username, "display_name": user.display_name, "role_id": user.role_id, "theme_settings": user.theme_settings},
         expires_delta=access_token_expires
     )
@@ -72,14 +73,14 @@ async def login_for_next_auth(form_data: OAuth2PasswordRequestForm = Depends(), 
 #
 
 @users_router.get("/users/me", response_model=user_schema.User, summary="ログインユーザー自身の情報取得")
-async def read_users_me(current_user: user_model.Users = Depends(get_current_active_user)):
+async def read_users_me(current_user: user_model.Users = Depends(UserService.get_current_active_user)):
     """現在認証されているユーザーの情報を取得します。"""
     return current_user
 
 @users_router.put("/users/me/password", status_code=status.HTTP_204_NO_CONTENT, summary="ログインユーザー自身のパスワード変更")
 async def update_password_me(
     password_in: user_schema.PasswordUpdate,
-    current_user: user_model.Users = Depends(get_current_active_user),
+    current_user: user_model.Users = Depends(UserService.get_current_active_user),
     service: UserService = Depends(get_user_service)
 ):
     """現在認証されているユーザーが、自身のパスワードを変更します。"""

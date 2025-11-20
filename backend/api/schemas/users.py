@@ -10,6 +10,14 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class TokenData(BaseModel):
+    id: int
+    email: str
+    username: str
+    display_name: str
+    role_id: int
+    theme_settings: Optional[dict] = None
+
 #
 # Role Schemas
 #

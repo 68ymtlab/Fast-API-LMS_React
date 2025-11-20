@@ -1,19 +1,45 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 
-from api.core.password import hash_password, verify_password
+from api.core.security import TokenManager
+from api.core.password import SecurityManager
 from api.repositories.users_repo import UserRepository
 import api.schemas.users as user_schema
 import api.models.users_model as user_model
+from fastapi import HTTPException
 
 class UserService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
+        
+    async def get_current_user(self, token: str):
+        """JWTトークンを検証し，対応するユーザーを返す。"""
+        # TokenManagerでdecode
+        payload = TokenManager.decode_token(token)
+        
+        # TokenDataに変換
+        try:
+            token_data = user_schema.TokenData(**payload)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token data")
+        
+        # ユーザーをDBから取得
+        user = await self.user_repo.get_by_email(email=token_data.email)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    
+    async def get_current_active_user(self, token: str):
+        user = await self.get_current_user(token)
+        
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive user")
+        return user
 
     async def login(self, *, email: str, password: str) -> Optional[user_model.Users]:
         """ユーザーを認証し、最終ログイン日時を更新します。"""
         user = await self.user_repo.get_by_email(email=email)
-        if not user or not verify_password(password, user.hashed_password) or not user.is_active:
+        if not user or not SecurityManager.verify_password(password, user.hashed_password) or not user.is_active:
             return None
         
         await self.user_repo.touch_last_login(user_id=user.id)
@@ -36,7 +62,7 @@ class UserService:
         if existing_user:
             raise ValueError("User with this email already exists")
 
-        hashed_password = hash_password(user_in.password)
+        hashed_password = SecurityManager.hash_password(user_in.password)
         
         async with self.user_repo.db.begin_nested(): # トランザクション管理
             created_user = await self.user_repo.create(user_in=user_in, hashed_password=hashed_password)
@@ -49,10 +75,10 @@ class UserService:
 
     async def update_own_password(self, *, user: user_model.Users, password_in: user_schema.PasswordUpdate) -> bool:
         """ユーザー本人がパスワードを更新します。"""
-        if not verify_password(password_in.current_password, user.hashed_password):
+        if not SecurityManager.verify_password(password_in.current_password, user.hashed_password):
             return False
         
-        new_hashed_password = hash_password(password_in.new_password)
+        new_hashed_password = SecurityManager.hash_password(password_in.new_password)
         update_schema = user_schema.UserUpdate(password=password_in.new_password)
         await self.user_repo.update(user=user, user_in=update_schema, hashed_password=new_hashed_password)
         await self.user_repo.db.commit()
@@ -64,7 +90,7 @@ class UserService:
         if not user_to_reset:
             return False
         
-        new_hashed_password = hash_password(password_in.new_password)
+        new_hashed_password = SecurityManager.hash_password(password_in.new_password)
         update_schema = user_schema.UserUpdate(password=password_in.new_password)
         await self.user_repo.update(user=user_to_reset, user_in=update_schema, hashed_password=new_hashed_password)
         await self.user_repo.db.commit()
