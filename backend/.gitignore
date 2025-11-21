@@ -23,5 +23,4 @@ components.d.ts
 *.log
 
 # 環境変数ファイル
-
-backend/.env
+.env

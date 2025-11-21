@@ -231,3 +231,23 @@ html[data-theme="theme9"] {
 		transform: rotateY(360deg);
 	}
 }
+
+/* MathJax / LaTeX rendering styles */
+.math-content {
+	line-height: 1.8;
+}
+
+.math-content mjx-container {
+	display: inline-block;
+	margin: 0.2em 0;
+}
+
+.math-content mjx-container[display="true"] {
+	display: block;
+	margin: 1em 0;
+	text-align: center;
+}
+
+.math-content .MathJax {
+	font-size: 1.1em;
+}

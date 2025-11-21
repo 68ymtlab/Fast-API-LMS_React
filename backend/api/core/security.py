@@ -19,11 +19,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token", scheme_name="JWT")
 
 # NextAuth の JWT コールバックで埋め込んでいる想定のクレーム
 class TokenData(BaseModel):
-    id: int
+    id: Optional[int] = None
     email: str
-    username: str
-    display_name: str
-    role_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    role_id: Optional[int] = None
     theme_settings: Optional[dict] = None
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

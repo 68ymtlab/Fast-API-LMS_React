@@ -1,5 +1,10 @@
-FROM node:25-alpine3.21
+FROM node:22-alpine3.21
 WORKDIR /app
-#RUN npm install && \
-#    npm install -g npm && \
-#    npm install -g @vue/cli
+
+# ビルドコンテキストは frontend/ なので、server/package.json を指定
+COPY server/package.json server/package-lock.json ./
+
+RUN npm install
+
+# 開発用コマンド
+CMD ["npm", "run", "dev"]

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
   # Basic認証（Docs）用のパスワード
   DOCS_PASSWORD: str = "password_docs"
+
+  # Dify API Configuration
+  DIFY_API_URL: str = "https://api.dify.ai/v1"
+  DIFY_QUESTION_GEN_API_KEY: str = ""
   
 # アプリケーション全体で使う設定インスタンス
 settings = Settings()

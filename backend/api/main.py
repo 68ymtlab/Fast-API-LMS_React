@@ -17,6 +17,7 @@ from api.routers.subjects_router import subjects_router
 from api.routers.progress_router import progress_router
 from api.routers.courses_router import courses_router
 from api.routers.lessons_router import lessons_router
+from api.routers.dify_router import dify_router
 
 app = FastAPI(
     title="Fast-API-LMS_API",
@@ -66,6 +67,7 @@ app.include_router(subjects_router)
 app.include_router(progress_router)
 app.include_router(courses_router)
 app.include_router(lessons_router)
+app.include_router(dify_router)
 
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])

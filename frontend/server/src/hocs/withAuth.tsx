@@ -30,8 +30,8 @@ const withAuth = <P extends object>(
 
 			if (!loginUser) {
 				console.log("[withAuth] No user, redirecting to login");
-				router.push("/login"); // 未ログインならログインページへ
-				return;
+				// router.push("/login"); // 未ログインならログインページへ
+				// return;
 			}
 
 			console.log("[withAuth] User found, allowing access");
@@ -52,22 +52,22 @@ const withAuth = <P extends object>(
 			);
 		}
 
-		if (!loginUser) {
-			console.log(
-				"[withAuth] No user found, showing loading (should redirect soon)",
-			);
-			return (
-				<div className="flex flex-col min-h-screen">
-					<DefaultHeader />
-					<div className="flex flex-1 flex-col items-center justify-center space-y-4 p-4">
-						<Loader2 className="h-12 w-12 animate-spin text-primary" />
-						<p className="text-muted-foreground">
-							認証情報を確認しています．．．
-						</p>
-					</div>
-				</div>
-			);
-		}
+		// if (!loginUser) {
+		// 	console.log(
+		// 		"[withAuth] No user found, showing loading (should redirect soon)",
+		// 	);
+		// 	return (
+		// 		<div className="flex flex-col min-h-screen">
+		// 			<DefaultHeader />
+		// 			<div className="flex flex-1 flex-col items-center justify-center space-y-4 p-4">
+		// 				<Loader2 className="h-12 w-12 animate-spin text-primary" />
+		// 				<p className="text-muted-foreground">
+		// 					認証情報を確認しています．．．
+		// 				</p>
+		// 			</div>
+		// 		</div>
+		// 	);
+		// }
 
 		// ログインしていれば、権限に関係なくコンポーネントを描画
 		return <WrappedComponent {...props} />;

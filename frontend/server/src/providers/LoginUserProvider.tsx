@@ -57,6 +57,16 @@ export const LoginUserProvider = (props: { children: React.ReactNode }) => {
 				}
 			} else {
 				console.log("[Auth] No stored authentication found");
+				// 開発用：認証なしでアクセスできるようにダミーユーザーを設定
+				const dummyUser: User = {
+					username: "開発 太郎",
+					email: "dev@example.com",
+					kind_name: "教師",
+					create: true,
+					is_active: true,
+				};
+				console.log("[Auth] Setting dummy user for development:", dummyUser);
+				setLoginUser(dummyUser);
 			}
 
 			setIsLoadingUser(false);
