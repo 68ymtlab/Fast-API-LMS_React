@@ -5,13 +5,13 @@
 ユーザーに関連するAPIエンドポイントを定義します。
 """
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from api.db.session import get_db
-from api.core.security import require_admin, require_teacher_or_higher
+from api.core.security import get_current_active_user, require_admin, require_teacher_or_higher
 from api.core.config import settings
 from api.repositories.users_repo import UserRepository
 from api.services.users_service import UserService
@@ -42,45 +42,46 @@ async def login_for_access_token(
     service: UserService = Depends(get_user_service)
 ):
     """Swagger UIでのテスト用に、ユーザー名とパスワードでアクセストークンを取得します。"""
-    user = await service.login(email=form_data.username, password=form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = TokenManager.create_access_token(
-        data={"sub": user.email, "id": user.id, "email": user.email, "username": user.username, "display_name": user.display_name, "role_id": user.role_id, "theme_settings": user.theme_settings},
-        expires_delta=access_token_expires
+    _user, access_token, _refresh_token = await service.perform_login(
+        email=form_data.username, 
+        password=form_data.password
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer"
+    }
 
-@users_router.post("/login", response_model=user_schema.User, summary="NextAuth用 ログイン認証")
-async def login_for_next_auth(form_data: OAuth2PasswordRequestForm = Depends(), service: UserService = Depends(get_user_service)):
-    """NextAuthのauthorizeコールバックから呼び出されることを想定。パスワードを検証し、ユーザー情報を返します。"""
-    user = await service.login(email=form_data.username, password=form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+@users_router.post("/login", response_model=user_schema.LoginResponse, summary="NextAuth用 ログイン認証")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), service: UserService = Depends(get_user_service)):
+    try:
+        user, access_token, refresh_token = await service.perform_login(
+            email=form_data.username,
+            password=form_data.password
         )
-    return user
+    except HTTPException:
+        # 認証失敗
+        raise
+
+    return {
+        "user": user,
+        "access_token": access_token,
+        "refresh_token": refresh_token
+    }
 
 #
 # User Management Endpoints
 #
 
 @users_router.get("/users/me", response_model=user_schema.User, summary="ログインユーザー自身の情報取得")
-async def read_users_me(current_user: user_model.Users = Depends(UserService.get_current_active_user)):
+async def read_users_me(current_user: user_model.Users = Depends(get_current_active_user)):
     """現在認証されているユーザーの情報を取得します。"""
     return current_user
 
 @users_router.put("/users/me/password", status_code=status.HTTP_204_NO_CONTENT, summary="ログインユーザー自身のパスワード変更")
 async def update_password_me(
     password_in: user_schema.PasswordUpdate,
-    current_user: user_model.Users = Depends(UserService.get_current_active_user),
+    current_user: user_model.Users = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service)
 ):
     """現在認証されているユーザーが、自身のパスワードを変更します。"""

@@ -38,12 +38,12 @@ const InitialPasswordChange = ({ onSuccess }: { onSuccess: () => void }) => {
 		setLoading(true);
 
 		try {
-			const response = await put("users/me/password", {
-				old_password: oldPassword,
+			const response = await put("/users/me/password", {
+				current_password: oldPassword,
 				new_password: newPassword,
 			});
 
-			if (response.data.success) {
+			if (response.status === 204) {
 				setSuccessMessage(
 					"パスワードが正常に更新されました。自動的に次のステップに進みます。",
 				);

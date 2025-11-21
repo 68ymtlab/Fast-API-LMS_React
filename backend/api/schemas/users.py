@@ -106,6 +106,12 @@ class User(UserInDBBase):
     """クライアントに返すユーザー情報のスキーマ"""
     hashed_password: Any = Field(exclude=True)
     role: Role
+    
+class LoginResponse(BaseModel):
+    """ログインレスポンススキーマ"""
+    user: User
+    access_token: str
+    refresh_token: str
 
 class UserWithStudent(User):
     """学生情報を含むユーザー情報のレスポンススキーマ"""

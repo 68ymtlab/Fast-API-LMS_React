@@ -11,30 +11,6 @@ from fastapi import HTTPException
 class UserService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
-        
-    async def get_current_user(self, token: str):
-        """JWTトークンを検証し，対応するユーザーを返す。"""
-        # TokenManagerでdecode
-        payload = TokenManager.decode_token(token)
-        
-        # TokenDataに変換
-        try:
-            token_data = user_schema.TokenData(**payload)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Invalid token data")
-        
-        # ユーザーをDBから取得
-        user = await self.user_repo.get_by_email(email=token_data.email)
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
-        return user
-    
-    async def get_current_active_user(self, token: str):
-        user = await self.get_current_user(token)
-        
-        if not user.is_active:
-            raise HTTPException(status_code=400, detail="Inactive user")
-        return user
 
     async def login(self, *, email: str, password: str) -> Optional[user_model.Users]:
         """ユーザーを認証し、最終ログイン日時を更新します。"""
@@ -45,6 +21,36 @@ class UserService:
         await self.user_repo.touch_last_login(user_id=user.id)
         await self.user_repo.db.commit()
         return user
+    
+    async def perform_login(self, email: str, password: str):
+        """
+        Swagger / NextAuth / 内部API どの用途でも共通して使える
+        ログイン処理：認証 → token生成 → (user, access, refresh) を返す
+        """
+        # --- ① 認証 ---
+        user = await self.login(email=email, password=password)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # --- ② Token payload ---
+        token_payload = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role_id": user.role_id,
+            "theme_settings": user.theme_settings,
+        }
+        
+        # --- ③ JWT生成 ---
+        access_token = TokenManager.create_access_token(token_payload)
+        refresh_token = TokenManager.create_refresh_token(token_payload)
+        
+        return user, access_token, refresh_token
 
     async def create_user(self, *, user_in: user_schema.UserCreate, current_user: user_model.Users) -> user_model.Users:
         """新しいユーザーを作成します。学生情報があればそれも同時に作成します。"""

@@ -1,7 +1,7 @@
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from typing import Optional, Sequence
 
 from api.repositories.base import BaseRepository
 import api.models.users_model as user_model
@@ -65,7 +65,7 @@ class UserRepository(BaseRepository):
         stmt = update(user_model.Users).where(user_model.Users.id == user_id).values(last_login_at=func.now())
         await self.db.execute(stmt)
 
-    async def list_all(self, *, include_roles_mask: Optional[str] = None) -> List[user_model.Users]:
+    async def list_all(self, *, include_roles_mask: Optional[str] = None) -> Sequence[user_model.Users]:
         """全ユーザーのリストを取得します。"""
         stmt = select(user_model.Users).order_by(user_model.Users.id)
 

@@ -1,31 +1,39 @@
-import NextAuth from "next-auth";
-import { DefaultSession } from "next-auth";
-
+import NextAuth, { DefaultSession, DefaultUser } from "next-auth";
+import { JWT } from "next-auth/jwt";
+import type {
+	FastAouUser as User,
+	ThemeSettings,
+	Role,
+} from "@/types/api/auth/user";
+import type { LoginResponse } from "@/types/api/auth/user";
+import { de } from "zod/v4/locales";
 declare module "next-auth" {
-	interface User {
+	interface User extends DefaultUser {
+		id: string;
+
 		username: string;
-		displayName: string;
-		email: string;
 		role_id: number;
 		is_active: boolean;
-		id: number;
-		theme_settings: {
-			mode: "light" | "dark" | "system";
-			theme: string;
-			font_size: string;
-		};
+		theme_settings: ThemeSettings;
 		created_at: string;
 		updated_at: string;
-		role: {
-			name: string;
-			description: string;
-			id: number;
-		};
+		role: Role;
+
+		accessToken?: string;
+		refreshToken?: string;
 	}
 
 	interface Session {
-		user: {
-			id: string;
-		} & DefaultSession["user"];
+		user: User;
+		accessToken?: string;
+		refreshToken?: string;
+	}
+}
+
+declare module "next-auth/jwt" {
+	interface JWT {
+		user?: FastApiUser;
+		accessToken?: string;
+		refreshToken?: string;
 	}
 }

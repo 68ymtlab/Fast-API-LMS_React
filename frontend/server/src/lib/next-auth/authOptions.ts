@@ -2,6 +2,7 @@ import axios from "axios";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import qs from "qs";
+import type { LoginResponse } from "@/types/api/auth/user";
 import config from "../utils/config";
 
 export const authOptions: NextAuthOptions = {
@@ -32,19 +33,59 @@ export const authOptions: NextAuthOptions = {
 			// 認証処理の実装
 			async authorize(credentials, _req) {
 				if (!credentials) return null;
-				const res = await axios.post(
+				const res = await axios.post<LoginResponse>(
 					`${config.internalApiBaseUrl}/api/login`,
 					qs.stringify({
 						username: credentials.username,
 						password: credentials.password,
 					}),
-					{ headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+					{
+						headers: { "Content-Type": "application/x-www-form-urlencoded" },
+					},
 				);
 
-				return res.data;
+				const data = res.data;
+
+				const fastUser = data.user;
+
+				return {
+					id: String(fastUser.id),
+					name: fastUser.username,
+					email: fastUser.email,
+					image: null,
+
+					username: fastUser.username,
+					role_id: fastUser.role_id,
+					is_active: fastUser.is_active,
+					theme_settings: fastUser.theme_settings,
+					created_at: fastUser.created_at,
+					updated_at: fastUser.updated_at,
+					role: fastUser.role,
+
+					accessToken: res.data.access_token,
+					refreshToken: res.data.refresh_token,
+				};
 			},
 		}),
 	],
+	callbacks: {
+		async jwt({ token, user }) {
+			if (user) {
+				token.user = user;
+				token.accessToken = user.accessToken;
+				token.refreshToken = user.refreshToken;
+			}
+			return token;
+		},
+
+		async session({ session, token }) {
+			session.user = token.user as any;
+			session.accessToken = token.accessToken;
+			session.refreshToken = token.refreshToken;
+			return session;
+		},
+	},
+
 	pages: {
 		signIn: "/login",
 	},
