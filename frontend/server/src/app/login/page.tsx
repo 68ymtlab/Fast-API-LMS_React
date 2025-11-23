@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { type FC, memo, useEffect, useState } from "react";
 // import { EmailForm } from "@/components/molecules/EmailForm";
@@ -21,6 +21,8 @@ export const Login: FC = memo(() => {
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
 	const { data: session } = useSession();
+	const searchParams = useSearchParams();
+	const nextAuthError = searchParams.get("error");
 
 	// ログイン済みユーザーのリダイレクト
 	// useEffect(() => {
@@ -41,11 +43,19 @@ export const Login: FC = memo(() => {
 		setIsLogging(true);
 		setError(null);
 
-		signIn("credentials", {
-			callbackUrl: "/home",
+		const result = await signIn("credentials", {
 			username: email,
 			password: password,
+			redirect: false,
 		});
+
+		if (!result?.ok) {
+			setError("メールアドレスまたはパスワードが正しくありません");
+			setIsLogging(false);
+			return;
+		}
+
+		router.push("/home");
 	};
 
 	return (

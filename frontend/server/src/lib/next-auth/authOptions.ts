@@ -18,6 +18,7 @@ export const authOptions: NextAuthOptions = {
 			console.warn(code);
 		},
 	},
+
 	providers: [
 		// 認証プロバイダーの設定
 		CredentialsProvider({
@@ -33,45 +34,57 @@ export const authOptions: NextAuthOptions = {
 			// 認証処理の実装
 			async authorize(credentials, _req) {
 				if (!credentials) return null;
-				const res = await axios.post<LoginResponse>(
-					`${config.internalApiBaseUrl}/api/login`,
-					qs.stringify({
-						username: credentials.username,
-						password: credentials.password,
-					}),
-					{
-						headers: { "Content-Type": "application/x-www-form-urlencoded" },
-					},
-				);
+				try {
+					const res = await axios.post<LoginResponse>(
+						`${config.internalApiBaseUrl}/api/login`,
+						qs.stringify({
+							username: credentials.username,
+							password: credentials.password,
+						}),
+						{
+							headers: { "Content-Type": "application/x-www-form-urlencoded" },
+						},
+					);
 
-				const data = res.data;
+					const { user, access_token, refresh_token } = res.data;
 
-				const fastUser = data.user;
+					return {
+						id: String(user.id),
+						name: user.username,
+						email: user.email,
+						image: null,
 
-				return {
-					id: String(fastUser.id),
-					name: fastUser.username,
-					email: fastUser.email,
-					image: null,
+						fastApiUser: {
+							id: user.id,
+							username: user.username,
+							display_name: user.display_name,
+							role_id: user.role_id,
+							is_active: user.is_active,
+							created_at: user.created_at,
+							updated_at: user.updated_at,
+							role: user.role,
+							theme_settings: user.theme_settings,
+						},
 
-					username: fastUser.username,
-					role_id: fastUser.role_id,
-					is_active: fastUser.is_active,
-					theme_settings: fastUser.theme_settings,
-					created_at: fastUser.created_at,
-					updated_at: fastUser.updated_at,
-					role: fastUser.role,
-
-					accessToken: res.data.access_token,
-					refreshToken: res.data.refresh_token,
-				};
+						accessToken: access_token,
+						refreshToken: refresh_token,
+					};
+				} catch (_err) {
+					return null;
+				}
 			},
 		}),
 	],
+
 	callbacks: {
 		async jwt({ token, user }) {
 			if (user) {
-				token.user = user;
+				token.id = user.id;
+				token.name = user.name;
+				token.email = user.email;
+
+				token.fastApiUser = user.fastApiUser;
+
 				token.accessToken = user.accessToken;
 				token.refreshToken = user.refreshToken;
 			}
@@ -79,15 +92,29 @@ export const authOptions: NextAuthOptions = {
 		},
 
 		async session({ session, token }) {
-			session.user = token.user as any;
+			session.user = {
+				id: token.fastApiUser.id,
+				username: token.fastApiUser.username,
+				display_name: token.fastApiUser.display_name,
+				email: token.email,
+				role_id: token.fastApiUser.role_id,
+				role: token.fastApiUser.role,
+				theme_settings: token.fastApiUser.theme_settings,
+				is_active: token.fastApiUser.is_active,
+				created_at: token.fastApiUser.created_at,
+				updated_at: token.fastApiUser.updated_at,
+			};
+
 			session.accessToken = token.accessToken;
 			session.refreshToken = token.refreshToken;
+
 			return session;
 		},
 	},
 
 	pages: {
 		signIn: "/login",
+		error: "/login",
 	},
 	session: {
 		strategy: "jwt",
