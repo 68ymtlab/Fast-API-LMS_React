@@ -25,6 +25,16 @@ export const config = {
 	debugLevel: Number(process.env.NEXT_PUBLIC_DEBUG_LEVEL) || 0,
 
 	/**
+	 * 認証チェックを無効化するかどうか
+	 * true: 認証チェックをスキップ（開発・テスト環境用）
+	 * false: 認証チェックを実施（本番環境用）
+	 * ⚠️ セキュリティ上の理由から、本番環境では必ずfalseにしてください
+	 */
+	disableAuthCheck:
+		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "true" ||
+		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "1",
+
+	/**
 	 * JWTのシークレットキー
 	 * 認証トークンの署名と検証に使用される
 	 */
