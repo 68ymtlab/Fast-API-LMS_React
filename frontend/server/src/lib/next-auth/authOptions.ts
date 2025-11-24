@@ -1,9 +1,41 @@
 import axios from "axios";
 import type { NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import qs from "qs";
 import type { LoginResponse } from "@/types/api/auth/user";
 import config from "../utils/config";
+
+/**
+ * リフレッシュトークンを使用して新しいアクセストークンを取得
+ */
+async function refreshAccessToken(token: JWT): Promise<JWT> {
+	try {
+		const response = await axios.post(
+			`${config.internalApiBaseUrl}/api/refresh`,
+			{ refresh_token: token.refreshToken },
+			{
+				headers: { "Content-Type": "application/json" },
+			},
+		);
+
+		const { access_token, refresh_token } = response.data;
+
+		return {
+			...token,
+			accessToken: access_token,
+			refreshToken: refresh_token ?? token.refreshToken, // フォールバック
+			accessTokenExpires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7日後
+		};
+	} catch (error) {
+		console.error("[NextAuth] Failed to refresh access token:", error);
+
+		return {
+			...token,
+			error: "RefreshAccessTokenError",
+		};
+	}
+}
 
 export const authOptions: NextAuthOptions = {
 	// シークレットキーの設定
@@ -78,6 +110,7 @@ export const authOptions: NextAuthOptions = {
 
 	callbacks: {
 		async jwt({ token, user }) {
+			// 初回ログイン時
 			if (user) {
 				token.id = user.id;
 				token.name = user.name;
@@ -87,8 +120,20 @@ export const authOptions: NextAuthOptions = {
 
 				token.accessToken = user.accessToken;
 				token.refreshToken = user.refreshToken;
+				// アクセストークンの有効期限を設定（7日間）
+				token.accessTokenExpires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+
+				return token;
 			}
-			return token;
+
+			// アクセストークンがまだ有効な場合はそのまま返す
+			if (Date.now() < (token.accessTokenExpires as number)) {
+				return token;
+			}
+
+			// アクセストークンが期限切れの場合、リフレッシュを試行
+			console.log("[NextAuth] Access token expired, refreshing...");
+			return await refreshAccessToken(token);
 		},
 
 		async session({ session, token }) {
@@ -107,6 +152,7 @@ export const authOptions: NextAuthOptions = {
 
 			session.accessToken = token.accessToken;
 			session.refreshToken = token.refreshToken;
+			session.error = token.error; // エラー情報も伝達
 
 			return session;
 		},
