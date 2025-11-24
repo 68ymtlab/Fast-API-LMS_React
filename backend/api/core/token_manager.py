@@ -33,7 +33,7 @@ class TokenManager:
         """
         return TokenManager.create_access_token(
             data,
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expires_delta=timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         )
         
     @staticmethod
