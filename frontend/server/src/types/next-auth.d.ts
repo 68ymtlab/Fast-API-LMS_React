@@ -1,12 +1,5 @@
-import NextAuth, { DefaultSession, type DefaultUser } from "next-auth";
-import { JWT } from "next-auth/jwt";
-import { de } from "zod/v4/locales";
-import type {
-	FastApiUser,
-	LoginResponse,
-	Role,
-	ThemeSettings,
-} from "@/types/api/auth/user";
+import type { DefaultUser } from "next-auth";
+import type { FastApiUser } from "@/types/api/auth/user";
 
 declare module "next-auth" {
 	interface User extends DefaultUser {
