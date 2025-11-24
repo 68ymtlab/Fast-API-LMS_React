@@ -2,9 +2,8 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { getSession, signIn, useSession } from "next-auth/react";
 import { type FC, memo, useEffect, useState } from "react";
-// import { EmailForm } from "@/components/molecules/EmailForm";
 import { EmailInput } from "@/components/atoms/input/EmailInput";
 import { PasswordInput } from "@/components/atoms/input/PasswordInput";
 import { DefaultHeader } from "@/components/atoms/layout/DefaultHeader";
@@ -20,19 +19,23 @@ export const Login: FC = memo(() => {
 	const [isLogging, setIsLogging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
-	const { data: session } = useSession();
+	const { data: session, status } = useSession();
 	const searchParams = useSearchParams();
 	const nextAuthError = searchParams.get("error");
 
 	// ログイン済みユーザーのリダイレクト
-	// useEffect(() => {
-	// 	if (!isLoadingUser && loginUser) {
-	// 		const redirectPath =
-	// 			roleRedirectMap[loginUser.kind_name] || roleRedirectMap.default;
-	// 		console.log("[Login] Already logged in, redirecting to:", redirectPath);
-	// 		router.replace(redirectPath);
-	// 	}
-	// }, [loginUser, isLoadingUser, router]);
+	useEffect(() => {
+		if (status === "loading") return;
+
+		if (status === "authenticated" && session?.user) {
+			const userRole = session.user.role?.name;
+			const redirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
+			console.log(
+				`[Login] Already logged in, redirecting to: ${redirectPath} (role: ${userRole})`,
+			);
+			router.replace(redirectPath);
+		}
+	}, [session, status, router]);
 
 	const onClickLogin = async () => {
 		if (!email || !password) {
@@ -43,19 +46,33 @@ export const Login: FC = memo(() => {
 		setIsLogging(true);
 		setError(null);
 
-		const result = await signIn("credentials", {
-			username: email,
-			password: password,
-			redirect: false,
-		});
+		try {
+			const result = await signIn("credentials", {
+				username: email,
+				password: password,
+				redirect: false,
+			});
 
-		if (!result?.ok) {
-			setError("メールアドレスまたはパスワードが正しくありません");
+			if (!result?.ok) {
+				setError("メールアドレスまたはパスワードが正しくありません");
+				setIsLogging(false);
+				return;
+			}
+
+			// ログイン成功 - セッションからユーザー情報を取得してリダイレクト
+			const newSession = await getSession();
+			const userRole = newSession?.user?.role?.name;
+			const redirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
+
+			console.log(
+				`[Login] Login successful, redirecting to: ${redirectPath} (role: ${userRole})`,
+			);
+			router.push(redirectPath);
+		} catch (err) {
+			console.error("[Login] Login error:", err);
+			setError("ログイン処理中にエラーが発生しました。");
 			setIsLogging(false);
-			return;
 		}
-
-		router.push("/home");
 	};
 
 	return (
