@@ -69,6 +69,54 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), service: UserS
         "refresh_token": refresh_token
     }
 
+@users_router.post("/refresh", response_model=user_schema.RefreshTokenResponse, summary="トークンリフレッシュ")
+async def refresh_token(
+    refresh_request: user_schema.RefreshTokenRequest,
+    service: UserService = Depends(get_user_service)
+):
+    """リフレッシュトークンを使用して新しいアクセストークンとリフレッシュトークンを取得します。"""
+    try:
+        # リフレッシュトークンを検証してデコード
+        payload = TokenManager.decode_token(refresh_request.refresh_token)
+        token_data = user_schema.TokenData(**payload)
+        
+        # ユーザー情報を取得
+        user = await service.get_user_by_email(email=token_data.email)
+        
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+        
+        # 新しいトークンペイロードを生成
+        token_payload = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role_id": user.role_id,
+            "theme_settings": user.theme_settings,
+        }
+        
+        # 新しいトークンを生成
+        new_access_token = TokenManager.create_access_token(token_payload)
+        new_refresh_token = TokenManager.create_refresh_token(token_payload)
+        
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
 #
 # User Management Endpoints
 #

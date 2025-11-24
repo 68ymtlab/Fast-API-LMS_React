@@ -21,7 +21,7 @@ export const Login: FC = memo(() => {
 	const router = useRouter();
 	const { data: session, status } = useSession();
 	const searchParams = useSearchParams();
-	const nextAuthError = searchParams.get("error");
+	const _nextAuthError = searchParams.get("error");
 
 	// ログイン済みユーザーのリダイレクト
 	useEffect(() => {

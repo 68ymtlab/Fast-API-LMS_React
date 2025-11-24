@@ -18,6 +18,16 @@ class TokenData(BaseModel):
     role_id: int
     theme_settings: Optional[dict] = None
 
+class RefreshTokenRequest(BaseModel):
+    """リフレッシュトークンリクエストスキーマ"""
+    refresh_token: str = Field(..., description="リフレッシュトークン")
+
+class RefreshTokenResponse(BaseModel):
+    """リフレッシュトークンレスポンススキーマ"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
 #
 # Role Schemas
 #

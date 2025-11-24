@@ -12,6 +12,10 @@ class UserService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
+    async def get_user_by_email(self, *, email: str) -> Optional[user_model.Users]:
+        """メールアドレスでユーザーを取得します。"""
+        return await self.user_repo.get_by_email(email=email)
+    
     async def login(self, *, email: str, password: str) -> Optional[user_model.Users]:
         """ユーザーを認証し、最終ログイン日時を更新します。"""
         user = await self.user_repo.get_by_email(email=email)
