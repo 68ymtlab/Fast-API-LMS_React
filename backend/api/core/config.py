@@ -12,6 +12,12 @@ class Settings(BaseSettings):
   
   # アクセストークンの有効期限
   ACCESS_TOKEN_EXPIRE_MINUTES: int = 7*24*60
+  
+  # リフレッシュトークンの有効期限
+  REFRESH_TOKEN_EXPIRE_MINUTES: int = 30*24*60
+  
+  # CookieのSecure属性設定
+  COOKIE_SECURE: bool = False
 
   # Basic認証（Docs）用のユーザー名
   DOCS_USERNAME: str = "admin_docs"

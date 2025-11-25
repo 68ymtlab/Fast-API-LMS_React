@@ -21,8 +21,6 @@ import {
 	SidebarMenuItem,
 	SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { useAuth } from "@/hooks/useAuth";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 
 type Props = {
@@ -31,12 +29,10 @@ type Props = {
 
 export const AppSidebar: FC<Props> = memo((props) => {
 	const { sidebarGroups } = props;
-	const { loginUser } = useLoginUser();
-	const { logout } = useAuth();
 
-	const handleLogout = async () => {
-		await logout();
-	};
+	// const handleLogout = async () => {
+	// 	await logout();
+	// };
 
 	return (
 		<Sidebar>
@@ -83,7 +79,7 @@ export const AppSidebar: FC<Props> = memo((props) => {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<SidebarMenuSubButton>
-									<User2 /> {loginUser?.username}
+									<User2 /> ユーザー名 {/* 仮のユーザー名 */}
 									<ChevronUp className="ml-auto" />
 								</SidebarMenuSubButton>
 							</DropdownMenuTrigger>
@@ -91,7 +87,8 @@ export const AppSidebar: FC<Props> = memo((props) => {
 								side="top"
 								className="w-[--radix-popper-anchor-width]"
 							>
-								<DropdownMenuItem onClick={handleLogout}>
+								{/* <DropdownMenuItem onClick={handleLogout}> */}
+								<DropdownMenuItem onClick={() => console.log("ログアウト")}>
 									<LogOut />
 									<span>ログアウト</span>
 								</DropdownMenuItem>

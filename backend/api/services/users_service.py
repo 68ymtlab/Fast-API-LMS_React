@@ -1,24 +1,60 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 
-from api.core.password import hash_password, verify_password
+from api.core.security import TokenManager
+from api.core.password import SecurityManager
 from api.repositories.users_repo import UserRepository
 import api.schemas.users as user_schema
 import api.models.users_model as user_model
+from fastapi import HTTPException
 
 class UserService:
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
+    async def get_user_by_email(self, *, email: str) -> Optional[user_model.Users]:
+        """メールアドレスでユーザーを取得します。"""
+        return await self.user_repo.get_by_email(email=email)
+    
     async def login(self, *, email: str, password: str) -> Optional[user_model.Users]:
         """ユーザーを認証し、最終ログイン日時を更新します。"""
         user = await self.user_repo.get_by_email(email=email)
-        if not user or not verify_password(password, user.hashed_password) or not user.is_active:
+        if not user or not SecurityManager.verify_password(password, user.hashed_password) or not user.is_active:
             return None
         
         await self.user_repo.touch_last_login(user_id=user.id)
         await self.user_repo.db.commit()
         return user
+    
+    async def perform_login(self, email: str, password: str):
+        """
+        Swagger / NextAuth / 内部API どの用途でも共通して使える
+        ログイン処理：認証 → token生成 → (user, access, refresh) を返す
+        """
+        # --- ① 認証 ---
+        user = await self.login(email=email, password=password)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # --- ② Token payload ---
+        token_payload = {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role_id": user.role_id,
+            "theme_settings": user.theme_settings,
+        }
+        
+        # --- ③ JWT生成 ---
+        access_token = TokenManager.create_access_token(token_payload)
+        refresh_token = TokenManager.create_refresh_token(token_payload)
+        
+        return user, access_token, refresh_token
 
     async def create_user(self, *, user_in: user_schema.UserCreate, current_user: user_model.Users) -> user_model.Users:
         """新しいユーザーを作成します。学生情報があればそれも同時に作成します。"""
@@ -36,7 +72,7 @@ class UserService:
         if existing_user:
             raise ValueError("User with this email already exists")
 
-        hashed_password = hash_password(user_in.password)
+        hashed_password = SecurityManager.hash_password(user_in.password)
         
         async with self.user_repo.db.begin_nested(): # トランザクション管理
             created_user = await self.user_repo.create(user_in=user_in, hashed_password=hashed_password)
@@ -49,10 +85,10 @@ class UserService:
 
     async def update_own_password(self, *, user: user_model.Users, password_in: user_schema.PasswordUpdate) -> bool:
         """ユーザー本人がパスワードを更新します。"""
-        if not verify_password(password_in.current_password, user.hashed_password):
+        if not SecurityManager.verify_password(password_in.current_password, user.hashed_password):
             return False
         
-        new_hashed_password = hash_password(password_in.new_password)
+        new_hashed_password = SecurityManager.hash_password(password_in.new_password)
         update_schema = user_schema.UserUpdate(password=password_in.new_password)
         await self.user_repo.update(user=user, user_in=update_schema, hashed_password=new_hashed_password)
         await self.user_repo.db.commit()
@@ -64,7 +100,7 @@ class UserService:
         if not user_to_reset:
             return False
         
-        new_hashed_password = hash_password(password_in.new_password)
+        new_hashed_password = SecurityManager.hash_password(password_in.new_password)
         update_schema = user_schema.UserUpdate(password=password_in.new_password)
         await self.user_repo.update(user=user_to_reset, user_in=update_schema, hashed_password=new_hashed_password)
         await self.user_repo.db.commit()

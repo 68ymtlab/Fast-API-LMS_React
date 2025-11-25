@@ -20,7 +20,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface CompletionData {
@@ -32,7 +31,6 @@ interface CompletionData {
 }
 
 function FlowCompletionPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -40,12 +38,6 @@ function FlowCompletionPage() {
 	const [completionData, setCompletionData] = useState<CompletionData | null>(
 		null,
 	);
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.flow_id && params.session_id) {
@@ -95,14 +87,6 @@ function FlowCompletionPage() {
 		if (accuracy >= 50) return "もう少し頑張りましょう";
 		return "復習して再挑戦してみましょう";
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<>

@@ -12,7 +12,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 
 // markdown.js の関数は別途用意されていると仮定
@@ -193,4 +192,4 @@ export const WeekFlowsPage = () => {
 	);
 };
 
-export default withAuth(WeekFlowsPage, ["学生", "テスト"]);
+export default WeekFlowsPage;

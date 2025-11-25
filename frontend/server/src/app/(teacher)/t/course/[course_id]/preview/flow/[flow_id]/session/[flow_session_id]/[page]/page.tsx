@@ -24,7 +24,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface FlowSessionInfo {
@@ -39,7 +38,6 @@ interface FlowSessionInfo {
 }
 
 function FlowSessionPreviewPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -47,12 +45,6 @@ function FlowSessionPreviewPage() {
 	const [sessionInfo, setSessionInfo] = useState<FlowSessionInfo | null>(null);
 
 	const currentPage = parseInt(params.page as string) || 1;
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.flow_session_id && params.page) {
@@ -120,14 +112,6 @@ function FlowSessionPreviewPage() {
 				return "bg-gray-500";
 		}
 	};
-
-	if (isLoadingUser || loading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">

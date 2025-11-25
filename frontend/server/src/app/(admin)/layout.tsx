@@ -87,7 +87,7 @@ export const AdminLayoutInner = memo(
 	},
 );
 
-export const AdminLayout = memo(({ children }: { children: ReactNode }) => {
+const AdminLayout = memo(({ children }: { children: ReactNode }) => {
 	return (
 		<SidebarProvider defaultOpen={false}>
 			<div className="flex flex-col min-h-screen w-full">

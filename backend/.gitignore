@@ -24,4 +24,4 @@ components.d.ts
 
 # 環境変数ファイル
 
-backend/.env
+.env

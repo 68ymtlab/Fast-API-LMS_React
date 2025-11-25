@@ -1,5 +1,7 @@
 "use client";
 
+//// email変更
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -25,8 +27,6 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import withAuth from "@/hocs/withAuth";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -47,7 +47,6 @@ const formSchema = z
 type FormData = z.infer<typeof formSchema>;
 
 function PasswordUpdatePage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [success, setSuccess] = useState(false);
@@ -62,12 +61,6 @@ function PasswordUpdatePage() {
 		},
 	});
 
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
 	const onSubmit = async (data: FormData) => {
 		setLoading(true);
 		setErrorMessage("");
@@ -75,7 +68,7 @@ function PasswordUpdatePage() {
 
 		try {
 			const params = {
-				email: loginUser?.email,
+				email: "email@example.com",
 				old_password: data.currentPassword,
 				new_password: data.newPassword,
 			};
@@ -101,14 +94,6 @@ function PasswordUpdatePage() {
 			setLoading(false);
 		}
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<>
@@ -218,4 +203,4 @@ function PasswordUpdatePage() {
 	);
 }
 
-export default withAuth(PasswordUpdatePage, ["student"]);
+export default PasswordUpdatePage;

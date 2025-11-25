@@ -38,7 +38,6 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -87,7 +86,6 @@ interface CourseInfo {
 }
 
 function EditCourseInfoPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -115,12 +113,6 @@ function EditCourseInfoPage() {
 			weeks: 1,
 		},
 	});
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.course_id) {
@@ -260,14 +252,6 @@ function EditCourseInfoPage() {
 	const handleCancel = () => {
 		router.back();
 	};
-
-	if (isLoadingUser || initialLoading) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary" />
-			</div>
-		);
-	}
 
 	if (!courseInfo) {
 		return (

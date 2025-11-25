@@ -1,4 +1,4 @@
-FROM node:25-alpine3.21
+FROM node:24
 WORKDIR /app
 #RUN npm install && \
 #    npm install -g npm && \

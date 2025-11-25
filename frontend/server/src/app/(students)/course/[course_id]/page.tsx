@@ -5,7 +5,6 @@ import React, { useEffect, useState } from "react";
 import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import withAuth from "@/hocs/withAuth";
 import axios from "@/lib/axios";
 
 interface UserInfo {
@@ -725,4 +724,4 @@ export const CoursePage = () => {
 	);
 };
 
-export default withAuth(CoursePage, ["学生", "テスト"]);
+export default CoursePage;

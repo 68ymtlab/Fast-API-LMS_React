@@ -2,8 +2,8 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getSession, signIn, useSession } from "next-auth/react";
 import { type FC, memo, useEffect, useState } from "react";
-// import { EmailForm } from "@/components/molecules/EmailForm";
 import { EmailInput } from "@/components/atoms/input/EmailInput";
 import { PasswordInput } from "@/components/atoms/input/PasswordInput";
 import { DefaultHeader } from "@/components/atoms/layout/DefaultHeader";
@@ -11,26 +11,29 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import { roleRedirectMap } from "@/router/router";
 
 export const Login: FC = memo(() => {
-	const { loginUser, isLoadingUser, login } = useLoginUser();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLogging, setIsLogging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const router = useRouter();
+	const { data: session, status } = useSession();
 
 	// ログイン済みユーザーのリダイレクト
 	useEffect(() => {
-		if (!isLoadingUser && loginUser) {
-			const redirectPath =
-				roleRedirectMap[loginUser.kind_name] || roleRedirectMap.default;
-			console.log("[Login] Already logged in, redirecting to:", redirectPath);
+		if (status === "loading") return;
+
+		if (status === "authenticated" && session?.user) {
+			const userRole = session.user.role?.name;
+			const redirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
+			console.log(
+				`[Login] Already logged in, redirecting to: ${redirectPath} (role: ${userRole})`,
+			);
 			router.replace(redirectPath);
 		}
-	}, [loginUser, isLoadingUser, router]);
+	}, [session, status, router]);
 
 	const onClickLogin = async () => {
 		if (!email || !password) {
@@ -41,36 +44,34 @@ export const Login: FC = memo(() => {
 		setIsLogging(true);
 		setError(null);
 
-		const success = await login(email, password);
+		try {
+			const result = await signIn("credentials", {
+				username: email,
+				password: password,
+				redirect: false,
+			});
 
-		if (success) {
-			// ログイン成功時のリダイレクトはuseEffectで処理される
-		} else {
-			setError(
-				"ログインに失敗しました。メールアドレスとパスワードを確認してください。",
+			if (!result?.ok) {
+				setError("メールアドレスまたはパスワードが正しくありません");
+				setIsLogging(false);
+				return;
+			}
+
+			// ログイン成功 - セッションからユーザー情報を取得してリダイレクト
+			const newSession = await getSession();
+			const userRole = newSession?.user?.role?.name;
+			const redirectPath = roleRedirectMap[userRole] || roleRedirectMap.default;
+
+			console.log(
+				`[Login] Login successful, redirecting to: ${redirectPath} (role: ${userRole})`,
 			);
+			router.push(redirectPath);
+		} catch (err) {
+			console.error("[Login] Login error:", err);
+			setError("ログイン処理中にエラーが発生しました。");
+			setIsLogging(false);
 		}
-
-		setIsLogging(false);
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex flex-col min-h-screen">
-				<DefaultHeader />
-				<div className="flex flex-col flex-grow item-center justify-center space-y-2">
-					<Loader2 className="h-12 w-12 animate-spin text-primary" />
-					<p className="text-muted-foreground">
-						認証情報を確認しています．．．
-					</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (loginUser) {
-		return null; // リダイレクト中
-	}
 
 	return (
 		<div className="flex flex-col min-h-screen bg-background">
@@ -109,9 +110,13 @@ export const Login: FC = memo(() => {
 								</div>
 								<Button type="submit" className="w-full" disabled={isLogging}>
 									{isLogging ? (
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									) : null}
-									ログイン
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											ログイン中
+										</>
+									) : (
+										"ログイン"
+									)}
 								</Button>
 							</div>
 						</form>

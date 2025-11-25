@@ -10,6 +10,24 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class TokenData(BaseModel):
+    id: int
+    email: str
+    username: str
+    display_name: str
+    role_id: int
+    theme_settings: Optional[dict] = None
+
+class RefreshTokenRequest(BaseModel):
+    """リフレッシュトークンリクエストスキーマ"""
+    refresh_token: str = Field(..., description="リフレッシュトークン")
+
+class RefreshTokenResponse(BaseModel):
+    """リフレッシュトークンレスポンススキーマ"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
 #
 # Role Schemas
 #
@@ -98,6 +116,12 @@ class User(UserInDBBase):
     """クライアントに返すユーザー情報のスキーマ"""
     hashed_password: Any = Field(exclude=True)
     role: Role
+    
+class LoginResponse(BaseModel):
+    """ログインレスポンススキーマ"""
+    user: User
+    access_token: str
+    refresh_token: str
 
 class UserWithStudent(User):
     """学生情報を含むユーザー情報のレスポンススキーマ"""

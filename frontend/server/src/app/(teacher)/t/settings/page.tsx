@@ -39,7 +39,6 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 const formSchema = z
@@ -60,7 +59,6 @@ const formSchema = z
 type FormData = z.infer<typeof formSchema>;
 
 function TeacherSettingsPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -76,12 +74,6 @@ function TeacherSettingsPage() {
 		},
 	});
 
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
-
 	const handlePasswordUpdate = () => {
 		setShowPasswordModal(true);
 		setSuccess(false);
@@ -96,7 +88,7 @@ function TeacherSettingsPage() {
 
 		try {
 			const params = {
-				email: loginUser?.email,
+				email: "exsample@example.com", // 仮のメールアドレス、必要に応じて実際のユーザーのメールアドレスに置き換えてください
 				old_password: data.currentPassword,
 				new_password: data.newPassword,
 			};
@@ -127,18 +119,6 @@ function TeacherSettingsPage() {
 		}
 	};
 
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
-
-	if (!loginUser) {
-		return null;
-	}
-
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-4xl">
 			<Card>
@@ -161,7 +141,8 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ユーザー名
 										</h4>
-										<p className="text-lg">{loginUser?.username}</p>
+										{/* 仮のユーザー名 */}
+										<p className="text-lg">example_username</p>
 									</div>
 								</div>
 
@@ -171,7 +152,8 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											メールアドレス
 										</h4>
-										<p className="text-lg">{loginUser?.email}</p>
+										{/* 仮のメールアドレス */}
+										<p className="text-lg">example@example.com</p>
 									</div>
 								</div>
 
@@ -181,7 +163,8 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ユーザー種別
 										</h4>
-										<p className="text-lg">{loginUser?.kind_name}</p>
+										{/* 仮のユーザー種別 */}
+										<p className="text-lg">example_kind_name</p>
 									</div>
 								</div>
 
@@ -191,7 +174,8 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ニックネーム
 										</h4>
-										<p className="text-lg">{loginUser?.username}</p>
+										{/* 仮のニックネーム */}
+										<p className="text-lg">example_nickname</p>
 									</div>
 									<Button variant="ghost" size="sm" className="ml-auto">
 										<Edit className="h-4 w-4" />

@@ -37,7 +37,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useLoginUser } from "@/hooks/useLoginUser";
 import axios from "@/lib/axios";
 
 interface QuestionData {
@@ -62,7 +61,6 @@ interface SubmissionResult {
 }
 
 function TeacherFlowSessionPreviewPage() {
-	const { loginUser, isLoadingUser } = useLoginUser();
 	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
@@ -76,12 +74,6 @@ function TeacherFlowSessionPreviewPage() {
 	const [showFinishDialog, setShowFinishDialog] = useState(false);
 
 	const currentPage = parseInt(params.page as string);
-
-	useEffect(() => {
-		if (!isLoadingUser && !loginUser) {
-			router.push("/login");
-		}
-	}, [loginUser, isLoadingUser, router]);
 
 	useEffect(() => {
 		if (params.session_id && params.page) {
@@ -259,14 +251,6 @@ function TeacherFlowSessionPreviewPage() {
 				return <p className="text-gray-500">未対応の問題形式です</p>;
 		}
 	};
-
-	if (isLoadingUser) {
-		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-4xl">

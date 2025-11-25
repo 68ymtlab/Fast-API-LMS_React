@@ -61,12 +61,11 @@ app.add_middleware(
 )
 
 # --- Routers ---
-app.include_router(users_router)
-app.include_router(subjects_router)
-app.include_router(progress_router)
-app.include_router(courses_router)
-app.include_router(lessons_router)
-
+app.include_router(users_router, prefix="/api")
+app.include_router(subjects_router, prefix="/api")
+app.include_router(progress_router, prefix="/api")
+app.include_router(courses_router, prefix="/api")
+app.include_router(lessons_router, prefix="/api")
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():
