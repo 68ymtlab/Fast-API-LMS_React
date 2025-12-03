@@ -1,0 +1,28 @@
+# Node modules（シンボリックリンクを含むため除外）
+node_modules
+
+# ビルド成果物
+.next
+out
+dist
+build
+
+# 開発用ファイル
+.git
+.gitignore
+*.log
+npm-debug.log*
+
+# IDE設定
+.vscode
+.idea
+
+# テスト関連
+coverage
+.nyc_output
+
+# その他
+*.md
+.env.local
+.env*.local
+
