@@ -48,10 +48,14 @@ async def generate_question(
     - **custom**: その他の要望
     """
     try:
+        print(f"[Dify Router] Starting question generation...")
+        
         # ファイルを読み込む
         rule_content = await rule.read()
         exercises_content = await exercises.read()
         test_data_content = await test_data.read()
+        
+        print(f"[Dify Router] Files read: rule={len(rule_content)} bytes, exercises={len(exercises_content)} bytes, test_data={len(test_data_content)} bytes")
         
         # ユーザーIDを統一（認証が無効なため、フォームからのuser_idを使用）
         # consistent_user_id = current_user.email or user_id
@@ -59,16 +63,23 @@ async def generate_question(
         
         # Dify APIにファイルをアップロード
         try:
+            print(f"[Dify Router] Uploading files to Dify...")
             # 同じユーザーIDでアップロード
             rule_id = await dify_service.upload_file(rule_content, rule.filename or "rule.pdf", consistent_user_id)
+            print(f"[Dify Router] Rule file uploaded: {rule_id}")
+            
             exercises_id = await dify_service.upload_file(exercises_content, exercises.filename or "exercises.pdf", consistent_user_id)
+            print(f"[Dify Router] Exercises file uploaded: {exercises_id}")
+            
             test_data_id = await dify_service.upload_file(test_data_content, test_data.filename or "test_data.pdf", consistent_user_id)
+            print(f"[Dify Router] Test data file uploaded: {test_data_id}")
             
             # ファイル処理完了を待つ（短い遅延）
             import asyncio
             await asyncio.sleep(0.5)
             
         except Exception as upload_error:
+            print(f"[Dify Router] File upload error: {str(upload_error)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"ファイルアップロードエラー: {str(upload_error)}"

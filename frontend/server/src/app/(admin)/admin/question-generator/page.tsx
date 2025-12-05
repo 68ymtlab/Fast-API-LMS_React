@@ -147,7 +147,7 @@ export default function QuestionGeneratorPage() {
 			// 環境変数の設定ミス（/api/proxyなど）を回避するため、強制的にローカルバックエンドを使用
 			const apiUrl = "http://localhost:8000";
 			
-			const requestUrl = `${apiUrl}/dify/generate-question`;
+			const requestUrl = `${apiUrl}/api/dify/generate-question`;
 			console.log("[Question Generator] Request URL:", requestUrl);
 			
 			const response = await axios.post(
@@ -166,48 +166,75 @@ export default function QuestionGeneratorPage() {
 			setLoadingStatus("問題データを解析中...");
 
 			// Difyからのレスポンスを解析
-			let generatedQuestions = [];
+			let generatedQuestions: any[] = [];
 			const responseData = response.data.data; // Difyの生のレスポンスデータ
+			
+			// デバッグ: outputs構造をログ出力
+			console.log("[Question Generator] outputs:", responseData?.outputs);
+			console.log("[Question Generator] outputs keys:", responseData?.outputs ? Object.keys(responseData.outputs) : "none");
 			
 			// 1. outputs.questions (標準的なパターン)
 			if (responseData?.outputs?.questions) {
+				console.log("[Question Generator] Found questions in outputs.questions");
 				generatedQuestions = responseData.outputs.questions;
 			} 
 			// 2. outputs.text (テキストとして返ってきた場合、JSONパースを試みる)
-			else if (typeof responseData?.outputs?.text === 'string') {
+			else if (typeof responseData?.outputs?.text === 'string' && responseData.outputs.text.trim() !== '') {
+				console.log("[Question Generator] Found text in outputs.text, attempting JSON parse");
+				console.log("[Question Generator] outputs.text content:", responseData.outputs.text);
 				try {
 					// マークダウンのコードブロックが含まれている場合の除去
 					const cleanJson = responseData.outputs.text.replace(/```json\n?|\n?```/g, '').trim();
 					generatedQuestions = JSON.parse(cleanJson);
 				} catch (e) {
-					console.warn("Failed to parse outputs.text as JSON", e);
+					console.warn("[Question Generator] Failed to parse outputs.text as JSON:", e);
 				}
 			}
 			// 3. outputs内の最初の配列を探す
 			else if (responseData?.outputs) {
-				const possibleArray = Object.values(responseData.outputs).find(val => Array.isArray(val));
-				if (possibleArray) {
-					generatedQuestions = possibleArray;
+				console.log("[Question Generator] Searching for array in outputs...");
+				for (const [key, val] of Object.entries(responseData.outputs)) {
+					console.log(`[Question Generator] outputs.${key}:`, typeof val, Array.isArray(val) ? `(array length: ${(val as any[]).length})` : '');
+					if (Array.isArray(val) && (val as any[]).length > 0) {
+						generatedQuestions = val as any[];
+						console.log(`[Question Generator] Found questions in outputs.${key}`);
+						break;
+					}
 				}
 			}
 			
 			// まだ見つからない場合のフォールバック
 			if (!generatedQuestions || generatedQuestions.length === 0) {
+				console.log("[Question Generator] Trying fallback locations...");
 				if (responseData?.questions) {
 					generatedQuestions = responseData.questions;
+					console.log("[Question Generator] Found questions in responseData.questions");
 				} else if (Array.isArray(responseData)) {
 					generatedQuestions = responseData;
+					console.log("[Question Generator] responseData is array");
 				} else if (response.data.questions) {
 					generatedQuestions = response.data.questions;
+					console.log("[Question Generator] Found questions in response.data.questions");
 				}
 			}
 
 			// 最終チェック
 			if (!generatedQuestions || !Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
-				console.warn("[Question Generator] Unexpected response structure. Full data:", JSON.stringify(response.data, null, 2));
+				console.error("[Question Generator] No questions found! Full response:", JSON.stringify(response.data, null, 2));
+				console.error("[Question Generator] Dify workflow status:", responseData?.status);
+				console.error("[Question Generator] Dify outputs:", JSON.stringify(responseData?.outputs, null, 2));
+				
+				// Difyワークフローが成功したが出力が空の場合の詳細なエラーメッセージ
+				let errorMessage = "問題データが見つかりませんでした。";
+				if (responseData?.status === "succeeded" && responseData?.outputs?.text === "") {
+					errorMessage = "Difyワークフローは成功しましたが、出力が空です。Difyワークフローの出力変数設定を確認してください。";
+				} else if (responseData?.status === "failed") {
+					errorMessage = `Difyワークフローが失敗しました: ${responseData?.error || "不明なエラー"}`;
+				}
+				
 				toast({
 					title: "警告",
-					description: "問題データの形式が想定と異なります。コンソールで詳細を確認してください。",
+					description: errorMessage,
 					variant: "destructive",
 				});
 				return;
@@ -215,9 +242,9 @@ export default function QuestionGeneratorPage() {
 
 			console.log("[Question Generator] Parsed questions:", generatedQuestions);
 			
-			// 問題データを整形
+			// 問題データを整形（重複IDを防ぐためにインデックスを使用してユニークなIDを生成）
 			const formattedQuestions: Question[] = generatedQuestions.map((q: any, index: number) => ({
-				id: q.id || `Q${index + 1}`,
+				id: `${q.id || 'Q'}-${index}`, // インデックスを追加してユニークにする
 				question: q.question || "",
 				answer: q.answer || "",
 				difficulty: q.difficulty || difficulty,

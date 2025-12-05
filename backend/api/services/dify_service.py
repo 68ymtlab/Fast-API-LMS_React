@@ -102,7 +102,8 @@ class DifyService:
         print(f"[Dify Workflow] Sending payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
         
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # タイムアウトを120秒に設定（Difyワークフローは40-60秒かかることがある）
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{self.api_url}/workflows/run",
                     headers=headers,
@@ -122,18 +123,27 @@ class DifyService:
                     status="success"
                 )
                 
+        except httpx.TimeoutException as e:
+            print(f"[Dify Workflow] Timeout error: {str(e)}")
+            return QuestionGenerationResponse(
+                status="error",
+                error=f"タイムアウト: Dify APIからの応答が遅すぎます。再試行してください。"
+            )
         except httpx.HTTPStatusError as e:
             error_detail = f"HTTP {e.response.status_code}: {e.response.text}"
+            print(f"[Dify Workflow] HTTP error: {error_detail}")
             return QuestionGenerationResponse(
                 status="error",
                 error=error_detail
             )
         except httpx.RequestError as e:
+            print(f"[Dify Workflow] Request error: {str(e)}")
             return QuestionGenerationResponse(
                 status="error",
                 error=f"Request failed: {str(e)}"
             )
         except Exception as e:
+            print(f"[Dify Workflow] Unexpected error: {str(e)}")
             return QuestionGenerationResponse(
                 status="error",
                 error=f"Unexpected error: {str(e)}"
