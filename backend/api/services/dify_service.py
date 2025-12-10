@@ -116,6 +116,17 @@ class DifyService:
                 # デバッグ: レスポンスをログ出力
                 print(f"[Dify Workflow] Response: {json.dumps(result, indent=2, ensure_ascii=False)}")
                 
+                # dataオブジェクトの詳細をログ出力
+                data = result.get("data", {})
+                if data:
+                    print(f"[Dify Workflow] data.status: {data.get('status')}")
+                    print(f"[Dify Workflow] data.error: {data.get('error')}")
+                    outputs = data.get("outputs", {})
+                    print(f"[Dify Workflow] outputs keys: {list(outputs.keys()) if outputs else 'none'}")
+                    for key, val in (outputs or {}).items():
+                        val_preview = str(val)[:200] if val else "empty"
+                        print(f"[Dify Workflow] outputs.{key}: {val_preview}")
+                
                 return QuestionGenerationResponse(
                     workflow_run_id=result.get("workflow_run_id"),
                     task_id=result.get("task_id"),
