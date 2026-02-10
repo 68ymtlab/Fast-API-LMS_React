@@ -66,10 +66,7 @@ class ContentRepository(BaseRepository):
         stmt = select(contents_model.Images).where(contents_model.Images.id == image_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
-    async def soft_delete_image(self, *, image: contents_model.Images) -> contents_model.Images:
-        """画像情報を論理削除します。"""
-        image.deleted_at = func.now()
-        self.db.add(image)
-        await self.db.flush()
-        await self.db.refresh(image)
-        return image
+    async def delete_image(self, *, image: contents_model.Images) -> bool:
+        """画像情報を削除します。"""
+        await self.db.delete(image)
+        return True

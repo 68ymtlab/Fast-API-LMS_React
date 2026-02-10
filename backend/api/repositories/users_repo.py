@@ -30,7 +30,7 @@ class UserRepository(BaseRepository):
     async def create(self, *, user_in: user_schema.UserCreate, hashed_password: str) -> user_model.Users:
         """Usersテーブルに新しいユーザーを作成します。"""
         user_data = user_in.model_dump(exclude={"password", "student_info"})
-        db_obj = user_model.Users(**user_data, hashed_password=hashed_password)
+        db_obj = user_model.Users(**user_data, password_hash=hashed_password)
         self.db.add(db_obj)
         await self.db.flush()
         await self.db.refresh(db_obj)
@@ -38,7 +38,7 @@ class UserRepository(BaseRepository):
 
     async def create_student_details(self, *, user_id: int, student_in: user_schema.StudentCreate) -> user_model.Students:
         """Studentsテーブルに学生の詳細情報を作成します。"""
-        student_data = student_in.model_dump()
+        student_data = student_in.model_dump(exclude_none=True)
         db_obj = user_model.Students(user_id=user_id, **student_data)
         self.db.add(db_obj)
         await self.db.flush()
@@ -50,7 +50,7 @@ class UserRepository(BaseRepository):
         update_data = user_in.model_dump(exclude_unset=True, exclude={"password", "student_info"})
         
         if hashed_password:
-            update_data["hashed_password"] = hashed_password
+            update_data["password_hash"] = hashed_password
         
         for field, value in update_data.items():
             setattr(user, field, value)

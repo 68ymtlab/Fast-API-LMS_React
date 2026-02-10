@@ -27,7 +27,7 @@ class Content(ContentBase):
     id: int = Field(..., description="コンテンツID")
     created_at: datetime = Field(..., description="作成日時")
     updated_at: datetime = Field(..., description="更新日時")
-    created_by_user_id: int = Field(..., description="作成者ID")
+    created_by_user_id: Optional[int] = Field(None, description="作成者ID")
     model_config = ConfigDict(from_attributes=True)
 
 #
@@ -36,23 +36,15 @@ class Content(ContentBase):
 
 class ImageBase(BaseModel):
     """画像情報の基本スキーマ"""
-    original_file_name: str = Field(..., description="元のファイル名")
-    stored_file_path: str = Field(..., description="保存されたファイルパス")
-    mime_type: str = Field(..., description="MIMEタイプ")
-    file_size_bytes: int = Field(..., description="ファイルサイズ (バイト)")
-    uploaded_by_user_id: int = Field(..., description="アップロードユーザーID")
+    file_path: str = Field(..., description="ファイルパス")
     alt_text: Optional[str] = Field(None, description="代替テキスト")
-    lesson_id: Optional[int] = Field(None, description="関連するレッスンID")
+    original_name: Optional[str] = Field(None, description="アップロード時のファイル名")
 
 class ImageCreate(ImageBase):
     """画像作成時の入力スキーマ"""
-    # 画像データ自体は別途バイナリで受け取るため、スキーマには含めない
     pass
 
 class Image(ImageBase):
     """クライアントに返す画像情報のスキーマ"""
     id: int = Field(..., description="画像ID")
-    created_at: datetime = Field(..., description="作成日時")
-    updated_at: datetime = Field(..., description="更新日時")
-    deleted_at: Optional[datetime] = Field(None, description="削除日時")
     model_config = ConfigDict(from_attributes=True)

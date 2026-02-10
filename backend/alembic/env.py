@@ -45,7 +45,9 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = config.get_main_option("sqlalchemy.url") or os.getenv("DATABASE_URL", "")
+    if "+asyncpg" in url:
+        url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -66,7 +68,11 @@ def run_migrations_online() -> None:
     """
     
     configuration = context.config
-    configuration.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+    # Alembic は同期エンジンを使用するため、asyncpg → psycopg2 に変換
+    url = os.getenv("DATABASE_URL", "")
+    if "+asyncpg" in url:
+        url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    configuration.set_main_option("sqlalchemy.url", url or "postgresql+psycopg2://localhost/lms")
     
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

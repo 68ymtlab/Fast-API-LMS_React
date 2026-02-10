@@ -13,7 +13,6 @@
 		"isolatedModules": true,
 		"jsx": "preserve",
 		"incremental": true,
-		"types": ["react"],
 		"typeRoots": ["./src/types", "./node_modules/@types"],
 		"plugins": [
 			{

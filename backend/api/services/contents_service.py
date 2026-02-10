@@ -70,28 +70,24 @@ class ContentService:
         # ファイル名生成 (ユーザーID_タイムスタンプ_UUID.拡張子)
         file_extension = original_file_name.split('.')[-1] if '.' in original_file_name else 'bin'
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        unique_id = uuid.uuid4().hex[:8] # 短いUUID
-        
+        unique_id = uuid.uuid4().hex[:8]
+
         # ユーザーIDごとのサブディレクトリを作成
         user_dir = os.path.join(IMAGE_UPLOAD_DIR, str(uploaded_by_user_id))
         os.makedirs(user_dir, exist_ok=True)
 
         stored_file_name = f"{uploaded_by_user_id}_{timestamp}_{unique_id}.{file_extension}"
-        stored_file_path = os.path.join(user_dir, stored_file_name)
+        file_path = os.path.join(user_dir, stored_file_name)
 
         # ファイルを保存
-        with open(stored_file_path, "wb") as f:
+        with open(file_path, "wb") as f:
             f.write(file_data)
 
-        # データベースに画像情報を登録
+        # データベースに画像情報を登録（新スキーマ: file_path, alt_text, original_name）
         image_in = contents_schema.ImageCreate(
-            original_file_name=original_file_name,
-            stored_file_path=stored_file_path,
-            mime_type=mime_type,
-            file_size_bytes=len(file_data),
-            uploaded_by_user_id=uploaded_by_user_id,
+            file_path=file_path,
             alt_text=alt_text,
-            lesson_id=lesson_id
+            original_name=original_file_name
         )
         db_image = await self.content_repo.create_image(image_in=image_in)
         await self.content_repo.db.commit()
@@ -105,15 +101,15 @@ class ContentService:
         """画像IDからファイルシステム上のパスを取得します。"""
         image = await self.content_repo.get_image_by_id(image_id=image_id)
         if image:
-            return image.stored_file_path
+            return image.file_path
         return None
 
-    async def soft_delete_image(self, *, image_id: int, current_user: users_model.Users) -> bool:
-        """画像情報を論理削除します。"""
+    async def delete_image(self, *, image_id: int, current_user: users_model.Users) -> bool:
+        """画像情報を削除します。"""
         image = await self.content_repo.get_image_by_id(image_id=image_id)
         if image is None:
             return False
         # TODO: 権限チェック (アップロード者、管理者など)
-        success = await self.content_repo.soft_delete_image(image=image)
+        success = await self.content_repo.delete_image(image=image)
         await self.content_repo.db.commit()
         return success

@@ -4,12 +4,13 @@
 このモジュールでは、コース(Courses)やその履修(CourseEnrollments)に関連する
 データベースへのCRUD操作を担うリポジトリを定義します。
 """
+import datetime
 from typing import List, Optional
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 
 from api.repositories.base import BaseRepository
-from api.models import courses_model, subjects_model, lessons_model # Import subjects_model, lessons_model
+from api.models import courses_model, subjects_model, lessons_model
 import api.schemas.courses as courses_schema
 
 class CourseRepository(BaseRepository):
@@ -41,7 +42,7 @@ class CourseRepository(BaseRepository):
             select(courses_model.Courses)
             .join(courses_model.CourseContentPermissions)
             .where(
-                courses_model.CourseContentPermissions.user_id == user_id,
+                courses_model.CourseContentPermissions.teacher_user_id == user_id,
                 courses_model.CourseContentPermissions.can_read_content == True,
                 courses_model.Courses.subject_id == subject_id,
             )
@@ -104,8 +105,10 @@ class CourseRepository(BaseRepository):
     ) -> courses_model.CourseContentPermissions:
         """コースコンテンツ権限を新規作成します。"""
         db_obj = courses_model.CourseContentPermissions(
-            user_id=permission_in.user_id,
+            teacher_user_id=permission_in.teacher_user_id,
             course_id=permission_in.course_id,
+            start_date_time=getattr(permission_in, 'start_date_time', datetime.datetime.now()),
+            end_date_time=getattr(permission_in, 'end_date_time', datetime.datetime.now()),
             can_read_content=permission_in.can_read_content,
             can_update_content=permission_in.can_update_content,
             can_delete_content=permission_in.can_delete_content,
@@ -119,9 +122,9 @@ class CourseRepository(BaseRepository):
     async def get_course_content_permission(
         self, *, user_id: int, course_id: int
     ) -> Optional[courses_model.CourseContentPermissions]:
-        """指定されたユーザーとコースのコンテンツ権限を取得します。"""
+        """指定された教師ユーザーとコースのコンテンツ権限を取得します。"""
         stmt = select(courses_model.CourseContentPermissions).where(
-            courses_model.CourseContentPermissions.user_id == user_id,
+            courses_model.CourseContentPermissions.teacher_user_id == user_id,
             courses_model.CourseContentPermissions.course_id == course_id,
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
@@ -159,7 +162,6 @@ class CourseRepository(BaseRepository):
         db_obj = courses_model.CourseEnrollments(
             user_id=enrollment_in.user_id,
             course_id=enrollment_in.course_id,
-            assigned_teacher_id=enrollment_in.assigned_teacher_id,
         )
         self.db.add(db_obj)
         await self.db.flush()
@@ -176,6 +178,18 @@ class CourseRepository(BaseRepository):
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
+    async def update_course_enrollment(
+        self, *, enrollment: courses_model.CourseEnrollments, enrollment_in: courses_schema.CourseEnrollmentCreate
+    ) -> courses_model.CourseEnrollments:
+        """コース履修を更新します。"""
+        update_data = enrollment_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(enrollment, field, value)
+        self.db.add(enrollment)
+        await self.db.flush()
+        await self.db.refresh(enrollment)
+        return enrollment
+
     async def delete_course_enrollment(
         self, *, user_id: int, course_id: int
     ) -> bool:
@@ -189,3 +203,25 @@ class CourseRepository(BaseRepository):
             await self.db.delete(enrollment_to_delete)
             return True
         return False
+
+    async def update_course(
+        self, *, course: courses_model.Courses, course_in: courses_schema.CourseUpdate
+    ) -> courses_model.Courses:
+        """コース情報を更新します。"""
+        update_data = course_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(course, field, value)
+        course.updated_at = func.now()
+        self.db.add(course)
+        await self.db.flush()
+        await self.db.refresh(course)
+        return course
+
+    async def soft_delete_course(self, *, course: courses_model.Courses) -> courses_model.Courses:
+        """コースを論理削除します。"""
+        course.is_active = False
+        course.deleted_at = func.now()
+        self.db.add(course)
+        await self.db.flush()
+        await self.db.refresh(course)
+        return course

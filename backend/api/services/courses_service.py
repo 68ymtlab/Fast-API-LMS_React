@@ -56,7 +56,7 @@ class CourseService:
         ターゲットユーザーが管理者である場合は操作を許可しません。
         """
         # ターゲットユーザーが管理者である場合は操作を許可しない
-        target_user = await self.user_repo.get_by_id(user_id=permission_in.user_id)
+        target_user = await self.user_repo.get_by_id(user_id=permission_in.teacher_user_id)
         if target_user and target_user.role_id == 1: # Assuming 1 is admin role_id
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,7 +104,7 @@ class CourseService:
 
         # 権限の作成または更新
         existing_permission = await self.course_repo.get_course_content_permission(
-            user_id=permission_in.user_id, course_id=permission_in.course_id
+            user_id=permission_in.teacher_user_id, course_id=permission_in.course_id
         )
 
         # 全ての権限がFalseになった場合、権限エントリを削除
@@ -213,31 +213,24 @@ class CourseService:
                         detail=f"User {enrollment_data.user_id} is not a student or does not exist."
                     )
                 
-                # 担当教師の役割チェック (教師のみ)
-                if enrollment_data.assigned_teacher_id:
-                    assigned_teacher = await self.user_repo.get_by_id(user_id=enrollment_data.assigned_teacher_id)
-                    if not assigned_teacher or assigned_teacher.role_id != 2: # Assuming 2 is teacher role_id
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Assigned teacher {enrollment_data.assigned_teacher_id} is not a teacher or does not exist."
-                        )
+                enrollment_data_fixed = enrollment_data.model_copy(update={"course_id": course_id})
 
                 # 履修登録の作成または更新
                 existing_enrollment = await self.course_repo.get_course_enrollment(
-                    user_id=enrollment_data.user_id, course_id=enrollment_data.course_id
+                    user_id=enrollment_data.user_id, course_id=course_id
                 )
 
                 if existing_enrollment:
-                    # 更新 (assigned_teacher_id のみ更新可能と仮定)
+                    # 更新
                     updated_enrollment = await self.course_repo.update_course_enrollment(
                         enrollment=existing_enrollment,
-                        enrollment_in=enrollment_data # assigned_teacher_id を含む
+                        enrollment_in=enrollment_data_fixed
                     )
                     results.append(updated_enrollment)
                 else:
                     # 新規作成
                     created_enrollment = await self.course_repo.create_course_enrollment(
-                        enrollment_in=enrollment_data
+                        enrollment_in=enrollment_data_fixed
                     )
                     results.append(created_enrollment)
         await self.course_repo.db.commit()

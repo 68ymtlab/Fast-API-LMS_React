@@ -1,8 +1,7 @@
 # Usage
-#   Start:              docker compose up
-#   With helpers:       docker compose -f docker-compose.yml -f ./dev/docker-compose.dev.yml up
+#   Start:              docker compose up --build -d
 #   Stop:               docker compose down
-#   Destroy:            docker compose -f docker-compose.yml -f ./dev/docker-compose.dev.yml down -v --remove-orphans
+#   Destroy:            docker compose down -v --remove-orphans
 #   Reset everything:  ./reset.sh
 
 name: Fast-API-LMS_REACT
@@ -10,9 +9,14 @@ name: Fast-API-LMS_REACT
 services:
 # Backend
   backend:
-    build: 
+    build:
       context: ./backend
     container_name: react-fastapi-demo
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
     ports:
       - 8000:8000  # ホストマシンのポート8000を、docker内のポート8000に接続する
     volumes:
@@ -34,7 +38,25 @@ services:
     privileged: true
     command: /bin/sh
 
-# DB周り
+# DB (純粋 PostgreSQL, Supabase 非依存)
+  db:
+    image: postgres:16-alpine
+    container_name: lms-db
+    restart: unless-stopped
+    env_file:
+      - ./db/.env
+    volumes:
+      - ./db/init/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+# DB周り (Supabase - コメントアウト)
 #   studio:
 #     container_name: supabase-studio
 #     image: supabase/studio:2025.10.20-sha-5005fc6
@@ -557,4 +579,4 @@ services:
 
 volumes:
   node_modules:
-#   db-config:
+  postgres-data:

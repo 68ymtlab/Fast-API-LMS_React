@@ -5,7 +5,7 @@
 データベースへのCRUD操作を担うリポジトリを定義します。
 """
 from typing import List, Optional
-from sqlalchemy import select, update, func
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload, noload
 
 from api.repositories.base import BaseRepository
@@ -13,46 +13,9 @@ from api.repositories.contents_repo import ContentRepository
 
 from api.models import lessons_model
 import api.schemas.lessons as lessons_schema
-from api.models.flowpages_model import Flowpages, FlowpageSets, FlowpageSetQuestion
+
 
 class LessonRepository(BaseRepository):
-
-    async def list_flowpage_sets_with_questions_by_lesson_item_id(self, lesson_item_id: int) -> List[dict]:
-        """
-        指定したlesson_item_idに紐づく演習セット(flowpage_sets)と、
-        各セット内の問題(flowpage_set_question)一覧を取得します。
-        """
-        # 1. lesson_item_idでflowpage_setsを取得
-        stmt_sets = select(FlowpageSets).where(FlowpageSets.lesson_item_id == lesson_item_id)
-        result_sets = await self.db.execute(stmt_sets)
-        sets = result_sets.scalars().all()
-        results = []
-        for flow_set in sets:
-            # 2. 各セットのidでflowpage_set_questionを取得
-            stmt_q = select(FlowpageSetQuestion).where(FlowpageSetQuestion.flowpage_set_id == flow_set.id)
-            result_q = await self.db.execute(stmt_q)
-            questions = result_q.scalars().all()
-            question_list = []
-            for q in questions:
-                # 3. flowpage_idでFlowpages情報取得
-                stmt_page = select(Flowpages).where(Flowpages.id == q.flowpage_id)
-                page_obj = (await self.db.execute(stmt_page)).scalar_one_or_none()
-                question_list.append(dict(
-                    flowpage_id=q.flowpage_id,
-                    title=page_obj.title if page_obj else None,
-                    page_type=page_obj.page_type if page_obj else None,
-                    display_order=q.display_order,
-                    points=q.points
-                ))
-            results.append(dict(
-                id=flow_set.id,
-                title=flow_set.title,
-                lesson_item_id=flow_set.lesson_item_id,
-                time_limit_seconds=flow_set.time_limit_seconds,
-                challenge_limit=flow_set.challenge_limit,
-                questions=question_list
-            ))
-        return results
     """レッスン関連のデータ操作をまとめたリポジトリクラス"""
 
     async def create_lesson(self, *, lesson_in: lessons_schema.LessonCreate, created_by_user_id: int) -> lessons_model.CourseLessons:
@@ -93,50 +56,34 @@ class LessonRepository(BaseRepository):
         return lesson
 
     async def list_lessons_by_course_id(self, *, course_id: int, include_inactive: bool = False) -> List[lessons_model.CourseLessons]:
-        """指定されたコースのレッスン一覧を取得します。
-        
-        レッスン項目(lesson_items)は読み込みません。
-        コース情報は読み込みません。
-        """
+        """指定されたコースのレッスン一覧を取得します。"""
         stmt = select(lessons_model.CourseLessons).where(lessons_model.CourseLessons.course_id == course_id)
         if not include_inactive:
             stmt = stmt.where(lessons_model.CourseLessons.is_active == True)
-        
-        # lesson_itemsは読み込まず、course情報も読み込まない
         stmt = stmt.options(
             noload(lessons_model.CourseLessons.lesson_items),
-            noload(lessons_model.CourseLessons.course) 
+            noload(lessons_model.CourseLessons.course)
         )
-        
         stmt = stmt.order_by(lessons_model.CourseLessons.lesson_number, lessons_model.CourseLessons.display_order)
-        
         result = await self.db.execute(stmt)
         return result.scalars().unique().all()
 
     async def list_lessons_with_items_by_course_id(self, *, course_id: int, include_inactive: bool = False) -> List[lessons_model.CourseLessons]:
-        """指定されたコースのレッスン一覧を取得します。
-        
-        レッスンに紐づくレッスン項目(lesson_items)も同時に取得します。
-        コース情報は読み込みません。
-        """
+        """指定されたコースのレッスン一覧を取得します（レッスン項目含む）。"""
         stmt = select(lessons_model.CourseLessons).where(lessons_model.CourseLessons.course_id == course_id)
         if not include_inactive:
             stmt = stmt.where(lessons_model.CourseLessons.is_active == True)
-        
-        # lesson_itemsをEager Loadingで取得し、course情報は読み込まない
         stmt = stmt.options(
             selectinload(lessons_model.CourseLessons.lesson_items),
-            noload(lessons_model.CourseLessons.course) 
+            noload(lessons_model.CourseLessons.course)
         )
-        
         stmt = stmt.order_by(lessons_model.CourseLessons.lesson_number, lessons_model.CourseLessons.display_order)
-        
         result = await self.db.execute(stmt)
         return result.scalars().unique().all()
 
-#
-# Lesson Item Methods
-#
+    #
+    # Lesson Item Methods
+    #
 
     async def create_lesson_item(self, *, item_in: lessons_schema.LessonItemCreate, created_by_user_id: int) -> lessons_model.LessonItems:
         """新しいレッスン項目を作成します。"""
@@ -175,9 +122,9 @@ class LessonRepository(BaseRepository):
         await self.db.refresh(item)
         return item
 
-#
-# Lesson Page Methods
-#
+    #
+    # Lesson Page Methods
+    #
 
     async def create_lesson_page(self, *, page_in: lessons_schema.LessonPageCreate, created_by_user_id: int) -> lessons_model.LessonPages:
         """新しいレッスンページを作成します。"""
@@ -216,14 +163,21 @@ class LessonRepository(BaseRepository):
         await self.db.refresh(page)
         return page
 
-
     async def list_lesson_pages_with_content_body_by_lesson_item_id(self, *, lesson_item_id: int, content_repo: Optional[ContentRepository] = None) -> List[dict]:
         """
         指定したレッスン項目ID(lesson_item_id)に紐づく教科書ページ(lesson_pages)を全て取得し、
         各ページのraw_content_id/rendered_content_idに対応するcontent_bodyも含めて返します。
-        content_repoのget_content_by_idを利用します。
+        新スキーマでは lesson_pages は lesson_id (course_lessons) に紐づくため、
+        lesson_item から lesson_id を取得して検索します。
         """
-        stmt = select(lessons_model.LessonPages).where(lessons_model.LessonPages.lesson_item_id == lesson_item_id)
+        # lesson_item から lesson_id を取得
+        stmt_item = select(lessons_model.LessonItems).where(lessons_model.LessonItems.id == lesson_item_id)
+        lesson_item = (await self.db.execute(stmt_item)).scalar_one_or_none()
+        if not lesson_item:
+            return []
+        lesson_id = lesson_item.lesson_id
+
+        stmt = select(lessons_model.LessonPages).where(lessons_model.LessonPages.lesson_id == lesson_id)
         result = await self.db.execute(stmt)
         pages = result.scalars().all()
         results = []
@@ -238,10 +192,9 @@ class LessonRepository(BaseRepository):
                 rendered_content_obj = await content_repo.get_content_by_id(content_id=page.rendered_content_id)
                 if rendered_content_obj:
                     rendered_body = rendered_content_obj.content_body
-            # 必要なフィールドのみ抽出
             page_dict = dict(
                 id=page.id,
-                lesson_item_id=page.lesson_item_id,
+                lesson_id=page.lesson_id,
                 page_number=page.page_number,
                 raw_content_id=page.raw_content_id,
                 rendered_content_id=page.rendered_content_id,
@@ -264,7 +217,7 @@ class LessonRepository(BaseRepository):
     async def get_lesson_page_by_lesson_item_id(self, *, lesson_item_id: int) -> Optional[lessons_model.LessonPages]:
         """
         指定したレッスン項目ID(lesson_item_id)に紐づく教科書ページ(lesson_page)を取得します。
-        lesson_itemのitem_content_typeが"textbook"である場合のみ、item_resource_idをlesson_pageのIDとして取得します。
+        item_content_typeが"textbook"で item_resource_id が lesson_page の ID の場合に取得します。
         """
         stmt_item = select(lessons_model.LessonItems).where(lessons_model.LessonItems.id == lesson_item_id)
         lesson_item = (await self.db.execute(stmt_item)).scalar_one_or_none()

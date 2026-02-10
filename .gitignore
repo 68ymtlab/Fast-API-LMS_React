@@ -1,19 +1,59 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-**/node_modules
+# --- Dependencies ---
+**/node_modules/
 
-# certificates
+# --- Python ---
+**/.venv/
+**/.dockervenv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+
+# --- Backend ---
+backend/poetry.lock
+backend/test_router.js
+**/views/test
+**/components.d.ts
+
+# --- DB ---
+*.sql~
+*.dump
+*.bak
+
+# --- Docker volumes (data は除外、.gitkeep は保持) ---
+volumes/db/init/data/*
+!volumes/db/init/data/.gitkeep
+
+# --- Certificates ---
 *.cert
 *.key
 
-# === Env files (全階層対象・最強設定) ===
+# --- Env files ---
 *.env
-*.env.local
-*.env.development
-*.env.production
 .env
 .env.local
 .env.*.local
 .env.development
 .env.production
+
+# --- Logs ---
+*.log
+
+# --- IDE / Editor ---
+.claude
+.cursor
+.idea
+*.swp
+*.swo
+.geminiignore
+AGENTS.md
+
+# --- docs ---
+**/docs/

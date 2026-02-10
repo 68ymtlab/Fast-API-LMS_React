@@ -89,10 +89,10 @@ class LessonItem(LessonItemInDBBase):
 
 class LessonPageBase(BaseModel):
     """レッスンページ情報の基本スキーマ"""
-    lesson_item_id: int = Field(..., description="関連するレッスン項目ID")
+    lesson_id: int = Field(..., description="関連するレッスンID (course_lessons)")
     page_number: int = Field(..., description="ページ番号")
-    raw_content_id: int = Field(..., description="元のコンテンツID (Contentsテーブル参照)")
-    rendered_content_id: int = Field(..., description="レンダリング済みコンテンツID (Contentsテーブル参照)")
+    raw_content_id: Optional[int] = Field(None, description="元のコンテンツID (Contentsテーブル参照)")
+    rendered_content_id: Optional[int] = Field(None, description="レンダリング済みコンテンツID (Contentsテーブル参照)")
     is_active: bool = Field(True, description="有効フラグ")
     title: Optional[str] = Field(None, description="ページタイトル")
     visibility_start_date_time: Optional[datetime] = Field(None, description="表示開始日時")

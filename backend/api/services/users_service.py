@@ -19,7 +19,7 @@ class UserService:
     async def login(self, *, email: str, password: str) -> Optional[user_model.Users]:
         """ユーザーを認証し、最終ログイン日時を更新します。"""
         user = await self.user_repo.get_by_email(email=email)
-        if not user or not SecurityManager.verify_password(password, user.hashed_password) or not user.is_active:
+        if not user or not SecurityManager.verify_password(password, user.password_hash) or user.is_disabled:
             return None
         
         await self.user_repo.touch_last_login(user_id=user.id)
@@ -85,7 +85,7 @@ class UserService:
 
     async def update_own_password(self, *, user: user_model.Users, password_in: user_schema.PasswordUpdate) -> bool:
         """ユーザー本人がパスワードを更新します。"""
-        if not SecurityManager.verify_password(password_in.current_password, user.hashed_password):
+        if not SecurityManager.verify_password(password_in.current_password, user.password_hash):
             return False
         
         new_hashed_password = SecurityManager.hash_password(password_in.new_password)

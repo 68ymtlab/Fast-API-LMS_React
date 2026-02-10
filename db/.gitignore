@@ -1,5 +1,0 @@
-# DB関連の無視設定
-# DB initialization logs or dumps
-*.sql~
-*.dump
-*.bak

@@ -11,7 +11,6 @@ python = "^3.12" # ここを Python 3.12 に変更
 fastapi = "^0.111.0"
 alembic = "^1.16.1"
 psycopg2-binary = "^2.9.10"
-# supabase = "^2.15.3" # 直接DB接続なので不要であれば削除
 sqlalchemy = "^2.0.41"
 python-dotenv = "^1.1.0"
 sqlacodegen = "^3.0.0"
