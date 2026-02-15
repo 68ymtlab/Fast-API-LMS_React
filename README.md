@@ -1,5 +1,5 @@
 # 数理系科目向けの学習支援システム
-# Fast-API-LMS_React
+## Fast-API-LMS_React
 
 ![React](https://img.shields.io/badge/Frontend-React-blue)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-green)
@@ -170,7 +170,7 @@ docker compose down
 例：
 ```
 # Database connection string
-# 例: postgresql://user:password@localhost:5432/mydb
+# e.g. postgresql://user:password@localhost:5432/mydb
 DATABASE_URL=postgresql://user:password@db:5432/dbname
 
 # JWT / Authentication
@@ -189,20 +189,20 @@ DOCS_PASSWORD=password
 
 例：
 ```
-# 開発識別子
+# 環境識別子
 NODE_ENV=development
 
-# フロントエンドURL
+# 開発or本番環境ホストのURL
 NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
 
-# API接続先
+# 開発or本番環境APIのURL
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 INTERNAL_API_BASE_URL=http://localhost:8000
 
-# デバッグレベル
+# デバッグログレベル
 NEXT_PUBLIC_DEBUG_LEVEL=0
 
-# NextAuth
+# NEXTAUTH
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your_nextauth_secret_min_32_chars
 JWT_ALGORITHM=HS256
