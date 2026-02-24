@@ -48,7 +48,7 @@ class GoalService:
             if goal_in.is_achieved and not goal.is_point_granted:
                 student = await self.progress_repo.get_student_info(user_id=user_id)
                 if student:
-                    new_point = student.point + GOAL_ACHIEVEMENT_POINT
+                    new_point = student.points + GOAL_ACHIEVEMENT_POINT
                     await self.progress_repo.update_user_point(user_id=user_id, new_point=new_point)
                     await self.progress_repo.grant_point_for_goal(goal=goal)
             
@@ -80,14 +80,14 @@ class ProgressService:
         student = await self.progress_repo.get_student_info(user_id=user_id)
         if not student:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-        return student.point
+        return student.points
 
     async def get_my_login_days(self, *, user_id: int) -> int:
         """自分のログイン日数を取得します。"""
         student = await self.progress_repo.get_student_info(user_id=user_id)
         if not student:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-        return student.login_days
+        return getattr(student, 'login_days', 0)
 
     async def add_points_to_user(self, *, user_id: int, points_to_add: int) -> int:
         """ユーザーにポイントを追加します。"""
@@ -95,7 +95,7 @@ class ProgressService:
         if not student:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
         
-        new_point = student.point + points_to_add
+        new_point = student.points + points_to_add
         await self.progress_repo.update_user_point(user_id=user_id, new_point=new_point)
         await self.progress_repo.db.commit()
         return new_point

@@ -1,5 +1,5 @@
 "use client";
-import { BarChart2, Edit, Eye, Loader2 } from "lucide-react";
+import { BarChart2, Edit, Eye, FileText, Loader2, Shield, UserPlus } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,18 +34,35 @@ interface Course {
 	semester: string;
 }
 
-interface Week {
-	week_id: number;
-	week_name: string;
-	week_num: number;
-	order: number;
+interface Lesson {
+	id: number;
+	title: string;
+	lesson_number: number;
+	display_order: number;
 }
 
 interface Content {
 	content_id: number;
 	content_name: string;
-	week_id: number;
+	lesson_id: number;
 	order: number;
+}
+
+interface TeacherUser {
+	id: number;
+	username: string | null;
+	display_name: string | null;
+	email: string;
+}
+
+interface CoursePermission {
+	teacher_user_id: number;
+	course_id: number;
+	can_read_content: boolean;
+	can_update_content: boolean;
+	can_delete_content: boolean;
+	start_date_time: string;
+	end_date_time: string;
 }
 
 // カスタムスイッチコンポーネント
@@ -75,84 +92,71 @@ const CustomSwitch = ({
 	</label>
 );
 
-// 週選択カードコンポーネント
-const WeekSelectCard = ({
-	week,
+// レッスン選択カードコンポーネント
+const LessonSelectCard = ({
+	lesson,
 	contents,
-	onMoveWeek,
+	onMoveLesson,
 	onMoveFlow,
 }: {
-	week: Week;
+	lesson: Lesson;
 	contents: Content[];
-	onMoveWeek: (id: number, isContentId?: boolean) => void;
-	onMoveFlow: (weekId: number) => void;
+	onMoveLesson: (id: number, isContentId?: boolean) => void;
+	onMoveFlow: (lessonId: number) => void;
 }) => (
-	<Card className="h-full">
-		<CardContent className="p-6">
-			<h3 className="text-lg font-semibold mb-2">第{week.week_num}回</h3>
-			<p className="text-gray-600 mb-4 text-sm">{week.week_name}</p>
+	(() => {
+		const hasContents = contents.length > 0;
+		const defaultTitle = `第${lesson.lesson_number}回`;
+		const isDefaultLessonTitle = lesson.title?.trim() === defaultTitle;
+		const displayTitle = !hasContents && isDefaultLessonTitle ? "コンテンツ未登録" : lesson.title;
 
-			{contents.length > 0 && (
-				<div className="space-y-2 mb-4">
-					<h4 className="text-sm font-medium text-gray-700 mb-2">
-						コンテンツ:
-					</h4>
-					{contents.map((content) => (
-						<div
-							key={content.content_id}
-							className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+		return (
+			<Card className="h-full">
+				<CardContent className="p-6">
+					<h3 className="text-lg font-semibold mb-2">第{lesson.lesson_number}回</h3>
+					<p className="text-gray-600 mb-4 text-sm">{displayTitle}</p>
+
+
+					<div className="flex space-x-2 mt-4">
+						<Button
+							variant="default"
+							className="flex-1"
+							onClick={() => onMoveLesson(lesson.id)}
 						>
-							<span className="text-gray-700">{content.content_name}</span>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => onMoveWeek(content.content_id, true)}
-								className="text-xs"
-							>
-								編集
-							</Button>
-						</div>
-					))}
-				</div>
-			)}
-
-			<div className="flex space-x-2 mt-4">
-				<Button
-					variant="default"
-					className="flex-1"
-					onClick={() => onMoveWeek(week.week_id)}
-				>
-					編集
-				</Button>
-				<Button
-					variant="outline"
-					className="flex-1 whitespace-nowrap"
-					onClick={() => onMoveFlow(week.week_id)}
-				>
-					学習状況
-				</Button>
-			</div>
-		</CardContent>
-	</Card>
+							{hasContents ? "編集" : "コンテンツ追加"}
+						</Button>
+						<Button
+							variant="outline"
+							className="flex-1 whitespace-nowrap"
+							onClick={() => onMoveFlow(lesson.id)}
+							disabled={!hasContents}
+						>
+							学習状況
+						</Button>
+					</div>
+				</CardContent>
+			</Card>
+		);
+	})()
 );
 
-// 週選択テーブルコンポーネント
-const WeekSelectTable = ({
-	groupedWeeks,
+// レッスン選択テーブルコンポーネント
+const LessonSelectTable = ({
+	groupedLessons,
 	contentsMap,
-	expandedWeekNumbers,
-	onToggleWeekNumber,
-	onMoveWeek,
-	onPreviewWeek,
+	expandedLessonNumbers,
+	onToggleLessonNumber,
+	onMoveLesson,
+	onPreviewLesson,
 	onMoveFlow,
 }: {
-	groupedWeeks: { [key: number]: Week[] };
-	contentsMap: { [weekId: number]: Content[] };
-	expandedWeekNumbers: Set<number>;
-	onToggleWeekNumber: (weekNum: number) => void;
-	onMoveWeek: (id: number, isContentId?: boolean) => void;
-	onPreviewWeek: (id: number, isContentId?: boolean) => void;
-	onMoveFlow: (weekId: number) => void;
+	groupedLessons: { [key: number]: Lesson[] };
+	contentsMap: { [lessonId: number]: Content[] };
+	expandedLessonNumbers: Set<number>;
+	onToggleLessonNumber: (lessonNum: number) => void;
+	onMoveLesson: (id: number, isContentId?: boolean) => void;
+	onPreviewLesson: (id: number, isContentId?: boolean) => void;
+	onMoveFlow: (lessonId: number) => void;
 }) => {
 	const [loadingButtons, setLoadingButtons] = useState<{
 		[key: string]: boolean;
@@ -173,9 +177,9 @@ const WeekSelectTable = ({
 	};
 
 	// 空の状態チェック
-	const hasWeeks = Object.keys(groupedWeeks).length > 0;
+	const hasLessons = Object.keys(groupedLessons).length > 0;
 
-	if (!hasWeeks) {
+	if (!hasLessons) {
 		return (
 			<div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
 				<div className="text-center py-12">
@@ -200,7 +204,7 @@ const WeekSelectTable = ({
 								コンテンツが登録されていません
 							</h3>
 							<p className="text-sm text-gray-500">
-								「週の作成」ボタンから学習コンテンツを追加してください
+								「コンテンツを追加」ボタンから学習コンテンツを追加してください
 							</p>
 						</div>
 					</div>
@@ -233,26 +237,26 @@ const WeekSelectTable = ({
 						</tr>
 					</thead>
 					<tbody className="bg-white divide-y divide-gray-200">
-						{Object.entries(groupedWeeks)
+						{Object.entries(groupedLessons)
 							.sort(
 								([numA], [numB]) =>
 									Number.parseInt(numA) - Number.parseInt(numB),
 							)
-							.map(([weekNumStr, weeksInGroup]) => {
-								const weekNum = Number.parseInt(weekNumStr);
-								const isGroupExpanded = expandedWeekNumbers.has(weekNum);
+							.map(([lessonNumStr, lessonsInGroup]) => {
+								const lessonNum = Number.parseInt(lessonNumStr);
+								const isGroupExpanded = expandedLessonNumbers.has(lessonNum);
 
 								return (
-									<React.Fragment key={`group-${weekNum}`}>
+									<React.Fragment key={`group-${lessonNum}`}>
 										<tr className="bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
 											<td className="p-0" colSpan={5}>
 												<button
 													type="button"
-													onClick={() => onToggleWeekNumber(weekNum)}
+													onClick={() => onToggleLessonNumber(lessonNum)}
 													onKeyDown={(e) => {
 														if (e.key === "Enter" || e.key === " ") {
 															e.preventDefault();
-															onToggleWeekNumber(weekNum);
+															onToggleLessonNumber(lessonNum);
 														}
 													}}
 													className="w-full flex items-center space-x-2 px-6 py-4 text-left text-sm font-semibold text-primary whitespace-nowrap hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary cursor-pointer"
@@ -273,23 +277,31 @@ const WeekSelectTable = ({
 															d="M9 5l7 7-7 7"
 														/>
 													</svg>
-													<span>第{weekNum}回</span>
+													<span>第{lessonNum}回</span>
 												</button>
 											</td>
 										</tr>
 
 										{isGroupExpanded &&
-											weeksInGroup.map((week) => {
+											lessonsInGroup.map((lesson) => {
 												const individualContents =
-													contentsMap[week.week_id] || [];
+													contentsMap[lesson.id] || [];
 												individualContents.sort((a, b) => a.order - b.order);
+												const hasContents = individualContents.length > 0;
+												const defaultTitle = `第${lesson.lesson_number}回`;
+												const isDefaultLessonTitle =
+													lesson.title?.trim() === defaultTitle;
+												const displayLessonTitle =
+													!hasContents && isDefaultLessonTitle
+														? "コンテンツ未登録"
+														: lesson.title;
 
 												return (
-													<React.Fragment key={week.week_id}>
+													<React.Fragment key={lesson.id}>
 														<tr className="border-t bg-white hover:bg-gray-50 transition-colors duration-200">
 															<td className="pl-10 pr-6 py-4 text-sm text-gray-500" />
 															<td className="px-6 py-4 text-base font-medium text-gray-700">
-																{week.week_name}
+																{displayLessonTitle}
 															</td>
 															<td className="px-6 py-4 text-center text-sm">
 																<Button
@@ -298,16 +310,17 @@ const WeekSelectTable = ({
 																	onClick={(e) => {
 																		e.stopPropagation();
 																		handleButtonClick(
-																			`preview-${week.week_id}`,
-																			() => onPreviewWeek(week.week_id, false),
+																			`preview-${lesson.id}`,
+																			() => onPreviewLesson(lesson.id, false),
 																		);
 																	}}
 																	className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
 																	disabled={
-																		loadingButtons[`preview-${week.week_id}`]
+																		loadingButtons[`preview-${lesson.id}`] ||
+																		!hasContents
 																	}
 																>
-																	{loadingButtons[`preview-${week.week_id}`] ? (
+																	{loadingButtons[`preview-${lesson.id}`] ? (
 																		<Loader2 className="w-4 h-4 animate-spin" />
 																	) : (
 																		<>
@@ -324,21 +337,21 @@ const WeekSelectTable = ({
 																	onClick={(e) => {
 																		e.stopPropagation();
 																		handleButtonClick(
-																			`edit-${week.week_id}`,
-																			() => onMoveWeek(week.week_id, false),
+																			`edit-${lesson.id}`,
+																			() => onMoveLesson(lesson.id, false),
 																		);
 																	}}
 																	className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
 																	disabled={
-																		loadingButtons[`edit-${week.week_id}`]
+																		loadingButtons[`edit-${lesson.id}`]
 																	}
 																>
-																	{loadingButtons[`edit-${week.week_id}`] ? (
+																	{loadingButtons[`edit-${lesson.id}`] ? (
 																		<Loader2 className="w-4 h-4 animate-spin" />
 																	) : (
 																		<>
 																			<Edit className="w-4 h-4 mr-1" />
-																			編集
+																			{hasContents ? "編集" : "追加"}
 																		</>
 																	)}
 																</Button>
@@ -350,16 +363,17 @@ const WeekSelectTable = ({
 																	onClick={(e) => {
 																		e.stopPropagation();
 																		handleButtonClick(
-																			`status-${week.week_id}`,
-																			() => onMoveFlow(week.week_id),
+																			`status-${lesson.id}`,
+																			() => onMoveFlow(lesson.id),
 																		);
 																	}}
 																	className="border-primary/20 text-primary hover:bg-primary/5 whitespace-nowrap"
 																	disabled={
-																		loadingButtons[`status-${week.week_id}`]
+																		loadingButtons[`status-${lesson.id}`] ||
+																		!hasContents
 																	}
 																>
-																	{loadingButtons[`status-${week.week_id}`] ? (
+																	{loadingButtons[`status-${lesson.id}`] ? (
 																		<Loader2 className="w-4 h-4 animate-spin" />
 																	) : (
 																		<>
@@ -371,85 +385,6 @@ const WeekSelectTable = ({
 															</td>
 														</tr>
 
-														{individualContents.map((content) => (
-															<tr
-																key={content.content_id}
-																className="bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
-															>
-																<td className="pl-10 pr-6 py-4 whitespace-nowrap text-sm text-gray-500" />
-																<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-																	{content.content_name}
-																</td>
-																<td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-																	<Button
-																		variant="default"
-																		size="sm"
-																		onClick={(e) => {
-																			e.stopPropagation();
-																			handleButtonClick(
-																				`preview-content-${content.content_id}`,
-																				() =>
-																					onPreviewWeek(
-																						content.content_id,
-																						true,
-																					),
-																			);
-																		}}
-																		className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
-																		disabled={
-																			loadingButtons[
-																				`preview-content-${content.content_id}`
-																			]
-																		}
-																	>
-																		{loadingButtons[
-																			`preview-content-${content.content_id}`
-																		] ? (
-																			<Loader2 className="w-4 h-4 animate-spin" />
-																		) : (
-																			<>
-																				<Eye className="w-4 h-4 mr-1" />
-																				プレビュー
-																			</>
-																		)}
-																	</Button>
-																</td>
-																<td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-																	<Button
-																		variant="default"
-																		size="sm"
-																		onClick={(e) => {
-																			e.stopPropagation();
-																			handleButtonClick(
-																				`edit-content-${content.content_id}`,
-																				() =>
-																					onMoveWeek(content.content_id, true),
-																			);
-																		}}
-																		className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap"
-																		disabled={
-																			loadingButtons[
-																				`edit-content-${content.content_id}`
-																			]
-																		}
-																	>
-																		{loadingButtons[
-																			`edit-content-${content.content_id}`
-																		] ? (
-																			<Loader2 className="w-4 h-4 animate-spin" />
-																		) : (
-																			<>
-																				<Edit className="w-4 h-4 mr-1" />
-																				編集
-																			</>
-																		)}
-																	</Button>
-																</td>
-																<td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-																	-
-																</td>
-															</tr>
-														))}
 													</React.Fragment>
 												);
 											})}
@@ -471,33 +406,46 @@ function CoursePage() {
 	const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
 	const [sessionError, setSessionError] = useState(false);
 	const [course, setCourse] = useState<Course | null>(null);
-	const [weeks, setWeeks] = useState<Week[]>([]);
+	const [lessons, setLessons] = useState<Lesson[]>([]);
 	const [contents, setContents] = useState<Content[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [isCardView, setIsCardView] = useState(false);
 
-	const [groupedWeeksByNum, setGroupedWeeksByNum] = useState<{
-		[key: number]: Week[];
+	// 権限管理用state
+	const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
+	const [teacherList, setTeacherList] = useState<TeacherUser[]>([]);
+	const [existingPermissions, setExistingPermissions] = useState<CoursePermission[]>([]);
+	const [permissionState, setPermissionState] = useState<{
+		[teacherId: number]: { can_read: boolean; can_update: boolean; can_delete: boolean; };
 	}>({});
-	const [expandedWeekNumbers, setExpandedWeekNumbers] = useState<Set<number>>(
+	const [permStartDate, setPermStartDate] = useState("");
+	const [permEndDate, setPermEndDate] = useState("");
+	const [permissionLoading, setPermissionLoading] = useState(false);
+	const [permissionError, setPermissionError] = useState<string | null>(null);
+	const [permissionSuccess, setPermissionSuccess] = useState<string | null>(null);
+
+	const [groupedLessonsByNum, setGroupedLessonsByNum] = useState<{
+		[key: number]: Lesson[];
+	}>({});
+	const [expandedLessonNumbers, setExpandedLessonNumbers] = useState<Set<number>>(
 		new Set(),
 	);
 
 	const contentsMap = contents.reduce(
 		(acc, content) => {
-			if (!acc[content.week_id]) {
-				acc[content.week_id] = [];
+			if (!acc[content.lesson_id]) {
+				acc[content.lesson_id] = [];
 			}
-			acc[content.week_id].push(content);
+			acc[content.lesson_id].push(content);
 			return acc;
 		},
-		{} as { [weekId: number]: Content[] },
+		{} as { [lessonId: number]: Content[] },
 	);
 
 	const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false);
-	const [weekName, setWeekName] = useState("線形代数学_第1週");
-	const [weekNum, setWeekNum] = useState("1");
-	const [order, setOrder] = useState("1");
+	const [lessonTitle, setLessonTitle] = useState("線形代数学_第1週");
+	const [lessonNumber, setLessonNumber] = useState("1");
+	const [displayOrder, setDisplayOrder] = useState("1");
 	const [files, setFiles] = useState<
 		{ file_path: string; file_text: string }[]
 	>([]);
@@ -518,22 +466,14 @@ function CoursePage() {
 		return new Promise((resolve, reject) => {
 			const reader = new FileReader();
 			reader.onload = (e) => {
-				const result = e.target?.result as ArrayBuffer;
-				const uint8Array = new Uint8Array(result);
-				let binaryString = "";
-
-				for (let i = 0; i < uint8Array.length; i++) {
-					const hex =
-						uint8Array[i] < 0x10
-							? "0" + uint8Array[i].toString(16)
-							: uint8Array[i].toString(16);
-					binaryString += "\\x" + hex;
-				}
-
-				resolve(binaryString);
+				const result = e.target?.result as string;
+				// result is a data URL like "data:image/png;base64,iVBORw0KGgo..."
+				// We only need the base64 part.
+				const base64String = result.split(",")[1];
+				resolve(base64String);
 			};
 			reader.onerror = reject;
-			reader.readAsArrayBuffer(file);
+			reader.readAsDataURL(file);
 		});
 	};
 
@@ -542,13 +482,13 @@ function CoursePage() {
 		if (files.length === 0) {
 			errors.push("登録するコースのフォルダを選択してください。");
 		}
-		if (!weekName) {
-			errors.push("週名を入力してください。");
+		if (!lessonTitle) {
+			errors.push("レッスン名を入力してください。");
 		}
-		if (!weekNum) {
-			errors.push("週数を入力してください。");
+		if (!lessonNumber) {
+			errors.push("レッスン番号を入力してください。");
 		}
-		if (!order) {
+		if (!displayOrder) {
 			errors.push("並び順を入力してください。");
 		}
 		setErrorMessage(errors);
@@ -599,48 +539,59 @@ function CoursePage() {
 		}
 	};
 
-	const handleRegisterWeek = async () => {
+	const handleRegisterLesson = async () => {
 		if (!validateForm()) return;
 
 		setLoading(true);
 
 		try {
-			const weekData = {
-				week_name: weekName,
-				week_num: parseInt(weekNum) || 1,
-				order: parseInt(order) || 1,
-				course_id: params.course_id,
-				week_files: files,
+			const lessonData = {
+				course_id: parseInt(params.course_id as string),
+				lesson_title: lessonTitle,
+				lesson_number: parseInt(lessonNumber) || 1,
+				lesson_description: null,
+				lesson_display_order: parseInt(displayOrder) || 1,
+				lesson_is_active: true,
+				files: files,
 			};
 
-			const response = await axios.post("/register_week", weekData);
+			const response = await axios.post(`/courses/${params.course_id}/lessons`, lessonData);
 
-			if (response.data.success) {
+			if (response.status === 201 || response.data) {
 				setIsAddContentDialogOpen(false);
-				// フォームをリセット
-				setWeekName("線形代数学_第1週");
-				setWeekNum("1");
-				setOrder("1");
+				setLessonTitle("線形代数学_第1週");
+				setLessonNumber("1");
+				setDisplayOrder("1");
 				setFiles([]);
 				setSelectedFileCount(0);
 				setSelectedFolderName("");
 				setErrorMessage([]);
-				// 週一覧を更新
-				getWeeksApi();
+				getLessonsApi();
 				getCourseContents();
 			} else {
 				setErrorMessage([
-					response.data.error_msg || "週次コンテンツの登録に失敗しました",
+					"レッスンコンテンツの登録に失敗しました",
 				]);
 			}
 		} catch (error: any) {
-			console.error("週の登録に失敗しました:", error);
+			console.error("レッスンの登録に失敗しました:", error);
 			if (error.response?.status === 401) {
 				setErrorMessage(["認証エラーが発生しました"]);
+			} else if (error.response?.status === 403) {
+				setErrorMessage(["この操作を行う権限がありません"]);
 			} else {
-				setErrorMessage([
-					error.response?.data?.error_msg || "週の登録に失敗しました。",
-				]);
+				const detail = error.response?.data?.detail;
+				if (typeof detail === "string") {
+					setErrorMessage([detail]);
+				} else if (Array.isArray(detail)) {
+					const messages = detail.map(
+						(d: { loc: (string | number)[]; msg: string }) =>
+							`[${d.loc.join(" > ")}]: ${d.msg}`,
+					);
+					setErrorMessage(messages);
+				} else {
+					setErrorMessage(["レッスンの登録に失敗しました。"]);
+				}
 			}
 		} finally {
 			setLoading(false);
@@ -649,10 +600,9 @@ function CoursePage() {
 
 	const handleDialogClose = () => {
 		setIsAddContentDialogOpen(false);
-		// フォームをリセット
-		setWeekName("線形代数学_第1週");
-		setWeekNum("1");
-		setOrder("1");
+		setLessonTitle("線形代数学_第1週");
+		setLessonNumber("1");
+		setDisplayOrder("1");
 		setFiles([]);
 		setSelectedFileCount(0);
 		setSelectedFolderName("");
@@ -662,42 +612,155 @@ function CoursePage() {
 	useEffect(() => {
 		if (course_id) {
 			getCourseInfo();
-			getWeeksApi();
+			getLessonsApi();
 			getCourseContents();
 		}
 	}, [course_id]);
 
-	const homeProfile = () => {
-		// ユーザー情報が既にあるため、この関数は不要だが呼び出し元があるため保持
+	// 権限管理ダイアログを開く
+	const handleOpenPermissionDialog = async () => {
+		setPermissionError(null);
+		setPermissionSuccess(null);
+		setPermissionLoading(true);
+		// デフォルトの開始・終了日時をコース情報から設定
+		if (course) {
+			// course には日付情報がないため、今日から1年後をデフォルトにする
+			const today = new Date();
+			const nextYear = new Date(today);
+			nextYear.setFullYear(today.getFullYear() + 1);
+			setPermStartDate(today.toISOString().slice(0, 16));
+			setPermEndDate(nextYear.toISOString().slice(0, 16));
+		}
+		try {
+			const [teachersRes, permsRes] = await Promise.all([
+				axios.get("/users/teachers"),
+				axios.get(`/courses/${course_id}/permissions`),
+			]);
+			const teachers: TeacherUser[] = teachersRes.data;
+			const perms: CoursePermission[] = permsRes.data;
+			setTeacherList(teachers);
+			setExistingPermissions(perms);
+			// 既存の権限をstateに反映
+			const initState: typeof permissionState = {};
+			for (const t of teachers) {
+				const existing = perms.find((p) => p.teacher_user_id === t.id);
+				initState[t.id] = {
+					can_read: existing?.can_read_content ?? false,
+					can_update: existing?.can_update_content ?? false,
+					can_delete: existing?.can_delete_content ?? false,
+				};
+			}
+			setPermissionState(initState);
+		} catch (e) {
+			setPermissionError("教師一覧または権限情報の取得に失敗しました");
+		} finally {
+			setPermissionLoading(false);
+		}
+		setIsPermissionDialogOpen(true);
+	};
+
+	const handlePermissionToggle = (
+		teacherId: number,
+		field: "can_read" | "can_update" | "can_delete",
+		value: boolean,
+	) => {
+		setPermissionState((prev) => ({
+			...prev,
+			[teacherId]: { ...prev[teacherId], [field]: value },
+		}));
+	};
+
+	const handleSavePermissions = async () => {
+		if (!permStartDate || !permEndDate) {
+			setPermissionError("権限の有効期間を入力してください");
+			return;
+		}
+		if (new Date(permStartDate) >= new Date(permEndDate)) {
+			setPermissionError("開始日時は終了日時より前である必要があります");
+			return;
+		}
+		setPermissionLoading(true);
+		setPermissionError(null);
+		setPermissionSuccess(null);
+		try {
+			const permissions = teacherList.map((t) => ({
+				teacher_user_id: t.id,
+				course_id: Number(course_id),
+				can_read_content: permissionState[t.id]?.can_read ?? false,
+				can_update_content: permissionState[t.id]?.can_update ?? false,
+				can_delete_content: permissionState[t.id]?.can_delete ?? false,
+				start_date_time: new Date(permStartDate).toISOString(),
+				end_date_time: new Date(permEndDate).toISOString(),
+			}));
+			await axios.post(`/courses/${course_id}/permissions/batch`, { permissions });
+			setPermissionSuccess("権限を保存しました");
+		} catch (e: any) {
+			const detail = e?.response?.data?.detail;
+			setPermissionError(
+				typeof detail === "string" ? detail : "権限の保存に失敗しました",
+			);
+		} finally {
+			setPermissionLoading(false);
+		}
 	};
 
 	const getCourseInfo = () => {
 		axios
-			.get(`/get_course_info/${params.course_id}`)
+			.get(`/courses/${params.course_id}`)
 			.then((response) => {
-				setCourse(response.data);
+				const data = response.data;
+				const mapped: Course = {
+					course_id: data.id,
+					subject_id: data.subject_id,
+					subject_name: data.subject?.subject_name || "",
+					course_name: data.course_name || "",
+					period: data.subject?.semester?.semester_name || "",
+					course_description: data.description,
+					year: data.subject?.semester?.year?.toString() || "",
+					semester: data.subject?.semester?.semester_name || "",
+				};
+				setCourse(mapped);
 			})
 			.catch((error) => {
 				console.error("コース情報の取得に失敗しました:", error);
 			});
 	};
 
-	const getWeeksApi = () => {
+	const getLessonsApi = () => {
 		axios
-			.get(`/get_weeks/${params.course_id}`)
+			.get(`/courses/${params.course_id}/lessons`)
 			.then((response) => {
-				setWeeks(response.data);
+				const mapped: Lesson[] = response.data.map((lesson: any) => ({
+					id: lesson.id,
+					title: lesson.title,
+					lesson_number: lesson.lesson_number,
+					display_order: lesson.display_order,
+				}));
+				setLessons(mapped);
 			})
 			.catch((error) => {
-				console.error("週一覧の取得に失敗しました:", error);
+				console.error("レッスン一覧の取得に失敗しました:", error);
 			});
 	};
 
 	const getCourseContents = () => {
 		axios
-			.get(`/get_course_contents/${params.course_id}`)
+			.get(`/courses/${params.course_id}/lesson-items`)
 			.then((response) => {
-				setContents(response.data);
+				const data = response.data;
+				const mapped: Content[] = [];
+				for (const lessonId in data) {
+					const items = data[lessonId];
+					for (const item of items) {
+						mapped.push({
+							content_id: item.id,
+							content_name: item.title,
+							lesson_id: item.lesson_id,
+							order: item.display_order,
+						});
+					}
+				}
+				setContents(mapped);
 			})
 			.catch((error) => {
 				console.error("コンテンツ一覧の取得に失敗しました:", error);
@@ -708,90 +771,97 @@ function CoursePage() {
 	};
 
 	useEffect(() => {
-		if (weeks.length > 0) {
-			const groups = weeks.reduce(
-				(acc, week) => {
-					const key = week.week_num;
+		if (lessons.length > 0) {
+			const groups = lessons.reduce(
+				(acc, lesson) => {
+					const key = lesson.lesson_number;
 					if (!acc[key]) {
 						acc[key] = [];
 					}
-					acc[key].push(week);
+					acc[key].push(lesson);
 					return acc;
 				},
-				{} as { [key: number]: Week[] },
+				{} as { [key: number]: Lesson[] },
 			);
 
 			for (const numKey in groups) {
-				groups[numKey].sort((a, b) => a.order - b.order);
+				groups[numKey].sort((a, b) => a.display_order - b.display_order);
 			}
-			setGroupedWeeksByNum(groups);
+			setGroupedLessonsByNum(groups);
 		} else {
-			setGroupedWeeksByNum({});
+			setGroupedLessonsByNum({});
 		}
-	}, [weeks]);
+	}, [lessons]);
 
-	const handleToggleWeekNumber = (weekNum: number) => {
-		const newExpanded = new Set(expandedWeekNumbers);
-		if (newExpanded.has(weekNum)) {
-			newExpanded.delete(weekNum);
+	const handleToggleLessonNumber = (lessonNum: number) => {
+		const newExpanded = new Set(expandedLessonNumbers);
+		if (newExpanded.has(lessonNum)) {
+			newExpanded.delete(lessonNum);
 		} else {
-			newExpanded.add(weekNum);
+			newExpanded.add(lessonNum);
 		}
-		setExpandedWeekNumbers(newExpanded);
+		setExpandedLessonNumbers(newExpanded);
 	};
 
-	const handleMoveWeek = (id: number, isContentId = false) => {
-		console.log("handleMoveWeek called:", { id, isContentId, course_id });
+	const handleMoveLesson = (id: number, isContentId = false) => {
+		console.log("handleMoveLesson called:", { id, isContentId, course_id });
 
 		if (isContentId) {
-			const targetContent = contents.find((c) => c.content_id === id);
-			console.log("Target content:", targetContent);
-			if (targetContent && course_id) {
-				const editUrl = `/t/course/${course_id}/week/${targetContent.week_id}/edit`;
+			// id は lesson_item_id → そのまま使用
+			if (course_id) {
+				const editUrl = `/t/course/${course_id}/week/${id}/edit`;
 				console.log("Navigating to content edit:", editUrl);
 				router.push(editUrl);
-			} else {
-				console.error(`Content with id ${id} not found or course_id missing.`);
 			}
 		} else {
-			const weekId = id;
-			if (course_id) {
-				const editUrl = `/t/course/${course_id}/week/${weekId}/edit`;
-				console.log("Navigating to week edit:", editUrl);
+			// id は lesson.id → contentsMap から最初の lesson_item_id を取得
+			const lessonContents = contentsMap[id] || [];
+			if (lessonContents.length > 0 && course_id) {
+				const sortedContents = [...lessonContents].sort((a, b) => a.order - b.order);
+				const editUrl = `/t/course/${course_id}/week/${sortedContents[0].content_id}/edit`;
+				console.log("Navigating to lesson edit:", editUrl);
 				router.push(editUrl);
 			} else {
-				console.error(`course_id missing.`);
+				// 空の初期レッスンでも「編集」からすぐ登録できるようにする
+				const targetLesson = lessons.find((lesson) => lesson.id === id);
+				if (targetLesson) {
+					setLessonTitle(targetLesson.title || `第${targetLesson.lesson_number}回`);
+					setLessonNumber(targetLesson.lesson_number.toString());
+					setDisplayOrder(targetLesson.display_order.toString());
+				}
+				setErrorMessage([]);
+				setIsAddContentDialogOpen(true);
 			}
 		}
 	};
 
-	const handlePreviewWeek = (id: number, isContentId = false) => {
-		console.log("handlePreviewWeek called:", { id, isContentId, course_id });
+	const handlePreviewLesson = (id: number, isContentId = false) => {
+		console.log("handlePreviewLesson called:", { id, isContentId, course_id });
 
 		if (isContentId) {
-			const targetContent = contents.find((c) => c.content_id === id);
-			console.log("Target content:", targetContent);
-			if (targetContent && course_id) {
-				const previewUrl = `/t/course/${course_id}/preview/week/${targetContent.week_id}/1`;
+			// id は lesson_item_id → そのまま使用
+			if (course_id) {
+				const previewUrl = `/t/course/${course_id}/preview/week/${id}/1`;
 				console.log("Navigating to content preview:", previewUrl);
 				router.push(previewUrl);
-			} else {
-				console.error(`Content with id ${id} not found or course_id missing.`);
 			}
 		} else {
-			const weekId = id;
-			if (course_id) {
-				const previewUrl = `/t/course/${course_id}/preview/week/${weekId}/1`;
-				console.log("Navigating to week preview:", previewUrl);
+			// id は lesson.id → contentsMap から最初の lesson_item_id を取得
+			const lessonContents = contentsMap[id] || [];
+			if (lessonContents.length > 0 && course_id) {
+				const sortedContents = [...lessonContents].sort((a, b) => a.order - b.order);
+				const previewUrl = `/t/course/${course_id}/preview/week/${sortedContents[0].content_id}/1`;
+				console.log("Navigating to lesson preview:", previewUrl);
 				router.push(previewUrl);
 			} else {
-				console.error(`course_id missing.`);
+				alert("このレッスンにはコンテンツが登録されていません。");
 			}
 		}
 	};
 
-	const handleMoveFlow = (weekId: number) => {
-		router.push(`/t/weekflows/${course_id}/${weekId}`);
+	const handleMoveFlow = (_lessonId: number) => {
+		// コース全体の演習・成績状況ページへ遷移
+		router.push(`/t/course/${course_id}/score`);
 	};
 
 	if (sessionError) {
@@ -839,6 +909,30 @@ function CoursePage() {
 
 						<div className="mb-6">
 							<div className="flex items-center justify-end space-x-4">
+								<Button
+									onClick={() => router.push(`/t/course/${course_id}/assignments`)}
+									variant="outline"
+									className="h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
+								>
+									<FileText className="w-5 h-5" />
+									課題管理
+								</Button>
+								<Button
+									onClick={handleOpenPermissionDialog}
+									variant="outline"
+									className="h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
+								>
+									<Shield className="w-5 h-5" />
+									権限管理
+								</Button>
+								<Button
+									onClick={() => router.push(`/t/course/${course_id}/enrollments`)}
+									variant="outline"
+									className="h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
+								>
+									<UserPlus className="w-5 h-5" />
+									履修者を登録
+								</Button>
 								<Button
 									onClick={() => setIsAddContentDialogOpen(true)}
 									className="bg-primary hover:bg-primary/90 text-white h-10 px-6 text-base font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2"
@@ -888,6 +982,169 @@ function CoursePage() {
 							</div>
 						</div>
 
+						{/* 権限管理ダイアログ */}
+						<Dialog
+							open={isPermissionDialogOpen}
+							onOpenChange={(open) => {
+								if (!open) {
+									setIsPermissionDialogOpen(false);
+									setPermissionError(null);
+									setPermissionSuccess(null);
+								}
+							}}
+						>
+							<DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+								<DialogHeader>
+									<DialogTitle className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+										<Shield className="w-6 h-6 text-primary" />
+										コース権限管理
+									</DialogTitle>
+									<p className="text-sm text-gray-500 mt-1">
+										他の教師に対してこのコースの操作権限を付与・剥奪できます。
+									</p>
+								</DialogHeader>
+
+								<div className="space-y-5 py-4">
+									{/* 有効期間 */}
+									<div className="bg-gray-50 rounded-lg p-4 space-y-3">
+										<h3 className="text-sm font-semibold text-gray-700">権限有効期間</h3>
+										<div className="grid grid-cols-2 gap-4">
+											<div className="space-y-1">
+												<Label htmlFor="perm-start" className="text-xs text-gray-600">開始日時</Label>
+												<Input
+													id="perm-start"
+													type="datetime-local"
+													value={permStartDate}
+													onChange={(e) => setPermStartDate(e.target.value)}
+													className="h-10 text-sm"
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label htmlFor="perm-end" className="text-xs text-gray-600">終了日時</Label>
+												<Input
+													id="perm-end"
+													type="datetime-local"
+													value={permEndDate}
+													onChange={(e) => setPermEndDate(e.target.value)}
+													className="h-10 text-sm"
+												/>
+											</div>
+										</div>
+									</div>
+
+									{/* エラー・成功メッセージ */}
+									{permissionError && (
+										<div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg">
+											{permissionError}
+										</div>
+									)}
+									{permissionSuccess && (
+										<div className="bg-green-50 border border-green-200 text-green-700 text-sm p-3 rounded-lg">
+											{permissionSuccess}
+										</div>
+									)}
+
+									{/* 教師一覧テーブル */}
+									{permissionLoading ? (
+										<div className="flex justify-center py-8">
+											<Loader2 className="w-8 h-8 animate-spin text-primary" />
+										</div>
+									) : teacherList.length === 0 ? (
+										<div className="text-center py-8 text-gray-400">
+											<Shield className="w-12 h-12 mx-auto mb-2 opacity-30" />
+											<p className="text-sm">他の教師アカウントが存在しません</p>
+										</div>
+									) : (
+										<div className="border border-gray-200 rounded-lg overflow-hidden">
+											<table className="w-full text-sm">
+												<thead className="bg-gray-50">
+													<tr>
+														<th className="px-4 py-3 text-left font-semibold text-gray-600">教師</th>
+														<th className="px-4 py-3 text-center font-semibold text-gray-600">閲覧</th>
+														<th className="px-4 py-3 text-center font-semibold text-gray-600">編集</th>
+														<th className="px-4 py-3 text-center font-semibold text-gray-600">削除</th>
+													</tr>
+												</thead>
+												<tbody className="divide-y divide-gray-100">
+													{teacherList.map((teacher) => (
+														<tr key={teacher.id} className="hover:bg-gray-50 transition-colors">
+															<td className="px-4 py-3">
+																<div className="font-medium text-gray-800">
+																	{teacher.display_name || teacher.username || teacher.email}
+																</div>
+																<div className="text-xs text-gray-400">{teacher.email}</div>
+															</td>
+															<td className="px-4 py-3 text-center">
+																<input
+																	type="checkbox"
+																	id={`read-${teacher.id}`}
+																	checked={permissionState[teacher.id]?.can_read ?? false}
+																	onChange={(e) =>
+																		handlePermissionToggle(teacher.id, "can_read", e.target.checked)
+																	}
+																	className="w-4 h-4 rounded accent-primary cursor-pointer"
+																/>
+															</td>
+															<td className="px-4 py-3 text-center">
+																<input
+																	type="checkbox"
+																	id={`update-${teacher.id}`}
+																	checked={permissionState[teacher.id]?.can_update ?? false}
+																	onChange={(e) =>
+																		handlePermissionToggle(teacher.id, "can_update", e.target.checked)
+																	}
+																	className="w-4 h-4 rounded accent-primary cursor-pointer"
+																/>
+															</td>
+															<td className="px-4 py-3 text-center">
+																<input
+																	type="checkbox"
+																	id={`delete-${teacher.id}`}
+																	checked={permissionState[teacher.id]?.can_delete ?? false}
+																	onChange={(e) =>
+																		handlePermissionToggle(teacher.id, "can_delete", e.target.checked)
+																	}
+																	className="w-4 h-4 rounded accent-primary cursor-pointer"
+																/>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</div>
+
+								<DialogFooter className="gap-3 pt-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setIsPermissionDialogOpen(false);
+											setPermissionError(null);
+											setPermissionSuccess(null);
+										}}
+										className="h-11 text-base"
+									>
+										閉じる
+									</Button>
+									<Button
+										type="button"
+										onClick={handleSavePermissions}
+										disabled={permissionLoading || teacherList.length === 0}
+										className="h-11 text-base bg-primary hover:bg-primary/90"
+									>
+										{permissionLoading ? (
+											<Loader2 className="w-4 h-4 animate-spin mr-2" />
+										) : (
+											<Shield className="w-4 h-4 mr-2" />
+										)}
+										権限を保存
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+
 						{/* コンテンツ追加ダイアログ */}
 						<Dialog
 							open={isAddContentDialogOpen}
@@ -902,7 +1159,7 @@ function CoursePage() {
 								<form
 									onSubmit={(e) => {
 										e.preventDefault();
-										handleRegisterWeek();
+										handleRegisterLesson();
 									}}
 								>
 									<div className="grid gap-6 py-6">
@@ -922,15 +1179,15 @@ function CoursePage() {
 										<div className="grid gap-4">
 											<div className="grid gap-2">
 												<Label
-													htmlFor="weekName"
+													htmlFor="lessonTitle"
 													className="text-base font-medium"
 												>
-													週名
+													レッスン名
 												</Label>
 												<Input
-													id="weekName"
-													value={weekName}
-													onChange={(e) => setWeekName(e.target.value)}
+													id="lessonTitle"
+													value={lessonTitle}
+													onChange={(e) => setLessonTitle(e.target.value)}
 													placeholder="例: 線形代数学_第1週"
 													className="h-12 text-base"
 													required
@@ -940,16 +1197,16 @@ function CoursePage() {
 											<div className="grid grid-cols-2 gap-6">
 												<div className="grid gap-2">
 													<Label
-														htmlFor="weekNum"
+														htmlFor="lessonNumber"
 														className="text-base font-medium"
 													>
-														第○週、第○回
+														第○回
 													</Label>
 													<Input
-														id="weekNum"
+														id="lessonNumber"
 														type="number"
-														value={weekNum}
-														onChange={(e) => setWeekNum(e.target.value)}
+														value={lessonNumber}
+														onChange={(e) => setLessonNumber(e.target.value)}
 														placeholder="数値のみを入力"
 														className="h-12 text-base"
 														required
@@ -957,16 +1214,16 @@ function CoursePage() {
 												</div>
 												<div className="grid gap-2">
 													<Label
-														htmlFor="order"
+														htmlFor="displayOrder"
 														className="text-base font-medium"
 													>
 														並び順
 													</Label>
 													<Input
-														id="order"
+														id="displayOrder"
 														type="number"
-														value={order}
-														onChange={(e) => setOrder(e.target.value)}
+														value={displayOrder}
+														onChange={(e) => setDisplayOrder(e.target.value)}
 														placeholder="数値のみを入力"
 														className="h-12 text-base"
 														required
@@ -1014,7 +1271,6 @@ function CoursePage() {
 																onChange={handleFileChange}
 																// @ts-expect-error
 																webkitdirectory="true"
-																// @ts-expect-error
 																directory=""
 																className="h-12 text-base file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
 																required
@@ -1078,7 +1334,6 @@ function CoursePage() {
 																	onChange={handleFileChange}
 																	// @ts-expect-error
 																	webkitdirectory="true"
-																	// @ts-expect-error
 																	directory=""
 																	className="hidden"
 																/>
@@ -1111,34 +1366,34 @@ function CoursePage() {
 
 						{isCardView && (
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-								{Object.entries(groupedWeeksByNum)
+								{Object.entries(groupedLessonsByNum)
 									.sort(
 										([numA], [numB]) =>
 											Number.parseInt(numA) - Number.parseInt(numB),
 									)
-									.flatMap(([_weekNum, weeksInGroup]) =>
-										weeksInGroup.map((week) => (
-											<WeekSelectCard
-												key={week.week_id}
-												week={week}
-												contents={contentsMap[week.week_id] || []}
-												onMoveWeek={handleMoveWeek}
+									.flatMap(([_lessonNum, lessonsInGroup]) =>
+										lessonsInGroup.map((lesson) => (
+											<LessonSelectCard
+												key={lesson.id}
+												lesson={lesson}
+												contents={contentsMap[lesson.id] || []}
+												onMoveLesson={handleMoveLesson}
 												onMoveFlow={handleMoveFlow}
 											/>
 										)),
 									).length > 0 ? (
-									Object.entries(groupedWeeksByNum)
+									Object.entries(groupedLessonsByNum)
 										.sort(
 											([numA], [numB]) =>
 												Number.parseInt(numA) - Number.parseInt(numB),
 										)
-										.flatMap(([_weekNum, weeksInGroup]) =>
-											weeksInGroup.map((week) => (
-												<WeekSelectCard
-													key={week.week_id}
-													week={week}
-													contents={contentsMap[week.week_id] || []}
-													onMoveWeek={handleMoveWeek}
+										.flatMap(([_lessonNum, lessonsInGroup]) =>
+											lessonsInGroup.map((lesson) => (
+												<LessonSelectCard
+													key={lesson.id}
+													lesson={lesson}
+													contents={contentsMap[lesson.id] || []}
+													onMoveLesson={handleMoveLesson}
 													onMoveFlow={handleMoveFlow}
 												/>
 											)),
@@ -1146,7 +1401,7 @@ function CoursePage() {
 								) : (
 									<div className="col-span-full bg-white rounded-xl shadow-sm border border-gray-100 p-6">
 										<p className="text-center text-gray-500">
-											このコースには週が設定されていません。
+											このコースにはレッスンが設定されていません。
 										</p>
 									</div>
 								)}
@@ -1154,13 +1409,13 @@ function CoursePage() {
 						)}
 
 						{!isCardView && (
-							<WeekSelectTable
-								groupedWeeks={groupedWeeksByNum}
+							<LessonSelectTable
+								groupedLessons={groupedLessonsByNum}
 								contentsMap={contentsMap}
-								expandedWeekNumbers={expandedWeekNumbers}
-								onToggleWeekNumber={handleToggleWeekNumber}
-								onMoveWeek={handleMoveWeek}
-								onPreviewWeek={handlePreviewWeek}
+								expandedLessonNumbers={expandedLessonNumbers}
+								onToggleLessonNumber={handleToggleLessonNumber}
+								onMoveLesson={handleMoveLesson}
+								onPreviewLesson={handlePreviewLesson}
 								onMoveFlow={handleMoveFlow}
 							/>
 						)}

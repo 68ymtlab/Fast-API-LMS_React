@@ -72,13 +72,10 @@ const isStorybookLifecycle =
 if (!isStorybookLifecycle) {
 	debug.info("[next.config.ts] Copying MathJax files for Next.js build/dev...");
 	try {
-		fs.ensureDirSync(mathjaxDest); // コピー先のディレクトリが存在することを確認
-		// アクセス権限エラーを回避するため、既存ファイルを削除してからコピー
-		if (fs.existsSync(mathjaxDest)) {
-			fs.removeSync(mathjaxDest);
-			fs.ensureDirSync(mathjaxDest);
-		}
-		fs.copySync(mathjaxSource, mathjaxDest, { overwrite: true }); // 同期的にコピー
+		// bind mount 環境では removeSync が ENOTEMPTY で失敗することがあるため、
+		// 削除せず上書きコピーで同期する。
+		fs.ensureDirSync(mathjaxDest);
+		fs.copySync(mathjaxSource, mathjaxDest, { overwrite: true });
 		debug.info("[next.config.ts] MathJax files copied successfully.");
 	} catch (err) {
 		debug.error("[next.config.ts] Error copying MathJax files:", err);

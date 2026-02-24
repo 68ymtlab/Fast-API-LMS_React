@@ -86,3 +86,14 @@ class UserRepository(BaseRepository):
 
         res = await self.db.execute(stmt)
         return res.scalars().all()
+
+    async def list_students(self) -> Sequence[user_model.Users]:
+        """学生ユーザー一覧を取得します（students 関連を含む）。"""
+        stmt = (
+            select(user_model.Users)
+            .options(selectinload(user_model.Users.student))
+            .where(user_model.Users.role_id == 3)
+            .order_by(user_model.Users.id)
+        )
+        res = await self.db.execute(stmt)
+        return res.scalars().all()

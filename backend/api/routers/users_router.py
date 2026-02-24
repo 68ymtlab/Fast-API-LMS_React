@@ -7,6 +7,7 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -138,6 +139,30 @@ async def update_password_me(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password")
     return
 
+@users_router.post("/add_access_history", status_code=status.HTTP_201_CREATED, summary="アクセス・滞在時間ログの記録")
+async def add_access_history(
+    history_in: user_schema.AccessHistoryCreate,
+    current_user: user_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """(任意のログインユーザー) ページへのアクセス・滞在時間履歴を保存します。"""
+    from datetime import datetime
+    try:
+        access_date = datetime.strptime(history_in.date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+
+    db_obj = user_model.AccessHistories(
+        user_id=current_user.id,
+        access_date=access_date,
+        page=history_in.page,
+        time=history_in.time,
+        details=history_in.details,
+    )
+    db.add(db_obj)
+    await db.commit()
+    return {"message": "Success"}
+
 @users_router.post("/users", response_model=user_schema.User, status_code=status.HTTP_201_CREATED, summary="ユーザーの新規登録（教師・管理者向け）")
 async def create_user(
     user_in: user_schema.UserCreate,
@@ -149,6 +174,90 @@ async def create_user(
         return await service.create_user(user_in=user_in, current_user=current_user)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@users_router.post(
+    "/users/bulk",
+    response_model=user_schema.UserBulkCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="ユーザーの一括登録（教師・管理者向け）",
+)
+async def create_users_bulk(
+    users_in: List[user_schema.UserCreate],
+    current_user: user_model.Users = Depends(require_teacher_or_higher),
+    service: UserService = Depends(get_user_service),
+):
+    """（教師・管理者権限）複数ユーザーを一括作成します。失敗した行はスキップして処理を継続します。"""
+    return await service.create_users_bulk(users_in=users_in, current_user=current_user)
+
+
+@users_router.get(
+    "/users/students",
+    response_model=List[user_schema.StudentUserOption],
+    summary="学生ユーザー一覧取得（教師・管理者向け）",
+)
+async def list_student_users(
+    current_user: user_model.Users = Depends(require_teacher_or_higher),
+    service: UserService = Depends(get_user_service),
+):
+    """履修登録用に学生ユーザー一覧を返します。"""
+    _ = current_user
+    users = await service.get_student_users()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "email": u.email,
+            "grade": u.student.grade if u.student else None,
+            "department": u.student.department if u.student else None,
+            "student_number": u.student.student_number if u.student else None,
+            "class_number": u.student.class_number if u.student else None,
+            "class_roster_number": u.student.class_roster_number if u.student else None,
+        }
+        for u in users
+    ]
+
+
+class TeacherUserOption(BaseModel):
+    """権限管理UI向けの教師ユーザー簡易情報"""
+    id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+@users_router.get(
+    "/users/teachers",
+    summary="教師ユーザー一覧取得（教師・管理者向け）",
+)
+async def list_teacher_users(
+    current_user: user_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """コース権限管理用に教師ユーザー一覧を返します（自分自身は除外）。"""
+    from sqlalchemy import select
+    from api.models import users_model as um
+    # role_id=2 が教師
+    stmt = select(um.Users).where(
+        um.Users.role_id == 2,
+        um.Users.id != current_user.id,
+        um.Users.is_disabled == False,
+        um.Users.deleted_at == None,
+    )
+    result = await db.execute(stmt)
+    teachers = result.scalars().all()
+    return [
+        {
+            "id": t.id,
+            "username": t.username,
+            "display_name": t.display_name,
+            "email": t.email,
+        }
+        for t in teachers
+    ]
 
 #
 # Admin Endpoints

@@ -42,20 +42,22 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import axios from "@/lib/axios";
+import apiClient from "@/lib/api/apiClient";
 import OnboardingDialog from "./onboarding/00_OnboardingDialog";
 
 interface Course {
-	course_id: number;
+	id?: number;
+	course_id?: number;
 	course_name: string;
-	subject_name: string;
-	period: string;
+	subject_name?: string;
+	subject?: { subject_name?: string; semester?: { name?: string } };
+	period?: string;
 }
 
 interface Goal {
-	goal_id: number;
-	details: string;
-	completed: boolean;
+	id: number;
+	content: string;
+	is_achieved: boolean;
 }
 
 interface Subject {
@@ -68,11 +70,11 @@ interface Subject {
 }
 
 interface HighPointer {
-	mail: string;
+	student_id: string;
 	point: number;
 }
 
-export const StudentHome = () => {
+const StudentHome = () => {
 	const router = useRouter();
 	const [username, setUsername] = useState("");
 	const [point, setPoint] = useState("0");
@@ -135,46 +137,38 @@ export const StudentHome = () => {
 
 	const fetchProgress = useCallback(async () => {
 		try {
-			const coursesResponse = await axios.get("/get_courses");
+			const coursesResponse = await apiClient.get("/courses/me/enrolled");
 			const courseIds = coursesResponse.data.map(
-				(course: Course) => course.course_id,
+				(course: Course) => course.id ?? course.course_id,
 			);
 
-			const progressPromises = courseIds.map((courseId: number) =>
-				axios.get(`/get_progress/${courseId}`),
-			);
+			// get_progress エンドポイントは現状実装されていないため、スキップ
+			// または、進捗率を計算する方法を別途実装する必要がある
 
-			const progressResponses = await Promise.all(progressPromises);
-			const progresses = progressResponses.map((response) => response.data);
-
-			if (progresses.length > 0) {
-				const total = progresses.reduce((sum, score) => sum + score, 0);
-				const average = Number.parseFloat(
-					(total / progresses.length).toFixed(2),
-				);
-				setProgress(average);
-			} else {
-				setProgress(0);
-			}
+			// コース数に基づいて仮の進捗率を設定（現状は0）
+			setProgress(0);
 		} catch (error) {
 			console.error("進捗の取得に失敗しました:", error);
+			setProgress(0);
 		}
 	}, []);
 
 	useEffect(() => {
-		axios
-			.get("/get_courses")
+		apiClient
+			.get("/courses/me/enrolled")
 			.then((res) => {
 				if (res.status === 200) {
 					const courses: Course[] = res.data;
-					const formattedSubjects: Subject[] = courses.map((course) => ({
-						id: course.course_id,
-						title: course.subject_name,
-						course: course.course_name,
-						term: course.period,
-						completedLessons: 0,
-						totalLessons: 15,
-					}));
+					const formattedSubjects: Subject[] = courses
+						.filter((c) => (c.id ?? c.course_id) != null)
+						.map((course) => ({
+							id: (course.id ?? course.course_id) as number,
+							title: course.subject?.subject_name ?? course.subject_name ?? "",
+							course: course.course_name ?? "",
+							term: course.subject?.semester?.name ?? course.period ?? "",
+							completedLessons: 0,
+							totalLessons: 15,
+						}));
 					setSubjects(formattedSubjects);
 				}
 			})
@@ -182,23 +176,26 @@ export const StudentHome = () => {
 				console.error("コースの取得に失敗しました:", error);
 			});
 
-		axios
-			.get("/get_goal")
-			.then((res) => {
-				if (res.status === 200) {
-					const goalsData: Goal[] = res.data;
-					const uncompletedGoals = goalsData.filter((goal) => !goal.completed);
-					const completedGoals = goalsData.filter((goal) => goal.completed);
-					setGoals(uncompletedGoals);
-					setCompleteGoals(completedGoals);
-				}
-			})
-			.catch((error) => {
-				console.error("目標の取得に失敗しました:", error);
-			});
+		// goals API はバックエンド移行中のため一時停止
+		// apiClient
+		// 	.get("/goals")
+		// 	.then((res) => {
+		// 		if (res.status === 200) {
+		// 			const goalsData: Goal[] = res.data;
+		// 			const uncompletedGoals = goalsData.filter((goal) => !goal.is_achieved);
+		// 			const completedGoals = goalsData.filter((goal) => goal.is_achieved);
+		// 			setGoals(uncompletedGoals);
+		// 			setCompleteGoals(completedGoals);
+		// 		}
+		// 	})
+		// 	.catch((error) => {
+		// 		console.error("目標の取得に失敗しました:", error);
+		// 	});
+		setGoals([]);
+		setCompleteGoals([]);
 
-		axios
-			.get("/get_point")
+		apiClient
+			.get("/progress/points")
 			.then((res) => {
 				if (res.status === 200) {
 					setPoint(res.data?.toString());
@@ -208,11 +205,11 @@ export const StudentHome = () => {
 				console.error("ポイントの取得に失敗しました:", error);
 			});
 
-		axios
-			.get("/user_name")
+		apiClient
+			.get("/users/me")
 			.then((res) => {
 				if (res.status === 200) {
-					setUsername(res.data);
+					setUsername(res.data.username ?? res.data.display_name ?? res.data.email ?? "");
 				}
 			})
 			.catch((error) => {
@@ -220,8 +217,8 @@ export const StudentHome = () => {
 			});
 
 		// ログイン日数の取得
-		axios
-			.post("/login_num")
+		apiClient
+			.get("/progress/logindays")
 			.then((res) => {
 				if (res.status === 200) {
 					setLoginNum(res.data);
@@ -231,7 +228,7 @@ export const StudentHome = () => {
 				console.error("ログイン日数の取得に失敗しました:", error);
 			});
 
-		// axios
+		// apiClient
 		//   .get("/announcements_list")
 		//   .then((res) => {
 		//     const currentTime = new Date();
@@ -252,13 +249,13 @@ export const StudentHome = () => {
 	// username取得後にランキング取得
 	useEffect(() => {
 		if (!username) return;
-		axios
-			.get("/get_high_pointer")
+		apiClient
+			.get("/progress/points/ranking")
 			.then((res) => {
 				if (res.status === 200) {
 					const pointers: HighPointer[] = res.data;
 					setHighPointers(pointers);
-					const rank = pointers.findIndex((p) => p.mail === username) + 1;
+					const rank = pointers.findIndex((p) => p.student_id === username) + 1;
 					setUserRank(rank);
 				}
 			})
@@ -267,99 +264,47 @@ export const StudentHome = () => {
 			});
 	}, [username]);
 
-	useEffect(() => {
-		axios
-			.get("/get_accsess_log")
-			.then((res) => {
-				const hasAccessed = res.data;
-				setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
-			})
-			.catch((error) => {
-				console.error("アクセスログの取得に失敗しました:", error);
-				setOpenDialog(true); // Show on error
-			});
-	}, []);
+		// アクセスログの取得は現状実装されていないため、コメントアウト
+		// apiClient
+		// 	.get("/api/access_log")
+		// 	.then((res) => {
+		// 		const hasAccessed = res.data;
+		// 		setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
+		// 	})
+		// 	.catch((error) => {
+		// 		console.error("アクセスログの取得に失敗しました:", error);
+		// 		setOpenDialog(true); // Show on error
+		// 	});
 
 	const handleAddGoal = () => {
 		if (newGoal.trim() === "") {
 			return;
 		}
-
-		axios
-			.post("/add_goal", {
-				details: newGoal,
-			})
-			.then((res) => {
-				if (res.status === 200) {
-					// 新しい目標を追加
-					const newGoalData: Goal = {
-						goal_id: res.data.goal_id,
-						details: newGoal,
-						completed: false,
-					};
-					setGoals([...goals, newGoalData]);
-					setNewGoal("");
-				}
-			})
-			.catch((error) => {
-				console.error("目標の追加に失敗しました:", error);
-			});
+		// goals API はバックエンド移行中のため一時停止
+		setNewGoal("");
 	};
 
-	const handleToggleCompleted = (goalId: number, currentCompleted: boolean) => {
-		axios
-			.post("/toggle_completed", {
-				goal_id: goalId,
-				completed: !currentCompleted,
-			})
-			.then((res) => {
-				if (res.status === 200) {
-					// 現在の目標リストを結合
-					const allGoals = [...goals, ...completeGoals];
-
-					// 目標の状態を更新
-					const updatedGoals = allGoals.map((goal) => {
-						if (goal.goal_id === goalId) {
-							return { ...goal, completed: !currentCompleted };
-						}
-						return goal;
-					});
-
-					// 完了/未完了の目標を振り分け
-					const uncompletedGoals = updatedGoals.filter(
-						(goal) => !goal.completed,
-					);
-					const completedGoals = updatedGoals.filter((goal) => goal.completed);
-
-					setGoals(uncompletedGoals);
-					setCompleteGoals(completedGoals);
-				}
-			})
-			.catch((error) => {
-				console.error("目標の状態更新に失敗しました:", error);
-			});
+	const handleToggleCompleted = (goalId: number, currentAchieved: boolean) => {
+		// goals API はバックエンド移行中のため一時停止
+		const allGoals = [...goals, ...completeGoals];
+		const updatedGoals = allGoals.map((goal) => {
+			if (goal.id === goalId) {
+				return { ...goal, is_achieved: !currentAchieved };
+			}
+			return goal;
+		});
+		const uncompletedGoals = updatedGoals.filter((goal) => !goal.is_achieved);
+		const completedGoals = updatedGoals.filter((goal) => goal.is_achieved);
+		setGoals(uncompletedGoals);
+		setCompleteGoals(completedGoals);
 	};
 
 	const handleDeleteGoal = (goalId: number) => {
-		axios
-			.delete("/delete_goal", {
-				data: { goal_id: goalId },
-			})
-			.then((res) => {
-				if (res.status === 200) {
-					// 目標を削除
-					const updatedGoals = goals.filter((goal) => goal.goal_id !== goalId);
-					const updatedCompleteGoals = completeGoals.filter(
-						(goal) => goal.goal_id !== goalId,
-					);
-
-					setGoals(updatedGoals);
-					setCompleteGoals(updatedCompleteGoals);
-				}
-			})
-			.catch((error) => {
-				console.error("目標の削除に失敗しました:", error);
-			});
+		// goals API はバックエンド移行中のため一時停止
+		const updatedGoals = goals.filter((goal) => goal.id !== goalId);
+		const updatedCompleteGoals = completeGoals.filter((goal) => goal.id !== goalId);
+		setGoals(updatedGoals);
+		setCompleteGoals(updatedCompleteGoals);
 	};
 
 	return (
@@ -511,7 +456,7 @@ export const StudentHome = () => {
 												{goals && goals.length > 0 ? (
 													goals.map((goal) => (
 														<div
-															key={goal.goal_id}
+															key={goal.id}
 															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
 														>
 															<div className="flex items-center gap-3">
@@ -519,7 +464,7 @@ export const StudentHome = () => {
 																	<Target className="w-4 h-4 text-secondary" />
 																</div>
 																<span className="font-medium text-gray-800">
-																	{goal.details}
+																	{goal.content}
 																</span>
 															</div>
 															<div className="flex items-center gap-2">
@@ -532,8 +477,8 @@ export const StudentHome = () => {
 																				className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
 																				onClick={() =>
 																					handleToggleCompleted(
-																						goal.goal_id,
-																						goal.completed,
+																						goal.id,
+																						goal.is_achieved,
 																					)
 																				}
 																			>
@@ -553,7 +498,7 @@ export const StudentHome = () => {
 																				size="icon"
 																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
 																				onClick={() =>
-																					handleDeleteGoal(goal.goal_id)
+																					handleDeleteGoal(goal.id)
 																				}
 																			>
 																				<Trash2 className="w-4 h-4" />
@@ -584,7 +529,7 @@ export const StudentHome = () => {
 												{completeGoals && completeGoals.length > 0 ? (
 													completeGoals.map((goal) => (
 														<div
-															key={goal.goal_id}
+															key={goal.id}
 															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
 														>
 															<div className="flex items-center gap-3">
@@ -592,7 +537,7 @@ export const StudentHome = () => {
 																	<Trophy className="w-4 h-4 text-secondary" />
 																</div>
 																<span className="font-medium text-gray-800">
-																	{goal.details}
+																	{goal.content}
 																</span>
 															</div>
 															<div className="flex items-center gap-2">
@@ -604,7 +549,7 @@ export const StudentHome = () => {
 																				size="icon"
 																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
 																				onClick={() =>
-																					handleDeleteGoal(goal.goal_id)
+																					handleDeleteGoal(goal.id)
 																				}
 																			>
 																				<Trash2 className="w-4 h-4" />

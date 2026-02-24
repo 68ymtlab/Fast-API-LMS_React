@@ -27,7 +27,15 @@ class LessonService:
     async def get_lesson_items_by_course_id(self, *, course_id: int, include_inactive: bool = False) -> Dict[int, List[lessons_model.LessonItems]]:
         """指定されたコースのすべてのレッスン項目を、レッスンIDをキーとする辞書で取得します。"""
         lessons = await self.lesson_repo.list_lessons_with_items_by_course_id(course_id=course_id, include_inactive=include_inactive)
-        items_by_lesson = {lesson.id: lesson.lesson_items for lesson in lessons}
+        if include_inactive:
+            items_by_lesson = {lesson.id: lesson.lesson_items for lesson in lessons}
+        else:
+            # lesson_items は relationship 読み込み時に is_active 条件が付かないため、
+            # API 返却時に明示的に非アクティブ項目を除外する。
+            items_by_lesson = {
+                lesson.id: [item for item in lesson.lesson_items if item.is_active]
+                for lesson in lessons
+            }
         return items_by_lesson
 
     async def list_lesson_pages_with_content_body_by_lesson_item_id(self, *, lesson_item_id: int, content_repo):

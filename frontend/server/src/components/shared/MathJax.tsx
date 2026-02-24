@@ -6,13 +6,14 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import config from "@/lib/utils/config";
 import "./style.css";
 
 type Props = {
 	children: ReactNode;
 };
 
-const config = {
+const mathJaxConfig = {
 	tex: {
 		packages: { "[+]": ["html"] },
 		inlineMath: [
@@ -30,7 +31,7 @@ export const MathJaxSetup: FC<Props> = (props) => {
 	const { children } = props;
 	return (
 		<MathJaxContext
-			config={config}
+			config={mathJaxConfig}
 			version={3}
 			src="/libs/MathJax/es5/tex-mml-chtml.js"
 		>
@@ -116,13 +117,31 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 	// テキストをフィルタリング
 	const filteredText = filterMathJaxTestContent(text);
 
+	// Markdown/HTML内の画像URLが Next 側 (/api/...) を向いて404になるため、APIサーバへ向け直す
+	const normalizeImageUrls = (content: string): string => {
+		if (!config.apiBaseUrl) return content;
+
+		let normalized = content;
+		normalized = normalized.replace(
+			/!\[([^\]]*)\]\((\/api\/images\/\d+)\)/g,
+			(_, alt, src) => `![${alt}](${config.apiBaseUrl}${src})`,
+		);
+		normalized = normalized.replace(
+			/<img([^>]*?)src=["'](\/api\/images\/\d+)["']([^>]*)>/gi,
+			(_, before, src, after) =>
+				`<img${before}src="${config.apiBaseUrl}${src}"${after}>`,
+		);
+		return normalized;
+	};
+	const normalizedText = normalizeImageUrls(filteredText);
+
 	return (
 		<BetterMathJax>
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}
 			>
-				{filteredText}
+				{normalizedText}
 			</ReactMarkdown>
 		</BetterMathJax>
 	);

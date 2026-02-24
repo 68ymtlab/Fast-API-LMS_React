@@ -1,5 +1,5 @@
 "use client";
-import { Loader2 } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import TcAccessTime from "@/components/tc_access_time";
@@ -25,17 +25,25 @@ interface Course {
 	semester: string;
 }
 
-interface Week {
-	week_id: number;
-	week_name: string;
-	week_num: number;
-	order: number;
+// バックエンドのLessonスキーマに合わせて修正
+interface Lesson {
+	id: number; // week_id -> id
+	title: string; // week_name -> title
+	lesson_number: number; // week_num -> lesson_number
+	display_order: number; // order -> display_order
+}
+
+interface LessonItem {
+    id: number;
+    lesson_id: number;
+    title: string;
+    display_order: number;
 }
 
 interface Content {
 	content_id: number;
 	content_name: string;
-	week_id: number;
+	lesson_id: number; // week_id -> lesson_id
 	order: number;
 }
 
@@ -66,19 +74,19 @@ const CustomSwitch = ({
 	</label>
 );
 
-// 週選択カードコンポーネント（階層構造対応）
-const WeekSelectCard = ({
-	week,
+// レッスン選択カードコンポーネント
+const LessonSelectCard = ({
+	lesson,
 	contents,
-	onMoveWeek,
+	onMoveLesson,
 	onMoveFlow,
 	loadingState,
 	setLoadingState,
 }: {
-	week: Week;
+	lesson: Lesson;
 	contents: Content[];
-	onMoveWeek: (id: number, isContentId?: boolean) => void;
-	onMoveFlow: (weekId: number) => void;
+	onMoveLesson: (id: number, isContentId?: boolean) => void;
+	onMoveFlow: (lessonId: number) => void;
 	loadingState: { [key: string]: boolean };
 	setLoadingState: React.Dispatch<
 		React.SetStateAction<{ [key: string]: boolean }>
@@ -86,72 +94,31 @@ const WeekSelectCard = ({
 }) => (
 	<Card className="h-full">
 		<CardContent className="p-6">
-			<h3 className="text-lg font-semibold mb-2">第{week.week_num}回</h3>
-			<p className="text-gray-600 mb-4 text-sm">{week.week_name}</p>
+			<h3 className="text-lg font-semibold mb-2">第{lesson.lesson_number}回</h3>
+			<p className="text-gray-600 mb-4 text-sm">{lesson.title}</p>
 
-			{contents.length > 0 && (
-				<div className="space-y-2 mb-4">
-					<h4 className="text-sm font-medium text-gray-700 mb-2">
-						コンテンツ:
-					</h4>
-					{contents.map((content) => (
-						<div
-							key={content.content_id}
-							className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
-						>
-							<span className="text-gray-700">{content.content_name}</span>
-							<Button
-								variant="outline"
-								size="sm"
-								className="text-xs"
-								disabled={loadingState[`content-${content.content_id}`]}
-								onClick={async () => {
-									setLoadingState((prev) => ({
-										...prev,
-										[`content-${content.content_id}`]: true,
-									}));
-									try {
-										await onMoveWeek(content.content_id, true);
-									} finally {
-										setLoadingState((prev) => ({
-											...prev,
-											[`content-${content.content_id}`]: false,
-										}));
-									}
-								}}
-							>
-								{loadingState[`content-${content.content_id}`] ? (
-									<Loader2 className="w-4 h-4 animate-spin" />
-								) : (
-									"学習を始める"
-								)}
-							</Button>
-						</div>
-					))}
-				</div>
-			)}
 
 			<div className="flex space-x-2 mt-4">
 				<Button
 					variant="default"
 					className="flex-1"
-					disabled={loadingState[`week-${week.week_id}`]}
+					disabled={loadingState[`lesson-${lesson.id}`]}
 					onClick={async () => {
 						setLoadingState((prev) => ({
 							...prev,
-							[`week-${week.week_id}`]: true,
+							[`lesson-${lesson.id}`]: true,
 						}));
 						try {
-							await onMoveWeek(week.week_id);
+							await onMoveLesson(lesson.id);
 						} finally {
 							setLoadingState((prev) => ({
 								...prev,
-								[`week-${week.week_id}`]: false,
+								[`lesson-${lesson.id}`]: false,
 							}));
 						}
 					}}
 				>
-					{loadingState[`week-${week.week_id}`] ? (
+					{loadingState[`lesson-${lesson.id}`] ? (
 						<Loader2 className="w-4 h-4 animate-spin" />
 					) : (
 						"学習を始める"
@@ -160,23 +127,23 @@ const WeekSelectCard = ({
 				<Button
 					variant="default"
 					className="flex-1"
-					disabled={loadingState[`flow-${week.week_id}`]}
+					disabled={loadingState[`flow-${lesson.id}`]}
 					onClick={async () => {
 						setLoadingState((prev) => ({
 							...prev,
-							[`flow-${week.week_id}`]: true,
+							[`flow-${lesson.id}`]: true,
 						}));
 						try {
-							await onMoveFlow(week.week_id);
+							await onMoveFlow(lesson.id);
 						} finally {
 							setLoadingState((prev) => ({
 								...prev,
-								[`flow-${week.week_id}`]: false,
+								[`flow-${lesson.id}`]: false,
 							}));
 						}
 					}}
 				>
-					{loadingState[`flow-${week.week_id}`] ? (
+					{loadingState[`flow-${lesson.id}`] ? (
 						<Loader2 className="w-4 h-4 animate-spin" />
 					) : (
 						"演習問題"
@@ -187,23 +154,23 @@ const WeekSelectCard = ({
 	</Card>
 );
 
-// 週選択テーブルコンポーネント（階層構造対応）
-const WeekSelectTable = ({
-	groupedWeeks,
+// レッスン選択テーブルコンポーネント
+const LessonSelectTable = ({
+	groupedLessons,
 	contentsMap,
-	expandedWeekNumbers,
-	onToggleWeekNumber,
-	onMoveWeek,
+	expandedLessonNumbers,
+	onToggleLessonNumber,
+	onMoveLesson,
 	onMoveFlow,
 	loadingState,
 	setLoadingState,
 }: {
-	groupedWeeks: { [key: number]: Week[] };
-	contentsMap: { [weekId: number]: Content[] };
-	expandedWeekNumbers: Set<number>;
-	onToggleWeekNumber: (weekNum: number) => void;
-	onMoveWeek: (id: number, isContentId?: boolean) => void;
-	onMoveFlow: (weekId: number) => void;
+	groupedLessons: { [key: number]: Lesson[] };
+	contentsMap: { [lessonId: number]: Content[] };
+	expandedLessonNumbers: Set<number>;
+	onToggleLessonNumber: (lessonNum: number) => void;
+	onMoveLesson: (id: number, isContentId?: boolean) => void;
+	onMoveFlow: (lessonId: number) => void;
 	loadingState: { [key: string]: boolean };
 	setLoadingState: React.Dispatch<
 		React.SetStateAction<{ [key: string]: boolean }>
@@ -235,26 +202,26 @@ const WeekSelectTable = ({
 					</tr>
 				</thead>
 				<tbody className="bg-white divide-y divide-gray-200">
-					{Object.entries(groupedWeeks)
+					{Object.entries(groupedLessons)
 						.sort(
 							([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB),
 						)
-						.map(([weekNumStr, weeksInGroup]) => {
-							const weekNum = Number.parseInt(weekNumStr);
-							const isGroupExpanded = expandedWeekNumbers.has(weekNum);
+						.map(([lessonNumStr, lessonsInGroup]) => {
+							const lessonNum = Number.parseInt(lessonNumStr);
+							const isGroupExpanded = expandedLessonNumbers.has(lessonNum);
 
 							return (
-								<React.Fragment key={`group-${weekNum}`}>
+								<React.Fragment key={`group-${lessonNum}`}>
 									{/* "第N回" ヘッダー行 */}
 									<tr className="bg-gray-100">
 										<td className="p-0" colSpan={4}>
 											<button
 												type="button"
-												onClick={() => onToggleWeekNumber(weekNum)}
+												onClick={() => onToggleLessonNumber(lessonNum)}
 												onKeyDown={(e) => {
 													if (e.key === "Enter" || e.key === " ") {
 														e.preventDefault();
-														onToggleWeekNumber(weekNum);
+														onToggleLessonNumber(lessonNum);
 													}
 												}}
 												className="w-full flex items-center space-x-2 px-6 py-4 text-left text-sm font-semibold text-gray-800 whitespace-nowrap hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 cursor-pointer"
@@ -275,27 +242,27 @@ const WeekSelectTable = ({
 														d="M9 5l7 7-7 7"
 													/>
 												</svg>
-												<span>第{weekNum}回</span>
+												<span>第{lessonNum}回</span>
 											</button>
 										</td>
 									</tr>
 
-									{/* この "第N回" に属する週のリスト */}
+									{/* この "第N回" に属するレッスンのリスト */}
 									{isGroupExpanded &&
-										weeksInGroup.map((week) => {
+										lessonsInGroup.map((lesson) => {
 											const individualContents =
-												contentsMap[week.week_id] || [];
+												contentsMap[lesson.id] || [];
 											individualContents.sort((a, b) => a.order - b.order);
 
 											return (
-												<React.Fragment key={week.week_id}>
-													{/* 週の名前 (例: "第1週コンテンツ") と週全体の演習問題 */}
+												<React.Fragment key={lesson.id}>
+													{/* レッスンの名前と演習問題 */}
 													<tr className="border-t bg-slate-50 hover:bg-slate-100">
 														<td className="pl-10 pr-6 py-3 text-sm text-gray-500">
 															{/* 1列目はインデントとして機能 */}
 														</td>
 														<td className="px-6 py-3 text-base font-medium text-gray-700">
-															{week.week_name}
+															{lesson.title}
 														</td>
 														<td className="px-6 py-3 text-center text-sm">
 															{" "}
@@ -303,24 +270,24 @@ const WeekSelectTable = ({
 															<Button
 																variant="default"
 																size="sm"
-																disabled={loadingState[`week-${week.week_id}`]}
+																disabled={loadingState[`lesson-${lesson.id}`]}
 																onClick={async (e) => {
 																	e.stopPropagation();
 																	setLoadingState((prev) => ({
 																		...prev,
-																		[`week-${week.week_id}`]: true,
+																		[`lesson-${lesson.id}`]: true,
 																	}));
 																	try {
-																		await onMoveWeek(week.week_id);
+																		await onMoveLesson(lesson.id);
 																	} finally {
 																		setLoadingState((prev) => ({
 																			...prev,
-																			[`week-${week.week_id}`]: false,
+																			[`lesson-${lesson.id}`]: false,
 																		}));
 																	}
 																}}
 															>
-																{loadingState[`week-${week.week_id}`] ? (
+																{loadingState[`lesson-${lesson.id}`] ? (
 																	<Loader2 className="w-4 h-4 animate-spin" />
 																) : (
 																	"学習を始める"
@@ -331,24 +298,24 @@ const WeekSelectTable = ({
 															<Button
 																variant="outline"
 																size="sm"
-																disabled={loadingState[`flow-${week.week_id}`]}
+																disabled={loadingState[`flow-${lesson.id}`]}
 																onClick={async (e) => {
 																	e.stopPropagation();
 																	setLoadingState((prev) => ({
 																		...prev,
-																		[`flow-${week.week_id}`]: true,
+																		[`flow-${lesson.id}`]: true,
 																	}));
 																	try {
-																		await onMoveFlow(week.week_id);
+																		await onMoveFlow(lesson.id);
 																	} finally {
 																		setLoadingState((prev) => ({
 																			...prev,
-																			[`flow-${week.week_id}`]: false,
+																			[`flow-${lesson.id}`]: false,
 																		}));
 																	}
 																}}
 															>
-																{loadingState[`flow-${week.week_id}`] ? (
+																{loadingState[`flow-${lesson.id}`] ? (
 																	<Loader2 className="w-4 h-4 animate-spin" />
 																) : (
 																	"演習問題"
@@ -357,61 +324,6 @@ const WeekSelectTable = ({
 														</td>
 													</tr>
 
-													{/* この週に紐づく個別コンテンツ */}
-													{individualContents.map((content) => (
-														<tr
-															key={content.content_id}
-															className="bg-white hover:bg-gray-50"
-														>
-															<td className="pl-10 pr-6 py-4 whitespace-nowrap text-sm text-gray-500">
-																{/* 1列目はインデントとして機能 */}
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-																{content.content_name}
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-																<Button
-																	variant="outline"
-																	size="sm"
-																	disabled={
-																		loadingState[
-																			`content-${content.content_id}`
-																		]
-																	}
-																	onClick={async (e) => {
-																		e.stopPropagation();
-																		setLoadingState((prev) => ({
-																			...prev,
-																			[`content-${content.content_id}`]: true,
-																		}));
-																		try {
-																			await onMoveWeek(
-																				content.content_id,
-																				true,
-																			);
-																		} finally {
-																			setLoadingState((prev) => ({
-																				...prev,
-																				[`content-${content.content_id}`]: false,
-																			}));
-																		}
-																	}}
-																>
-																	{loadingState[
-																		`content-${content.content_id}`
-																	] ? (
-																		<Loader2 className="w-4 h-4 animate-spin" />
-																	) : (
-																		"学習を始める"
-																	)}
-																</Button>
-															</td>
-															<td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-																{/* 個別コンテンツの演習問題は通常週単位なので"-" */}
-																-
-															</td>
-														</tr>
-													))}
 												</React.Fragment>
 											);
 										})}
@@ -424,7 +336,7 @@ const WeekSelectTable = ({
 	</div>
 );
 
-export const CoursePage = () => {
+const CoursePage = () => {
 	const params = useParams();
 	const router = useRouter();
 	const course_id = params.course_id as string;
@@ -432,31 +344,31 @@ export const CoursePage = () => {
 	const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
 	const [sessionError, setSessionError] = useState(false);
 	const [course, setCourse] = useState<Course | null>(null);
-	const [weeks, setWeeks] = useState<Week[]>([]);
+	const [lessons, setLessons] = useState<Lesson[]>([]); // weeks -> lessons
 	const [contents, setContents] = useState<Content[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [isCardView, setIsCardView] = useState(false);
 
-	const [groupedWeeksByNum, setGroupedWeeksByNum] = useState<{
-		[key: number]: Week[];
+	const [groupedLessonsByNum, setGroupedLessonsByNum] = useState<{ // groupedWeeksByNum -> groupedLessonsByNum
+		[key: number]: Lesson[];
 	}>({});
-	const [expandedWeekNumbers, setExpandedWeekNumbers] = useState<Set<number>>(
+	const [expandedLessonNumbers, setExpandedLessonNumbers] = useState<Set<number>>( // expandedWeekNumbers -> expandedLessonNumbers
 		new Set(),
 	);
 	const [loadingState, setLoadingState] = useState<{ [key: string]: boolean }>(
 		{},
 	);
 
-	// 週ごとのコンテンツマップを作成
+	// レッスンごとのコンテンツマップを作成
 	const contentsMap = contents.reduce(
 		(acc, content) => {
-			if (!acc[content.week_id]) {
-				acc[content.week_id] = [];
+			if (!acc[content.lesson_id]) { // week_id -> lesson_id
+				acc[content.lesson_id] = []; // week_id -> lesson_id
 			}
-			acc[content.week_id].push(content);
+			acc[content.lesson_id].push(content); // week_id -> lesson_id
 			return acc;
 		},
-		{} as { [weekId: number]: Content[] },
+		{} as { [lessonId: number]: Content[] }, // weekId -> lessonId
 	);
 
 	useEffect(() => {
@@ -481,7 +393,7 @@ export const CoursePage = () => {
 
 		const getCourseInfo = () => {
 			axios
-				.get(`/get_course_info/${course_id}`)
+				.get(`/courses/${course_id}`)
 				.then((response) => {
 					setCourse(response.data);
 				})
@@ -490,22 +402,32 @@ export const CoursePage = () => {
 				});
 		};
 
-		const getWeeksApi = () => {
+		const getLessonsApi = () => { // getWeeksApi -> getLessonsApi
 			axios
-				.get(`/get_weeks/${course_id}`)
+				.get(`/courses/${course_id}/lessons`)
 				.then((response) => {
-					setWeeks(response.data);
+					setLessons(response.data); // setWeeks -> setLessons
 				})
 				.catch((error) => {
-					console.error("週一覧の取得に失敗しました:", error);
+					console.error("レッスン一覧の取得に失敗しました:", error); // 週 -> レッスン
 				});
 		};
 
 		const getCourseContents = () => {
 			axios
-				.get(`/get_course_contents/${course_id}`)
+				.get(`/courses/${course_id}/lesson-items`)
 				.then((response) => {
-					setContents(response.data);
+					const lessonItemsByLessonId: { [key: number]: LessonItem[] } =
+						response.data;
+					const allLessonItems: Content[] = Object.values(lessonItemsByLessonId)
+						.flat()
+						.map((item) => ({
+							content_id: item.id,
+							content_name: item.title,
+							lesson_id: item.lesson_id,
+							order: item.display_order,
+						}));
+					setContents(allLessonItems);
 				})
 				.catch((error) => {
 					console.error("コンテンツ一覧の取得に失敗しました:", error);
@@ -516,54 +438,66 @@ export const CoursePage = () => {
 		};
 
 		getCourseInfo();
-		getWeeksApi();
+		getLessonsApi(); // getWeeksApi -> getLessonsApi
 		getCourseContents();
 	}, [course_id]);
 
-	// `weeks` が更新されたら `week_num` でグループ化する
+	// `lessons` が更新されたら `lesson_number` でグループ化する
 	useEffect(() => {
-		if (weeks.length > 0) {
-			const groups = weeks.reduce(
-				(acc, week) => {
-					const key = week.week_num;
+		if (lessons.length > 0) { // weeks -> lessons
+			const groups = lessons.reduce( // weeks -> lessons
+				(acc, lesson) => { // week -> lesson
+					const key = lesson.lesson_number; // week.week_num -> lesson.lesson_number
 					if (!acc[key]) {
 						acc[key] = [];
 					}
-					acc[key].push(week);
+					acc[key].push(lesson); // week -> lesson
 					return acc;
 				},
-				{} as { [key: number]: Week[] },
+				{} as { [key: number]: Lesson[] }, // Week -> Lesson
 			);
 
-			// 各グループ内の週を `order` プロパティでソート
+			// 各グループ内のレッスンを `display_order` プロパティでソート
 			for (const numKey in groups) {
-				groups[numKey].sort((a, b) => a.order - b.order);
+				groups[numKey].sort((a, b) => a.display_order - b.display_order); // order -> display_order
 			}
-			setGroupedWeeksByNum(groups);
+			setGroupedLessonsByNum(groups); // setGroupedWeeksByNum -> setGroupedLessonsByNum
 		} else {
-			setGroupedWeeksByNum({});
+			setGroupedLessonsByNum({}); // setGroupedWeeksByNum -> setGroupedLessonsByNum
 		}
-	}, [weeks]);
+	}, [lessons]); // weeks -> lessons
 
-	const handleToggleWeekNumber = (weekNum: number) => {
-		const newExpanded = new Set(expandedWeekNumbers);
-		if (newExpanded.has(weekNum)) {
-			newExpanded.delete(weekNum);
+	const handleToggleLessonNumber = (lessonNum: number) => { // handleToggleWeekNumber -> handleToggleLessonNumber
+		const newExpanded = new Set(expandedLessonNumbers); // expandedWeekNumbers -> expandedLessonNumbers
+		if (newExpanded.has(lessonNum)) {
+			newExpanded.delete(lessonNum);
 		} else {
-			newExpanded.add(weekNum);
+			newExpanded.add(lessonNum);
 		}
-		setExpandedWeekNumbers(newExpanded);
+		setExpandedLessonNumbers(newExpanded); // setExpandedWeekNumbers -> setExpandedLessonNumbers
 	};
 
-	const handleMoveWeek = async (id: number, isContentId = false) => {
-		// ダミーウェイト（本番ではAPIやページ遷移の完了をawaitするのが理想）
+	const handleMoveLesson = async (id: number, isContentId = false) => { // handleMoveWeek -> handleMoveLesson
+		// ダミーウェイト
 		await new Promise((resolve) => setTimeout(resolve, 400));
-		router.push(`/lesson/${course_id}/${id}/1`);
+		if (isContentId) {
+			// id は lesson_item_id → そのまま使用
+			router.push(`/lesson/${course_id}/${id}/1`);
+		} else {
+			// id は lesson.id (CourseLessons ID) → contentsMap から最初の lesson_item_id を取得
+			const lessonContents = contentsMap[id] || [];
+			if (lessonContents.length > 0) {
+				const sortedContents = [...lessonContents].sort((a, b) => a.order - b.order);
+				router.push(`/lesson/${course_id}/${sortedContents[0].content_id}/1`);
+			} else {
+				alert("このレッスンにはコンテンツが登録されていません。");
+			}
+		}
 	};
 
-	const handleMoveFlow = async (weekId: number) => {
+	const handleMoveFlow = async (lessonId: number) => { // weekId -> lessonId
 		await new Promise((resolve) => setTimeout(resolve, 400));
-		router.push(`/weekflows/${course_id}/${weekId}`);
+		router.push(`/weekflows/${course_id}/${lessonId}`); // weekId -> lessonId
 	};
 
 	if (sessionError) {
@@ -626,7 +560,17 @@ export const CoursePage = () => {
 							)}
 
 							<div className="mb-6">
-								<div className="flex items-center justify-end space-x-2">
+								<div className="flex items-center justify-between">
+									{/* 課題提出ボタン */}
+									<Button
+										variant="outline"
+										className="h-10 px-5 font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2 border-primary/30 text-primary hover:bg-primary/5"
+										onClick={() => router.push(`/course/${course_id}/assignments`)}
+									>
+										<FileText className="w-4 h-4" />
+										課題提出
+									</Button>
+									{/* 表示切替 */}
 									<span className="inline-flex items-center px-2 py-1 bg-white rounded-lg border border-gray-100 shadow-sm">
 										<svg
 											className="w-6 h-6 text-primary"
@@ -656,36 +600,36 @@ export const CoursePage = () => {
 
 							{isCardView && (
 								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-									{Object.entries(groupedWeeksByNum)
+									{Object.entries(groupedLessonsByNum) // groupedWeeksByNum -> groupedLessonsByNum
 										.sort(
 											([numA], [numB]) =>
 												Number.parseInt(numA) - Number.parseInt(numB),
 										)
-										.flatMap(([_weekNum, weeksInGroup]) =>
-											weeksInGroup.map((week) => (
-												<WeekSelectCard
-													key={week.week_id}
-													week={week}
-													contents={contentsMap[week.week_id] || []}
-													onMoveWeek={handleMoveWeek}
+										.flatMap(([_lessonNum, lessonsInGroup]) => // _weekNum -> _lessonNum, weeksInGroup -> lessonsInGroup
+											lessonsInGroup.map((lesson) => ( // week -> lesson
+												<LessonSelectCard // WeekSelectCard -> LessonSelectCard
+													key={lesson.id} // week.week_id -> lesson.id
+													lesson={lesson} // week -> lesson
+													contents={contentsMap[lesson.id] || []} // week.week_id -> lesson.id
+													onMoveLesson={handleMoveLesson} // onMoveWeek -> onMoveLesson
 													onMoveFlow={handleMoveFlow}
 													loadingState={loadingState}
 													setLoadingState={setLoadingState}
 												/>
 											)),
 										).length > 0 ? (
-										Object.entries(groupedWeeksByNum)
+										Object.entries(groupedLessonsByNum) // groupedWeeksByNum -> groupedLessonsByNum
 											.sort(
 												([numA], [numB]) =>
 													Number.parseInt(numA) - Number.parseInt(numB),
 											)
-											.flatMap(([_weekNum, weeksInGroup]) =>
-												weeksInGroup.map((week) => (
-													<WeekSelectCard
-														key={week.week_id}
-														week={week}
-														contents={contentsMap[week.week_id] || []}
-														onMoveWeek={handleMoveWeek}
+											.flatMap(([_lessonNum, lessonsInGroup]) => // _weekNum -> _lessonNum, weeksInGroup -> lessonsInGroup
+												lessonsInGroup.map((lesson) => ( // week -> lesson
+													<LessonSelectCard // WeekSelectCard -> LessonSelectCard
+														key={lesson.id} // week.week_id -> lesson.id
+														lesson={lesson} // week -> lesson
+														contents={contentsMap[lesson.id] || []} // week.week_id -> lesson.id
+														onMoveLesson={handleMoveLesson} // onMoveWeek -> onMoveLesson
 														onMoveFlow={handleMoveFlow}
 														loadingState={loadingState}
 														setLoadingState={setLoadingState}
@@ -695,7 +639,7 @@ export const CoursePage = () => {
 									) : (
 										<div className="col-span-full bg-white rounded-xl shadow-sm border border-gray-100 p-6">
 											<p className="text-center text-gray-500">
-												このコースには週が設定されていません。
+												このコースにはレッスンが設定されていません。
 											</p>
 										</div>
 									)}
@@ -704,12 +648,12 @@ export const CoursePage = () => {
 
 							{!isCardView && (
 								<div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-									<WeekSelectTable
-										groupedWeeks={groupedWeeksByNum}
+									<LessonSelectTable // WeekSelectTable -> LessonSelectTable
+										groupedLessons={groupedLessonsByNum} // groupedWeeks -> groupedLessons
 										contentsMap={contentsMap}
-										expandedWeekNumbers={expandedWeekNumbers}
-										onToggleWeekNumber={handleToggleWeekNumber}
-										onMoveWeek={handleMoveWeek}
+										expandedLessonNumbers={expandedLessonNumbers} // expandedWeekNumbers -> expandedLessonNumbers
+										onToggleLessonNumber={handleToggleLessonNumber} // onToggleWeekNumber -> onToggleLessonNumber
+										onMoveLesson={handleMoveLesson} // onMoveWeek -> onMoveLesson
 										onMoveFlow={handleMoveFlow}
 										loadingState={loadingState}
 										setLoadingState={setLoadingState}

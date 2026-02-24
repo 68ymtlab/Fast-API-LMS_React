@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { roleRedirectMap } from "@/router/router";
 
-export const Login: FC = memo(() => {
+const Login: FC = memo(() => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLogging, setIsLogging] = useState(false);

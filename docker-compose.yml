@@ -17,15 +17,20 @@ services:
         condition: service_healthy
     env_file:
       - ./backend/.env
+    environment:
+      - UPLOAD_ROOT=/app/uploads
     ports:
       - 8000:8000  # ホストマシンのポート8000を、docker内のポート8000に接続する
     volumes:
       - ./backend:/src/backend
       - /src/backend/.venv
+      - uploads-data:/app/uploads
 
 # Frontend
   frontend:
-    build: ./frontend/docker
+    build:
+      context: ./frontend
+      dockerfile: docker/Dockerfile
     environment:
       - CHOKIDAR_USEPOLLING=true
     ports:
@@ -47,6 +52,9 @@ services:
       - ./db/.env
     volumes:
       - ./db/init/01-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/init/02-progress-migration.sql:/docker-entrypoint-initdb.d/02-progress-migration.sql:ro
+      - ./db/init/03-students-columns-migration.sql:/docker-entrypoint-initdb.d/03-students-columns-migration.sql:ro
+      - ./db/init/02-assignments.sql:/docker-entrypoint-initdb.d/04-assignments.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
@@ -580,3 +588,4 @@ services:
 volumes:
   node_modules:
   postgres-data:
+  uploads-data:

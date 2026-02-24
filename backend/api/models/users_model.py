@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import datetime
@@ -51,6 +51,25 @@ class Users(Base):
     textbook_markers: Mapped[list['TextbookMarkers']] = relationship('TextbookMarkers', back_populates='user')
     student: Mapped[Optional['Students']] = relationship('Students', back_populates='user', uselist=False)
     exercise_sessions: Mapped[list['ExerciseSessions']] = relationship('ExerciseSessions', back_populates='user')
+    access_histories: Mapped[list['AccessHistories']] = relationship('AccessHistories', back_populates='user')
+
+class AccessHistories(Base):
+    __tablename__ = 'access_histories'
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['public.users.id'], ondelete='CASCADE', name='access_histories_user_id_fkey'),
+        PrimaryKeyConstraint('id', name='access_histories_pkey'),
+        {'comment': 'アクセス履歴', 'schema': 'public'}
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    access_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    page: Mapped[str] = mapped_column(String(255), nullable=False)
+    time: Mapped[int] = mapped_column(Integer, nullable=False)
+    details: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(True), server_default=text('CURRENT_TIMESTAMP'))
+
+    user: Mapped['Users'] = relationship('Users', back_populates='access_histories')
 
 
 class Roles(Base):
@@ -80,8 +99,11 @@ class Students(Base):
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     grade: Mapped[Optional[int]] = mapped_column(Integer)
     department: Mapped[Optional[str]] = mapped_column(String(255))
+    student_number: Mapped[Optional[str]] = mapped_column(String(64))
     class_number: Mapped[Optional[str]] = mapped_column(String(255))
+    class_roster_number: Mapped[Optional[str]] = mapped_column(String(64))
     points: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text('0'))
+    login_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text('0'))
     student_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     user: Mapped['Users'] = relationship('Users', back_populates='student', uselist=False)

@@ -7,10 +7,40 @@ const apiClient = axios.create({
 	withCredentials: true,
 });
 
+const SESSION_CACHE_MS = 60 * 1000;
+let cachedAccessToken: string | null = null;
+let lastSessionFetchedAt = 0;
+let sessionPromise: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
+
+const getAccessTokenCached = async (forceRefresh = false) => {
+	const now = Date.now();
+	if (
+		!forceRefresh &&
+		cachedAccessToken &&
+		now - lastSessionFetchedAt < SESSION_CACHE_MS
+	) {
+		return cachedAccessToken;
+	}
+
+	if (!sessionPromise) {
+		sessionPromise = getSession()
+			.then((session) => {
+				cachedAccessToken = session?.accessToken ?? null;
+				lastSessionFetchedAt = Date.now();
+				return session;
+			})
+			.finally(() => {
+				sessionPromise = null;
+			});
+	}
+
+	const session = await sessionPromise;
+	return session?.accessToken ?? null;
+};
+
 // ✅ リクエスト前に Authorization ヘッダを注入
 apiClient.interceptors.request.use(async (cfg) => {
-	const session = await getSession();
-	const token = session?.accessToken;
+	const token = await getAccessTokenCached();
 
 	if (token) {
 		cfg.headers.Authorization = `Bearer ${token}`;
@@ -42,8 +72,9 @@ apiClient.interceptors.response.use(
 				}
 
 				// 新しいトークンでリトライ
-				if (session?.accessToken) {
-					originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
+				const token = await getAccessTokenCached(true);
+				if (token) {
+					originalRequest.headers.Authorization = `Bearer ${token}`;
 					return apiClient(originalRequest);
 				}
 			} catch (refreshError) {

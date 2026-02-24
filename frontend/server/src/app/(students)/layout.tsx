@@ -15,7 +15,7 @@ import {
 	ShieldQuestion,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useEffect, useState } from "react";
 import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -72,23 +72,28 @@ const sidebarGroups: SidebarGroups[] = [
 const StudentBreadcrumb = memo(() => {
 	const pathname = usePathname();
 	const router = useRouter();
-
-	if (pathname === "/home") return null;
-
+	const [courseId, setCourseId] = useState<string | null>(null);
+	const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
 	const paths = pathname.split("/").filter(Boolean);
 
-	// /lesson/[lesson_id]/[page] の場合、course_idはクエリや状態管理から取得する必要があるが、
-	// ここではURLの遷移順を優先し、コースIDを仮にlocalStorageやセッション等から取得する想定で記述
-	// 実際の運用ではpropsやcontext等でcourse_idを渡すことを推奨
-	let courseId;
-	if (paths[0] === "lesson" && typeof window !== "undefined") {
-		courseId = window.sessionStorage.getItem("currentCourseId");
-	} else if (paths[0] === "course" && paths[1]) {
-		courseId = paths[1];
-		if (typeof window !== "undefined") {
-			window.sessionStorage.setItem("currentCourseId", courseId);
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const currentPaths = pathname.split("/").filter(Boolean);
+
+		// URLから必要なIDを同期し、レンダー時の直接参照を避ける
+		if (currentPaths[0] === "course" && currentPaths[1]) {
+			window.sessionStorage.setItem("currentCourseId", currentPaths[1]);
 		}
-	}
+		if (currentPaths[0] === "lesson" && currentPaths[1] && currentPaths[2]) {
+			window.sessionStorage.setItem("currentCourseId", currentPaths[1]);
+			window.sessionStorage.setItem("currentLessonId", currentPaths[2]);
+		}
+
+		setCourseId(window.sessionStorage.getItem("currentCourseId"));
+		setCurrentLessonId(window.sessionStorage.getItem("currentLessonId"));
+	}, [pathname]);
+
+	if (pathname === "/home") return null;
 
 	return (
 		<div className="bg-white border-b border-gray-200 shadow-sm">
@@ -110,13 +115,31 @@ const StudentBreadcrumb = memo(() => {
 							<Home className="size-4" />
 							ホーム
 						</button>
-						{/* /course/[course_id] の場合（教科書ページは含めない） */}
+						{/* /course/[course_id] の場合（課題ページは含めない） */}
 						{paths[0] === "course" && paths[1] && paths.length === 2 && (
 							<>
 								<ChevronRight className="size-4 mx-2" />
 								<span className="flex items-center gap-1 text-gray-800 font-medium">
 									<Book className="size-4" />
 									コース
+								</span>
+							</>
+						)}
+						{/* /course/[course_id]/assignments の場合 */}
+						{paths[0] === "course" && paths[1] && paths[2] === "assignments" && (
+							<>
+								<ChevronRight className="size-4 mx-2" />
+								<button
+									onClick={() => router.push(`/course/${paths[1]}`)}
+									className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+								>
+									<Book className="size-4" />
+									コース
+								</button>
+								<ChevronRight className="size-4 mx-2" />
+								<span className="flex items-center gap-1 text-gray-800 font-medium">
+									<FileText className="size-4" />
+									課題提出
 								</span>
 							</>
 						)}
@@ -149,24 +172,21 @@ const StudentBreadcrumb = memo(() => {
 									<Book className="size-4" />
 									コース
 								</button>
-								{/* 教科書ページへのリンク（sessionStorageからlesson_id取得） */}
-								{typeof window !== "undefined" &&
-									window.sessionStorage.getItem("currentLessonId") && (
-										<>
-											<ChevronRight className="size-4 mx-2" />
-											<button
-												onClick={() =>
-													router.push(
-														`/lesson/${window.sessionStorage.getItem("currentLessonId")}/1`,
-													)
-												}
-												className="flex items-center gap-1 hover:text-gray-700 transition-colors"
-											>
-												<FileText className="size-4" />
-												教科書ページ
-											</button>
-										</>
-									)}
+								{/* 教科書ページへのリンク（sessionStorageから取得したIDを使用） */}
+								{courseId && currentLessonId && (
+									<>
+										<ChevronRight className="size-4 mx-2" />
+										<button
+											onClick={() =>
+												router.push(`/lesson/${courseId}/${currentLessonId}/1`)
+											}
+											className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+										>
+											<FileText className="size-4" />
+											教科書ページ
+										</button>
+									</>
+								)}
 								<ChevronRight className="size-4 mx-2" />
 								<span className="flex items-center gap-1 text-gray-800 font-medium">
 									<ListChecks className="size-4" />
@@ -189,24 +209,21 @@ const StudentBreadcrumb = memo(() => {
 										<Book className="size-4" />
 										コース
 									</button>
-									{/* 教科書ページへのリンク（sessionStorageからlesson_id取得） */}
-									{typeof window !== "undefined" &&
-										window.sessionStorage.getItem("currentLessonId") && (
-											<>
-												<ChevronRight className="size-4 mx-2" />
-												<button
-													onClick={() =>
-														router.push(
-															`/lesson/${window.sessionStorage.getItem("currentLessonId")}/1`,
-														)
-													}
-													className="flex items-center gap-1 hover:text-gray-700 transition-colors"
-												>
-													<FileText className="size-4" />
-													教科書ページ
-												</button>
-											</>
-										)}
+									{/* 教科書ページへのリンク（sessionStorageから取得したIDを使用） */}
+									{courseId && currentLessonId && (
+										<>
+											<ChevronRight className="size-4 mx-2" />
+											<button
+												onClick={() =>
+													router.push(`/lesson/${courseId}/${currentLessonId}/1`)
+												}
+												className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+											>
+												<FileText className="size-4" />
+												教科書ページ
+											</button>
+										</>
+									)}
 									<ChevronRight className="size-4 mx-2" />
 									<button
 										onClick={() =>
@@ -240,24 +257,21 @@ const StudentBreadcrumb = memo(() => {
 										<Book className="size-4" />
 										コース
 									</button>
-									{/* 教科書ページへのリンク（sessionStorageからlesson_id取得） */}
-									{typeof window !== "undefined" &&
-										window.sessionStorage.getItem("currentLessonId") && (
-											<>
-												<ChevronRight className="size-4 mx-2" />
-												<button
-													onClick={() =>
-														router.push(
-															`/lesson/${window.sessionStorage.getItem("currentLessonId")}/1`,
-														)
-													}
-													className="flex items-center gap-1 hover:text-gray-700 transition-colors"
-												>
-													<FileText className="size-4" />
-													教科書ページ
-												</button>
-											</>
-										)}
+									{/* 教科書ページへのリンク（sessionStorageから取得したIDを使用） */}
+									{courseId && currentLessonId && (
+										<>
+											<ChevronRight className="size-4 mx-2" />
+											<button
+												onClick={() =>
+													router.push(`/lesson/${courseId}/${currentLessonId}/1`)
+												}
+												className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+											>
+												<FileText className="size-4" />
+												教科書ページ
+											</button>
+										</>
+									)}
 									<ChevronRight className="size-4 mx-2" />
 									<button
 										onClick={() =>
@@ -329,7 +343,7 @@ const StudentBreadcrumb = memo(() => {
 	);
 });
 
-export const StudentLayoutInner = memo(
+const StudentLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
 			<div className="flex h-screen pt-16">
@@ -345,7 +359,7 @@ export const StudentLayoutInner = memo(
 	},
 );
 
-export const StudentLayout = memo(({ children }: { children: ReactNode }) => {
+const StudentLayout = memo(({ children }: { children: ReactNode }) => {
 	return (
 		<SidebarProvider defaultOpen={true}>
 			<div className="flex flex-col min-h-screen w-full">

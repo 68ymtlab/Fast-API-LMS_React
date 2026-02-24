@@ -31,6 +31,10 @@ backend/test_router.js
 volumes/db/init/data/*
 !volumes/db/init/data/.gitkeep
 
+# --- アップロード画像 (Dockerで保存された画像は除外、.gitkeep は保持) ---
+backend/static/images/**
+!backend/static/images/**/.gitkeep
+
 # --- Certificates ---
 *.cert
 *.key

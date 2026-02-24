@@ -5,7 +5,8 @@
 データベースへのCRUD操作（作成、読み取り、更新、削除）を担うリポジトリを定義します。
 """
 from typing import Sequence, Optional, List
-from sqlalchemy import select, update, desc, Row
+from sqlalchemy import select, update, desc, Row, func
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.repositories.base import BaseRepository
@@ -13,6 +14,11 @@ from api.models import users_model, progress_model
 import api.schemas.progress as progress_schema
 
 class ProgressRepository(BaseRepository):
+    @staticmethod
+    def _is_missing_goals_table(error: ProgrammingError) -> bool:
+        """goals テーブル未作成時のエラーかどうかを判定する。"""
+        return 'relation "public.goals" does not exist' in str(error)
+
     """進捗関連のデータ操作をまとめたリポジトリクラス"""
 
     #
@@ -39,7 +45,13 @@ class ProgressRepository(BaseRepository):
             .where(progress_model.Goals.user_id == user_id, progress_model.Goals.is_disabled == False)
             .order_by(progress_model.Goals.created_at.desc())
         )
-        return (await self.db.execute(stmt)).scalars().all()
+        try:
+            return (await self.db.execute(stmt)).scalars().all()
+        except ProgrammingError as e:
+            # 旧DB（goals未作成）ではホーム画面遷移時に500になるため空配列を返す
+            if self._is_missing_goals_table(e):
+                return []
+            raise
 
     async def update_goal(self, *, goal: progress_model.Goals, goal_in: progress_schema.GoalUpdate) -> progress_model.Goals:
         """目標情報を更新します。主に達成状況の更新に用います。"""
@@ -81,7 +93,7 @@ class ProgressRepository(BaseRepository):
         stmt = (
             update(users_model.Students)
             .where(users_model.Students.user_id == user_id)
-            .values(point=new_point)
+            .values(points=new_point)
         )
         res = await self.db.execute(stmt)
         return res.rowcount > 0
@@ -91,10 +103,10 @@ class ProgressRepository(BaseRepository):
         stmt = (
             select(
                 users_model.Users.username.label("student_id"), 
-                users_model.Students.point
+                users_model.Students.points.label("point")
             )
             .join(users_model.Students, users_model.Students.user_id == users_model.Users.id)
-            .order_by(desc(users_model.Students.point))
+            .order_by(desc(users_model.Students.points))
             .limit(limit)
         )
         res = await self.db.execute(stmt)
@@ -117,4 +129,9 @@ class ProgressRepository(BaseRepository):
     async def list_all_goals_for_logs(self) -> List[progress_model.Goals]:
         """（ログ用）全目標の履歴を取得します。"""
         stmt = select(progress_model.Goals).order_by(progress_model.Goals.id)
-        return (await self.db.execute(stmt)).scalars().all()
+        try:
+            return (await self.db.execute(stmt)).scalars().all()
+        except ProgrammingError as e:
+            if self._is_missing_goals_table(e):
+                return []
+            raise

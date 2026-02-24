@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertCircle, CheckCircle, Edit, Eye, Save } from "lucide-react";
+import { AlertCircle, CheckCircle, Edit, Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { MathJax } from "@/components/shared/MathJax";
+import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,62 +17,60 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
 
-interface ContentBlock {
-	page: number;
-	content: string;
-	content_id: number;
-	origin_content_id: number;
-}
-
-interface WeekContent {
-	block: ContentBlock[];
-	image: Array<{ id: number; name: string; id_in_yml: string }>;
-	flow: Array<{ id: number; id_in_yml: string }>;
-	page: Array<{ week_num: number; order: number; week_id: number }>;
+interface LessonPage {
+	id: number;
+	page_number: number;
+	title?: string | null;
+	raw_content_body?: string | null;
+	rendered_content_body?: string | null;
 }
 
 interface WeekContentEditorProps {
 	courseId: string;
-	weekId: string;
+	weekId: string; // 実体は lesson_item_id
 }
 
-function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
+function WeekContentEditor({ courseId: _courseId, weekId }: WeekContentEditorProps) {
 	const [loading, setLoading] = useState(false);
 	const [initialLoading, setInitialLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-	const [weekContent, setWeekContent] = useState<WeekContent | null>(null);
+	const [pages, setPages] = useState<LessonPage[]>([]);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [content, setContent] = useState("");
-	const [previewContent, setPreviewContent] = useState("");
+	const [editingBlockIndex, setEditingBlockIndex] = useState<number | null>(null);
+	const [blockDraft, setBlockDraft] = useState("");
+	const [isFullEditMode, setIsFullEditMode] = useState(false);
 
 	useEffect(() => {
 		fetchWeekContent();
-	}, [courseId, weekId]);
+	}, [weekId]);
 
 	useEffect(() => {
-		if (weekContent && weekContent.block.length > 0) {
-			const pageContent = weekContent.block.find(
-				(block) => block.page === currentPage,
-			);
-			if (pageContent) {
-				setContent(pageContent.content);
-				updatePreview(pageContent.content);
-			}
+		const pageContent = pages.find((page) => page.page_number === currentPage);
+		if (pageContent) {
+			const body =
+				pageContent.rendered_content_body || pageContent.raw_content_body || "";
+			setContent(body);
+			setEditingBlockIndex(null);
+			setBlockDraft("");
+			setIsFullEditMode(false);
 		}
-	}, [currentPage, weekContent]);
+	}, [currentPage, pages]);
 
 	const fetchWeekContent = async () => {
 		try {
 			setInitialLoading(true);
-			const response = await axios.get(
-				`/get_week_origin_content/${courseId}/${weekId}`,
+			const response = await axios.get(`/lesson-items/${weekId}/lesson-pages`);
+			const sorted = (response.data as LessonPage[]).sort(
+				(a, b) => a.page_number - b.page_number,
 			);
-			setWeekContent(response.data);
+			setPages(sorted);
 
-			if (response.data.block.length > 0) {
-				setContent(response.data.block[0].content);
-				updatePreview(response.data.block[0].content);
+			if (sorted.length > 0) {
+				setCurrentPage(sorted[0].page_number);
+				const body = sorted[0].rendered_content_body || sorted[0].raw_content_body || "";
+				setContent(body);
 			}
 		} catch (error) {
 			console.error("Error fetching week content:", error);
@@ -82,107 +80,53 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
 		}
 	};
 
-	const contentReplace = (content: string): string => {
-		if (!weekContent) return content;
-
-		let processedContent = content;
-
-		// Flow links replacement
-		weekContent.flow.forEach((flow) => {
-			const regex1 = new RegExp(
-				`\\[(.*?)\\]\\s*\\(\\s*flow/${flow.id_in_yml}\\s*\\)`,
-				"g",
-			);
-			processedContent = processedContent.replace(
-				regex1,
-				`<div class="p-3 border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg my-2"><p><a href="/flow/${flow.id}" class="text-blue-600 hover:text-blue-800">$1</a></p></div>`,
-			);
-		});
-
-		// Image replacement
-		weekContent.image.forEach((image) => {
-			const regex2 = new RegExp(`\\(\\s*image/${image.name}\\s*\\)`, "g");
-			processedContent = processedContent.replace(
-				regex2,
-				`![contentsimage](/api/get_image/${image.id})`,
-			);
-
-			const regex3 = new RegExp(`\\[\\s*image/${image.name}(.*?)\\s*\\]`, "g");
-			processedContent = processedContent.replace(regex3, (_, optionsStr) => {
-				const widthMatch = optionsStr.match(/width=([0-9]+)/);
-				const heightMatch = optionsStr.match(/height=([0-9]+)/);
-
-				const widthAttr = widthMatch ? ` width="${widthMatch[1]}"` : "";
-				const heightAttr = heightMatch ? ` height="${heightMatch[1]}"` : "";
-
-				return `<img src="/api/get_image/${image.id}"${widthAttr}${heightAttr} class="max-w-full h-auto" />`;
-			});
-		});
-
-		// Page links replacement
-		const weekNumOrderToWeekId: { [key: string]: number } = {};
-		weekContent.page.forEach((item) => {
-			const key = `${item.week_num}_${item.order}`;
-			weekNumOrderToWeekId[key] = item.week_id;
-		});
-
-		const regex4 = /\[(.*?)\]\s*\(\s*page\/(\d+)\/(\d+)\/(\d+)\s*\)/g;
-		processedContent = processedContent.replace(
-			regex4,
-			(match, linkText, weekNum, order, page) => {
-				const key = `${weekNum}_${order}`;
-				const weekIdToUse = weekNumOrderToWeekId[key] || weekNum;
-				return `<div class="p-3 border-2 border-dashed border-green-300 bg-green-50 rounded-lg my-2"><p><a href="/../${weekIdToUse}/${page}" class="text-green-600 hover:text-green-800">${linkText}</a></p></div>`;
-			},
-		);
-
-		return processedContent;
-	};
-
-	const updatePreview = (rawContent: string) => {
-		// 学生側と同じシンプルな実装に変更
-		const replacedContent = contentReplace(rawContent);
-		setPreviewContent(replacedContent);
-	};
-
 	const handleContentChange = (newContent: string) => {
 		setContent(newContent);
-		updatePreview(newContent); // リアルタイムでプレビューを更新
+	};
+
+	const splitContentBlocks = (rawContent: string): string[] => {
+		const normalized = rawContent.replace(/\r\n/g, "\n").trim();
+		if (!normalized) return [""];
+		return normalized.split(/\n{2,}/);
+	};
+
+	const blocks = splitContentBlocks(content);
+
+	const startBlockEdit = (index: number) => {
+		setEditingBlockIndex(index);
+		setBlockDraft(blocks[index] ?? "");
+	};
+
+	const saveBlockEdit = () => {
+		if (editingBlockIndex === null) return;
+		const newBlocks = [...blocks];
+		newBlocks[editingBlockIndex] = blockDraft;
+		handleContentChange(newBlocks.join("\n\n"));
+		setEditingBlockIndex(null);
+		setBlockDraft("");
+	};
+
+	const cancelBlockEdit = () => {
+		setEditingBlockIndex(null);
+		setBlockDraft("");
 	};
 
 	const handleUpdate = async () => {
-		if (!weekContent) return;
-
-		const currentBlock = weekContent.block.find(
-			(block) => block.page === currentPage,
-		);
-		if (!currentBlock) return;
+		const current = pages.find((page) => page.page_number === currentPage);
+		if (!current) return;
 
 		setLoading(true);
 		setErrorMessage("");
 
 		try {
-			const updateData = {
-				course_id: courseId,
-				week_id: weekId,
-				content_id: currentBlock.content_id,
-				origin_content_id: currentBlock.origin_content_id,
+			await axios.put(`/lesson-pages/${current.id}/content`, {
 				content: content,
-			};
-
-			const response = await axios.post("/update_week_content", updateData);
-
-			if (response.data.success) {
-				setShowSuccessDialog(true);
-				await fetchWeekContent(); // データを再取得
-				setTimeout(() => {
-					setShowSuccessDialog(false);
-				}, 2000);
-			} else {
-				setErrorMessage(
-					response.data.error_msg || "コンテンツの更新に失敗しました",
-				);
-			}
+			});
+			setShowSuccessDialog(true);
+			await fetchWeekContent();
+			setTimeout(() => {
+				setShowSuccessDialog(false);
+			}, 2000);
 		} catch (error: any) {
 			console.error("Error updating content:", error);
 			setErrorMessage("コンテンツの更新に失敗しました");
@@ -199,7 +143,7 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
 		);
 	}
 
-	if (!weekContent || weekContent.block.length === 0) {
+	if (pages.length === 0) {
 		return (
 			<Card>
 				<CardContent className="text-center py-8">
@@ -229,24 +173,34 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
 						className="w-full"
 					>
 						<TabsList className="inline-flex h-auto w-auto">
-							{weekContent.block.map((block) => (
+							{pages.map((page) => (
 								<TabsTrigger
-									key={block.page}
-									value={block.page.toString()}
+									key={page.id}
+									value={page.page_number.toString()}
 									className="px-4 py-2"
 								>
-									ページ {block.page}
+									ページ {page.page_number}
 								</TabsTrigger>
 							))}
 						</TabsList>
 
-						{weekContent.block.map((block) => (
+						{pages.map((page) => (
 							<TabsContent
-								key={block.page}
-								value={block.page.toString()}
+								key={page.id}
+								value={page.page_number.toString()}
 								className="mt-6"
 							>
 								<div className="flex justify-center gap-3 mb-4">
+									<Button
+										variant="outline"
+										onClick={() => {
+											setIsFullEditMode((prev) => !prev);
+											setEditingBlockIndex(null);
+											setBlockDraft("");
+										}}
+									>
+										{isFullEditMode ? "レンダリング表示に戻す" : "全文編集モード"}
+									</Button>
 									<Button
 										onClick={handleUpdate}
 										disabled={loading}
@@ -257,12 +211,11 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
 									</Button>
 								</div>
 
-								<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-									{/* Editor */}
+								{isFullEditMode ? (
 									<div className="space-y-2">
 										<h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
 											<Edit className="h-4 w-4" />
-											編集エリア
+											全文編集
 										</h3>
 										<Textarea
 											value={content}
@@ -271,24 +224,60 @@ function WeekContentEditor({ courseId, weekId }: WeekContentEditorProps) {
 											placeholder="コンテンツを入力してください..."
 										/>
 									</div>
-
-									{/* Preview */}
-									<div className="space-y-2">
-										<h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-											<Eye className="h-4 w-4" />
-											プレビュー（学生表示）
-										</h3>
-										<div className="border border-gray-200 rounded-lg min-h-[600px] bg-white overflow-auto">
-											<div className="container mx-auto p-0">
-												<div className="min-h-[300px]">
-													<div className="p-4">
-														<MathJax text={previewContent} />
-													</div>
+								) : (
+									<div className="space-y-4">
+										<p className="text-sm text-gray-600">
+											レンダリング表示です。編集したい段落を選ぶと、その部分だけ編集できます。
+										</p>
+										<MathJaxSetup>
+											{blocks.map((block, index) => (
+												<div
+													key={`${page.id}-${index}`}
+													className={
+														editingBlockIndex === index
+															? "border border-gray-200 rounded-lg bg-white"
+															: "rounded-lg bg-white"
+													}
+												>
+													{editingBlockIndex === index ? (
+														<div className="p-4 space-y-3">
+															<div className="space-y-2">
+																<p className="text-xs text-gray-500">
+																	プレビュー（リアルタイム）
+																</p>
+																<div className="min-h-[180px] rounded-md border border-gray-200 bg-gray-50 p-3 overflow-auto">
+																	<MathJax text={blockDraft} />
+																</div>
+															</div>
+															<div className="space-y-2">
+																<p className="text-xs text-gray-500">編集</p>
+																<Textarea
+																	value={blockDraft}
+																	onChange={(e) => setBlockDraft(e.target.value)}
+																	className="min-h-[220px] font-mono text-sm"
+																/>
+															</div>
+															<div className="flex justify-end gap-2">
+																<Button variant="outline" onClick={cancelBlockEdit}>
+																	キャンセル
+																</Button>
+																<Button onClick={saveBlockEdit}>この部分を適用</Button>
+															</div>
+														</div>
+													) : (
+														<button
+															type="button"
+															onClick={() => startBlockEdit(index)}
+															className="w-full text-left p-4 hover:bg-gray-50 transition-colors rounded-lg"
+														>
+															<MathJax text={block} />
+														</button>
+													)}
 												</div>
-											</div>
-										</div>
+											))}
+										</MathJaxSetup>
 									</div>
-								</div>
+								)}
 							</TabsContent>
 						))}
 					</Tabs>

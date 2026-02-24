@@ -14,9 +14,46 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import axios from "@/lib/axios";
+
+type UserProfile = {
+	username?: string | null;
+	display_name?: string | null;
+	email?: string | null;
+	role?: {
+		name?: string | null;
+	};
+};
 
 function StudentSettingsPage() {
 	const router = useRouter();
+	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchUserProfile = async () => {
+			try {
+				const res = await axios.get("/users/me");
+				setUserProfile(res.data);
+			} catch (error) {
+				console.error("ユーザー情報の取得に失敗しました:", error);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchUserProfile();
+	}, []);
+
+	const roleName = userProfile?.role?.name ?? "student";
+	const roleLabel =
+		roleName === "student"
+			? "Student"
+			: roleName === "teacher"
+				? "Teacher"
+				: roleName === "admin"
+					? "Admin"
+					: roleName;
 
 	return (
 		<>
@@ -44,7 +81,11 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ユーザー名
 											</h4>
-											<p className="text-lg">username</p>
+											<p className="text-lg">
+												{loading
+													? "読み込み中..."
+													: (userProfile?.username ?? "-")}
+											</p>
 										</div>
 									</div>
 
@@ -54,7 +95,11 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												メールアドレス
 											</h4>
-											<p className="text-lg">email@example.com</p>
+											<p className="text-lg">
+												{loading
+													? "読み込み中..."
+													: (userProfile?.email ?? "-")}
+											</p>
 										</div>
 									</div>
 
@@ -64,7 +109,7 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ユーザー種別
 											</h4>
-											<p className="text-lg">Student</p>
+											<p className="text-lg">{roleLabel}</p>
 										</div>
 									</div>
 
@@ -74,7 +119,13 @@ function StudentSettingsPage() {
 											<h4 className="font-semibold text-sm text-gray-600">
 												ニックネーム
 											</h4>
-											<p className="text-lg">nickname</p>
+											<p className="text-lg">
+												{loading
+													? "読み込み中..."
+													: (userProfile?.display_name ??
+														userProfile?.username ??
+														"-")}
+											</p>
 										</div>
 										<Button variant="ghost" size="sm" className="ml-auto">
 											<Edit className="h-4 w-4" />
@@ -101,7 +152,7 @@ function StudentSettingsPage() {
 									</div>
 									<Button
 										variant="outline"
-										onClick={() => console.log("handlePasswordUpdate")}
+									onClick={() => router.push("/settings/password")}
 									>
 										<Edit className="h-4 w-4 mr-2" />
 										パスワード変更

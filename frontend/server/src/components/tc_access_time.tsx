@@ -46,6 +46,10 @@ const TcAccessTime: FC<TcAccessTimeProps> = ({
 			};
 
 			axiosInstance.post("/add_access_history", params).catch((error) => {
+				// 旧エンドポイント未実装環境では404を許容し、画面のノイズを避ける
+				if ((error as { response?: { status?: number } })?.response?.status === 404) {
+					return;
+				}
 				console.error("Error posting access time:", error);
 			});
 		};

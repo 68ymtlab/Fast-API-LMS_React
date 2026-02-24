@@ -16,7 +16,7 @@ import {
 	Filter,
 	TrendingUp,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Bar } from "react-chartjs-2";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -49,17 +49,52 @@ ChartJS.register(
 	Legend,
 );
 
-interface ExerciseGrade {
-	flow_session_grade: number;
-	[key: string]: any;
+interface ExerciseSessionSummary {
+	session_id: number;
+	exercise_set_id: number;
+	exercise_set_title: string;
+	score: number | null;
+	started_at: string;
+	completed_at: string | null;
 }
 
-interface ExerciseData {
-	[exerciseName: string]: ExerciseGrade[];
+interface ExerciseSessionStudentInfo {
+	user_id: number;
+	username: string | null;
+	display_name: string | null;
+	email: string;
+	grade: number | null;
+	department: string | null;
+	student_number: string | null;
+	class_number: string | null;
+	class_roster_number: string | null;
 }
 
-interface ContentData {
-	[key: string]: ExerciseData[];
+interface StudentExerciseSessions {
+	student: ExerciseSessionStudentInfo;
+	sessions: ExerciseSessionSummary[];
+}
+
+interface CourseExerciseSet {
+	id: number;
+	title: string;
+	description?: string | null;
+	course_id: number;
+	question_ids: number[];
+	due_date?: string | null;
+}
+
+interface CourseEnrolledStudent {
+	user_id: number;
+	username: string | null;
+	display_name: string | null;
+	email: string | null;
+	grade: number | null;
+	department: string | null;
+	student_number: string | null;
+	class_number: string | null;
+	class_roster_number: string | null;
+	enrolled_at: string;
 }
 
 interface Statistics {
@@ -71,20 +106,20 @@ interface Statistics {
 }
 
 const colors = [
-	"#0000dd", // 青
-	"#dddd00", // 黄色
-	"#aa0000", // 赤
-	"#008000", // 緑
-	"#ffa500", // オレンジ
-	"#800080", // 紫
-	"#aa00aa", // ピンク
-	"#00ffff", // シアン
-	"#98d98e", // 若草
-	"#a59aca", // すみれ
-	"#762f07", // 栗色
-	"#bce2e8", // 水色
-	"#928c36", // 鶯色
-	"#f8b500", // 山吹
+	"#0000dd",
+	"#dddd00",
+	"#aa0000",
+	"#008000",
+	"#ffa500",
+	"#800080",
+	"#aa00aa",
+	"#00ffff",
+	"#98d98e",
+	"#a59aca",
+	"#762f07",
+	"#bce2e8",
+	"#928c36",
+	"#f8b500",
 	"#f6bfbc",
 ];
 
@@ -99,29 +134,46 @@ const ranges = [
 ];
 
 function CourseScorePage() {
-	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
-	const [apiResponseData, setApiResponseData] = useState<ContentData[]>([]);
+	const [apiResponseData, setApiResponseData] = useState<StudentExerciseSessions[]>(
+		[],
+	);
+	const [exerciseSets, setExerciseSets] = useState<CourseExerciseSet[]>([]);
+	const [enrolledStudents, setEnrolledStudents] = useState<
+		CourseEnrolledStudent[]
+	>([]);
 	const [exerciseList, setExerciseList] = useState<string[]>([]);
 	const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
 	const [showFilterDialog, setShowFilterDialog] = useState(false);
 
 	useEffect(() => {
 		if (params.course_id) {
-			fetchScoreData();
+			void fetchScoreData();
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [params.course_id]);
 
 	const fetchScoreData = async () => {
 		try {
 			setLoading(true);
 			setErrorMessage("");
-			const response = await axios.get(
-				`/get_flow_session_teacher_score/${params.course_id}`,
-			);
-			setApiResponseData(response.data);
+			const courseId = params.course_id as string;
+
+			const [sessionsRes, setsRes, enrollRes] = await Promise.all([
+				axios.get<StudentExerciseSessions[]>(
+					`/courses/${courseId}/exercise-sessions/teacher`,
+				),
+				axios.get<CourseExerciseSet[]>(`/courses/${courseId}/exercise-sets`),
+				axios.get<CourseEnrolledStudent[]>(
+					`/courses/${courseId}/enrollments`,
+				),
+			]);
+
+			setApiResponseData(sessionsRes.data ?? []);
+			setExerciseSets(setsRes.data ?? []);
+			setEnrolledStudents(enrollRes.data ?? []);
 		} catch (error) {
 			console.error("Error fetching score data:", error);
 			setErrorMessage("成績データの取得に失敗しました");
@@ -131,20 +183,19 @@ function CourseScorePage() {
 	};
 
 	const extractGradesByExercise = (
-		data: ContentData[],
+		data: StudentExerciseSessions[],
 	): { [exerciseName: string]: number[] } => {
 		const gradesByExercise: { [exerciseName: string]: number[] } = {};
 
-		data.forEach((content) => {
-			Object.values(content).forEach((exercises) => {
-				exercises.forEach((exercise) => {
-					Object.keys(exercise).forEach((exerciseName) => {
-						const grades = exercise[exerciseName].map(
-							(item) => item.flow_session_grade,
-						);
-						gradesByExercise[exerciseName] = grades;
-					});
-				});
+		data.forEach((entry) => {
+			entry.sessions.forEach((session) => {
+				if (session.score == null) return;
+				const exerciseName =
+					session.exercise_set_title || `演習セット #${session.exercise_set_id}`;
+				if (!gradesByExercise[exerciseName]) {
+					gradesByExercise[exerciseName] = [];
+				}
+				gradesByExercise[exerciseName].push(session.score);
 			});
 		});
 
@@ -191,7 +242,6 @@ function CourseScorePage() {
 			stats[exerciseName] = calculateStatistics(gradesByExercise[exerciseName]);
 		});
 
-		// Update exercise list
 		const currentExerciseList = Object.keys(gradesByExercise);
 		if (JSON.stringify(currentExerciseList) !== JSON.stringify(exerciseList)) {
 			setExerciseList(currentExerciseList);
@@ -253,6 +303,7 @@ function CourseScorePage() {
 			},
 			tooltip: {
 				callbacks: {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					label: (context: any) =>
 						`${context.dataset.label}: ${context.parsed.y}人`,
 				},
@@ -297,12 +348,37 @@ function CourseScorePage() {
 		const link = document.createElement("a");
 		const url = URL.createObjectURL(blob);
 		link.setAttribute("href", url);
-		link.setAttribute("download", `course_${params.course_id}_scores.csv`);
+		link.setAttribute(
+			"download",
+			`course_${params.course_id as string}_scores.csv`,
+		);
 		link.style.visibility = "hidden";
 		document.body.appendChild(link);
 		link.click();
 		document.body.removeChild(link);
 	};
+
+	const flattenedSessions = useMemo(() => {
+		return apiResponseData.flatMap((entry) =>
+			entry.sessions.map((session) => ({
+				student: entry.student,
+				session,
+			})),
+		);
+	}, [apiResponseData]);
+
+	const sessionMap = useMemo(() => {
+		const map = new Map<string, ExerciseSessionSummary[]>();
+		for (const entry of apiResponseData) {
+			for (const session of entry.sessions) {
+				const key = `${entry.student.user_id}-${session.exercise_set_id}`;
+				const list = map.get(key) ?? [];
+				list.push(session);
+				map.set(key, list);
+			}
+		}
+		return map;
+	}, [apiResponseData]);
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -315,7 +391,7 @@ function CourseScorePage() {
 								成績管理
 							</CardTitle>
 							<CardDescription>
-								コース全体の学生成績を分析・管理できます
+								コース全体の学生成績と、各学生が解いた演習の状況を確認できます
 							</CardDescription>
 						</div>
 						<div className="flex items-center gap-2">
@@ -349,11 +425,10 @@ function CourseScorePage() {
 
 					{loading ? (
 						<div className="flex items-center justify-center py-16">
-							<div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+							<div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary" />
 						</div>
 					) : (
 						<div className="space-y-8">
-							{/* フィルター状態表示 */}
 							{selectedExercises.length > 0 && (
 								<Card className="bg-blue-50 border-blue-200">
 									<CardContent className="p-4">
@@ -383,7 +458,6 @@ function CourseScorePage() {
 								</Card>
 							)}
 
-							{/* グラフ */}
 							{Object.keys(exerciseStatistics).length > 0 ? (
 								<Card>
 									<CardContent className="p-6 flex justify-center">
@@ -401,7 +475,6 @@ function CourseScorePage() {
 								</Card>
 							)}
 
-							{/* 統計テーブル */}
 							{Object.keys(exerciseStatistics).length > 0 && (
 								<Card>
 									<CardHeader>
@@ -437,7 +510,9 @@ function CourseScorePage() {
 														([exerciseName, stats], index) => (
 															<tr
 																key={exerciseName}
-																className={`${index % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-gray-100 transition-colors`}
+																className={`${
+																	index % 2 === 0 ? "bg-gray-50" : "bg-white"
+																} hover:bg-gray-100 transition-colors`}
 															>
 																<td className="border border-gray-300 p-3 font-medium">
 																	{exerciseName}
@@ -474,12 +549,302 @@ function CourseScorePage() {
 									</CardContent>
 								</Card>
 							)}
+
+							{exerciseSets.length > 0 && enrolledStudents.length > 0 && (
+								<Card>
+									<CardHeader>
+										<CardTitle className="text-lg">
+											演習セット別の到達状況
+										</CardTitle>
+										<CardDescription>
+											コースを履修している全学生が、どの演習セットに挑戦したかを一覧で確認できます
+										</CardDescription>
+									</CardHeader>
+									<CardContent>
+										<div className="overflow-x-auto">
+											<table className="w-full border-collapse border border-gray-300 text-xs md:text-sm">
+												<thead>
+													<tr className="bg-gray-100">
+														<th className="border border-gray-300 p-2 text-left">
+															学生
+														</th>
+														<th className="border border-gray-300 p-2 text-left">
+															学籍情報
+														</th>
+														{exerciseSets.map((set) => (
+															<th
+																key={set.id}
+																className="border border-gray-300 p-2 text-center"
+															>
+																{set.title || `セット #${set.id}`}
+															</th>
+														))}
+													</tr>
+												</thead>
+												<tbody>
+													{enrolledStudents.map((student) => {
+														const label =
+															student.display_name ||
+															student.username ||
+															student.email ||
+															`ID: ${student.user_id}`;
+
+														const metaParts: string[] = [];
+														if (student.grade != null) {
+															metaParts.push(`${student.grade}年`);
+														}
+														if (student.department) {
+															metaParts.push(student.department);
+														}
+														if (student.class_number) {
+															metaParts.push(student.class_number);
+														}
+														if (student.student_number) {
+															metaParts.push(
+																`学籍番号: ${student.student_number}`,
+															);
+														}
+
+														return (
+															<tr key={student.user_id}>
+																<td className="border border-gray-300 p-2 align-top">
+																	<div className="flex flex-col">
+																		<span className="font-medium">
+																			{label}
+																		</span>
+																		{student.email && (
+																			<span className="text-[10px] text-gray-500">
+																				{student.email}
+																			</span>
+																		)}
+																	</div>
+																</td>
+																<td className="border border-gray-300 p-2 align-top">
+																	{metaParts.length > 0 ? (
+																		<div className="flex flex-col gap-0.5">
+																			{metaParts.map((part) => (
+																				<span
+																					key={`${student.user_id}-${part}`}
+																					className="text-[10px] text-gray-600"
+																				>
+																					{part}
+																				</span>
+																			))}
+																		</div>
+																	) : (
+																		<span className="text-[10px] text-gray-400">
+																			情報なし
+																		</span>
+																	)}
+																</td>
+																{exerciseSets.map((set) => {
+																	const key = `${student.user_id}-${set.id}`;
+																	const sessionsForCell =
+																		sessionMap.get(key) ?? [];
+
+																	if (sessionsForCell.length === 0) {
+																		return (
+																			<td
+																				key={key}
+																				className="border border-gray-300 p-2 text-center align-top"
+																			>
+																				<span className="inline-flex items-center justify-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500">
+																					未実施
+																				</span>
+																			</td>
+																		);
+																	}
+
+																	const scores = sessionsForCell
+																		.map((s) => s.score)
+																		.filter(
+																			(
+																				s,
+																			): s is number => s !== null,
+																		);
+																	const bestScore =
+																		scores.length > 0
+																			? Math.max(...scores)
+																			: null;
+																	const attempts =
+																		sessionsForCell.length;
+
+																	const lastStarted = sessionsForCell
+																		.map((s) => new Date(s.started_at).getTime())
+																		.reduce(
+																			(a, b) => Math.max(a, b),
+																			0,
+																		);
+
+																	return (
+																		<td
+																			key={key}
+																			className="border border-gray-300 p-2 text-center align-top"
+																		>
+																			<div className="flex flex-col items-center gap-0.5">
+																				<span className="text-[11px] font-semibold text-gray-900">
+																					{bestScore != null
+																						? `${bestScore.toFixed(1)}%`
+																						: "-"}
+																				</span>
+																				<span className="text-[10px] text-gray-500">
+																					{attempts}回
+																				</span>
+																				{lastStarted > 0 && (
+																					<span className="text-[9px] text-gray-400">
+																						最終:
+																						{" "}
+																						{new Date(
+																							lastStarted,
+																						).toLocaleDateString("ja-JP")}
+																					</span>
+																				)}
+																			</div>
+																		</td>
+																	);
+																})}
+															</tr>
+														);
+													})}
+												</tbody>
+											</table>
+										</div>
+									</CardContent>
+								</Card>
+							)}
+
+							<Card>
+								<CardHeader>
+									<CardTitle className="text-lg">
+										学生ごとの演習セッション一覧
+									</CardTitle>
+									<CardDescription>
+										どの学生がどの演習セットをいつ受験し、スコアがどうだったかを確認できます
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{flattenedSessions.length === 0 ? (
+										<p className="text-sm text-gray-500 text-center py-4">
+											演習セッションのデータがありません。
+										</p>
+									) : (
+										<div className="overflow-x-auto">
+											<table className="w-full border-collapse border border-gray-300 text-sm">
+												<thead>
+													<tr className="bg-gray-100">
+														<th className="border border-gray-300 p-2 text-left">
+															学生
+														</th>
+														<th className="border border-gray-300 p-2 text-left">
+															学籍情報
+														</th>
+														<th className="border border-gray-300 p-2 text-left">
+															演習セット
+														</th>
+														<th className="border border-gray-300 p-2 text-center">
+															スコア
+														</th>
+														<th className="border border-gray-300 p-2 text-left">
+															開始時刻
+														</th>
+														<th className="border border-gray-300 p-2 text-left">
+															完了時刻
+														</th>
+													</tr>
+												</thead>
+												<tbody>
+													{flattenedSessions.map(({ student, session }) => {
+														const exerciseName =
+															session.exercise_set_title ||
+															`演習セット #${session.exercise_set_id}`;
+														const started = new Date(
+															session.started_at,
+														).toLocaleString("ja-JP");
+														const completed = session.completed_at
+															? new Date(
+																	session.completed_at,
+																).toLocaleString("ja-JP")
+															: "-";
+
+														const studentLabel =
+															student.display_name ||
+															student.username ||
+															student.email;
+
+														const metaParts: string[] = [];
+														if (student.grade != null) {
+															metaParts.push(`${student.grade}年`);
+														}
+														if (student.department) {
+															metaParts.push(student.department);
+														}
+														if (student.class_number) {
+															metaParts.push(student.class_number);
+														}
+														if (student.student_number) {
+															metaParts.push(
+																`学籍番号: ${student.student_number}`,
+															);
+														}
+
+														return (
+															<tr key={`${student.user_id}-${session.session_id}`}>
+																<td className="border border-gray-300 p-2">
+																	<div className="flex flex-col">
+																		<span className="font-medium">
+																			{studentLabel}
+																		</span>
+																		<span className="text-xs text-gray-500">
+																			{student.email}
+																		</span>
+																	</div>
+																</td>
+																<td className="border border-gray-300 p-2">
+																	{metaParts.length > 0 ? (
+																		<div className="flex flex-col gap-0.5">
+																			{metaParts.map((part) => (
+																				<span
+																					key={`${student.user_id}-${part}`}
+																					className="text-xs text-gray-600"
+																				>
+																					{part}
+																				</span>
+																			))}
+																		</div>
+																	) : (
+																		<span className="text-xs text-gray-400">
+																			情報なし
+																		</span>
+																	)}
+																</td>
+																<td className="border border-gray-300 p-2">
+																	{exerciseName}
+																</td>
+																<td className="border border-gray-300 p-2 text-center">
+																	{session.score != null
+																		? `${session.score.toFixed(1)}%`
+																		: "-"}
+																</td>
+																<td className="border border-gray-300 p-2">
+																	{started}
+																</td>
+																<td className="border border-gray-300 p-2">
+																	{completed}
+																</td>
+															</tr>
+														);
+													})}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</CardContent>
+							</Card>
 						</div>
 					)}
 				</CardContent>
 			</Card>
 
-			{/* フィルターダイアログ */}
 			<Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
 				<DialogContent className="sm:max-w-[600px]">
 					<DialogHeader>

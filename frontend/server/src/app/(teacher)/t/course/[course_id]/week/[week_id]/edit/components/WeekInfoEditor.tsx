@@ -36,7 +36,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
-import WeekImageEditor from "./WeekImageEditor";
 
 const formSchema = z.object({
 	weekName: z
@@ -50,10 +49,15 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 interface WeekInfo {
-	week_name: string;
-	week_num: number;
-	order: number;
-	update_answer: boolean;
+	lesson_id: number;
+	title: string;
+	item_content_type: string;
+	display_order: number;
+	is_active: boolean;
+	description?: string | null;
+	item_resource_id?: number | null;
+	item_url?: string | null;
+	item_data_details?: Record<string, unknown> | null;
 }
 
 interface WeekInfoEditorProps {
@@ -87,14 +91,14 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 	const fetchWeekInfo = async () => {
 		try {
 			setInitialLoading(true);
-			const response = await axios.get(`/get_week/${weekId}`);
+			const response = await axios.get(`/lesson-item/${weekId}`);
 			const data = response.data;
 			setWeekInfo(data);
 
 			form.reset({
-				weekName: data.week_name,
-				weekNum: data.week_num,
-				order: data.order,
+				weekName: data.title ?? "",
+				weekNum: data.display_order ?? 1,
+				order: data.display_order ?? 1,
 			});
 		} catch (error) {
 			console.error("Error fetching week info:", error);
@@ -110,27 +114,26 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 		setSuccess(false);
 
 		try {
+			if (!weekInfo) return;
 			const updateData = {
-				week_id: weekId,
-				week_name: data.weekName,
-				week_num: data.weekNum,
-				order: data.order,
+				lesson_id: weekInfo.lesson_id,
+				title: data.weekName,
+				item_content_type: weekInfo.item_content_type,
+				display_order: data.order,
+				is_active: weekInfo.is_active,
+				description: weekInfo.description ?? null,
+				item_resource_id: weekInfo.item_resource_id ?? null,
+				item_url: weekInfo.item_url ?? null,
+				item_data_details: weekInfo.item_data_details ?? null,
 			};
 
-			const response = await axios.post("/update_week", updateData);
-
-			if (response.data.success) {
-				setSuccess(true);
-				setShowSuccessDialog(true);
-				await fetchWeekInfo(); // データを再取得
-				setTimeout(() => {
-					setShowSuccessDialog(false);
-				}, 2000);
-			} else {
-				setErrorMessage(
-					response.data.error_msg || "週次情報の更新に失敗しました",
-				);
-			}
+			await axios.put(`/lesson-item/${weekId}`, updateData);
+			setSuccess(true);
+			setShowSuccessDialog(true);
+			await fetchWeekInfo();
+			setTimeout(() => {
+				setShowSuccessDialog(false);
+			}, 2000);
 		} catch (error: any) {
 			console.error("Error updating week:", error);
 			setErrorMessage("週次情報の更新に失敗しました");
@@ -141,18 +144,15 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 
 	const handleDelete = async () => {
 		try {
-			const response = await axios.post("/delete_week", {
-				week_id: weekId,
-			});
-
-			if (response.data.success) {
-				router.push(`/t/course/${courseId}`);
-			} else {
-				setErrorMessage("週次コンテンツの削除に失敗しました");
-			}
+			setLoading(true);
+			if (!weekInfo) return;
+			await axios.delete(`/lesson-item/${weekId}`);
+			router.push(`/t/course/${courseId}`);
 		} catch (error) {
 			console.error("Error deleting week:", error);
 			setErrorMessage("週次コンテンツの削除に失敗しました");
+		} finally {
+			setLoading(false);
 		}
 		setShowDeleteDialog(false);
 	};
@@ -175,7 +175,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 		);
 	}
 
-	const canUpdate = weekInfo.update_answer;
+	const canUpdate = true;
 
 	return (
 		<div className="space-y-6">
@@ -350,7 +350,16 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 				</TabsContent>
 
 				<TabsContent value="image" className="mt-6">
-					<WeekImageEditor />
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-xl">画像管理</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<p className="text-gray-500 text-center py-8">
+								この画面の画像管理は新APIへ移行中です。教科書本文の画像参照はそのまま利用できます。
+							</p>
+						</CardContent>
+					</Card>
 				</TabsContent>
 
 				<TabsContent value="keyword" className="mt-6">

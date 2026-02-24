@@ -1,20 +1,10 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	AlertCircle,
-	CheckCircle,
-	Edit,
-	Eye,
-	Plus,
-	Save,
-	Trash2,
-} from "lucide-react";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { MathJax } from "@/components/shared/MathJax";
+import { AlertCircle, CheckCircle, Eye, Plus, Save, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,68 +15,26 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import {
-	Form,
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
 
-interface FlowInfo {
-	flow_id: number;
-	id_in_yml: string;
-	flow_title: string;
-	welcome_page_content: string;
-	completion_page_content: string;
-	page_groups: PageGroup[];
-}
-
-interface PageGroup {
-	group_id: number;
-	group_name: string;
-	order: number;
-	flowpages: FlowPage[];
-}
-
-interface FlowPage {
-	flowpage_id: number;
+interface CourseQuestion {
+	id: number;
 	title: string;
-	order: number;
-	page_type: string;
-	content: string;
-	hint_comment: string;
-	answer_comment: string;
-	correct_answers: CorrectAnswer[];
-	choices: Choice[];
-	correct_choices: number[];
+	question_type: string;
+	difficulty: number | null;
+	is_active: boolean;
+	tag_names: string[];
 }
 
-interface CorrectAnswer {
-	blank_id?: string;
-	blank_name?: string;
-	symble?: string;
-	type: string;
-	value: string;
-	answers?: string;
-}
-
-interface Choice {
-	choice_id: string;
-	order: number;
-	choice_text: string;
-	content?: string;
+interface ExerciseSet {
+	id: number;
+	title: string;
+	description?: string | null;
+	course_id: number;
+	question_ids: number[];
+	due_date?: string | null;
 }
 
 interface FlowContentEditorProps {
@@ -94,161 +42,148 @@ interface FlowContentEditorProps {
 	weekId: string;
 }
 
-const pageTypes = [
-	"SingleTextQuestion",
-	"MultipleTextQuestion",
-	"ChoiceQuestion",
-];
-const answerTypes = ["str", "int", "float"];
-
-function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
+function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps) {
 	const [loading, setLoading] = useState(false);
 	const [initialLoading, setInitialLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-	const [flowInfo, setFlowInfo] = useState<FlowInfo[]>([]);
-	const [selectedFlow, setSelectedFlow] = useState<FlowInfo | null>(null);
-	const [selectedGroup, setSelectedGroup] = useState<PageGroup | null>(null);
-	const [selectedPage, setSelectedPage] = useState<FlowPage | null>(null);
-	const [isAddingContent, setIsAddingContent] = useState(false);
-	const [previewContent, setPreviewContent] = useState("");
-	const [previewHint, setPreviewHint] = useState("");
-	const [previewAnswer, setPreviewAnswer] = useState("");
-	const [selectedChoices, setSelectedChoices] = useState<Choice[]>([]);
+	const [setDeleting, setSetDeleting] = useState<number | null>(null);
+
+	const [questionKeyword, setQuestionKeyword] = useState("");
+	const [questions, setQuestions] = useState<CourseQuestion[]>([]);
+	const [sets, setSets] = useState<ExerciseSet[]>([]);
+
+	const [selectedSetId, setSelectedSetId] = useState<number | null>(null);
+	const [setTitle, setSetTitle] = useState("");
+	const [setDescription, setSetDescription] = useState("");
+	const [setDueDate, setSetDueDate] = useState("");
+	const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
+
+	const selectedSet = useMemo(
+		() => sets.find((set) => set.id === selectedSetId) ?? null,
+		[sets, selectedSetId],
+	);
 
 	useEffect(() => {
-		fetchFlowInfo();
-	}, [weekId]);
+		const fetchData = async () => {
+			try {
+				setInitialLoading(true);
+				const [questionsRes, setsRes] = await Promise.all([
+					axios.get(`/courses/${courseId}/questions`),
+					axios.get(`/courses/${courseId}/exercise-sets`),
+				]);
+				setQuestions(questionsRes.data as CourseQuestion[]);
+				setSets(setsRes.data as ExerciseSet[]);
+			} catch (error) {
+				console.error("演習問題データの取得に失敗:", error);
+				setErrorMessage("演習問題データの取得に失敗しました");
+			} finally {
+				setInitialLoading(false);
+			}
+		};
+		fetchData();
+	}, [courseId]);
 
-	const fetchFlowInfo = async () => {
+	useEffect(() => {
+		if (!selectedSet) return;
+		setSetTitle(selectedSet.title);
+		setSetDescription(selectedSet.description ?? "");
+		setSetDueDate(selectedSet.due_date ? new Date(selectedSet.due_date).toISOString().slice(0, 16) : "");
+		setSelectedQuestionIds(selectedSet.question_ids ?? []);
+	}, [selectedSet]);
+
+	const filteredQuestions = useMemo(() => {
+		const keyword = questionKeyword.trim().toLowerCase();
+		if (!keyword) return questions;
+		return questions.filter((q) => {
+			const tags = q.tag_names.join(" ").toLowerCase();
+			return (
+				q.title.toLowerCase().includes(keyword) ||
+				q.question_type.toLowerCase().includes(keyword) ||
+				tags.includes(keyword)
+			);
+		});
+	}, [questions, questionKeyword]);
+
+	const handleCreateSet = () => {
+		setSelectedSetId(null);
+		setSetTitle("");
+		setSetDescription("");
+		setSetDueDate("");
+		setSelectedQuestionIds([]);
+		setErrorMessage("");
+	};
+
+	const toggleQuestion = (questionId: number, checked: boolean) => {
+		if (checked) {
+			setSelectedQuestionIds((prev) => [...prev, questionId]);
+		} else {
+			setSelectedQuestionIds((prev) => prev.filter((id) => id !== questionId));
+		}
+	};
+
+	const handleSaveSet = async () => {
+		if (!setTitle.trim()) {
+			setErrorMessage("セット名を入力してください");
+			return;
+		}
+		setLoading(true);
+		setErrorMessage("");
 		try {
-			setInitialLoading(true);
-			// この部分は実際のAPIエンドポイントに合わせて調整してください
-			const response = await axios.get(`/get_week_flowpage/${weekId}`);
-			setFlowInfo(response.data);
+			const payload = {
+				title: setTitle.trim(),
+				description: setDescription.trim() || null,
+				question_ids: selectedQuestionIds,
+				due_date: setDueDate ? new Date(setDueDate).toISOString() : null,
+			};
+
+			if (selectedSetId) {
+				const res = await axios.put(`/exercise-sets/${selectedSetId}`, payload);
+				const updated = res.data as ExerciseSet;
+				setSets((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+			} else {
+				const res = await axios.post(`/courses/${courseId}/exercise-sets`, payload);
+				const created = res.data as ExerciseSet;
+				setSets((prev) => [created, ...prev]);
+				setSelectedSetId(created.id);
+			}
+			setShowSuccessDialog(true);
+			setTimeout(() => setShowSuccessDialog(false), 1800);
 		} catch (error) {
-			console.error("Error fetching flow info:", error);
-			setErrorMessage("演習問題情報の取得に失敗しました");
+			console.error("演習セット保存失敗:", error);
+			setErrorMessage("演習セットの保存に失敗しました");
 		} finally {
-			setInitialLoading(false);
+			setLoading(false);
 		}
 	};
 
-	const updatePreview = (content: string, hint: string, answer: string) => {
-		// 学生側と同じシンプルな実装に変更
-		setPreviewContent(content);
-		setPreviewHint(hint);
-		setPreviewAnswer(answer);
-	};
-
-	const handleFlowSelect = (flow: FlowInfo) => {
-		setSelectedFlow(flow);
-		setSelectedGroup(null);
-		setSelectedPage(null);
-		setIsAddingContent(flow.flow_id === 0);
-	};
-
-	const handleGroupSelect = (group: PageGroup) => {
-		setSelectedGroup(group);
-		setSelectedPage(null);
-		setIsAddingContent(group.group_id === 0);
-	};
-
-	const handlePageSelect = (page: FlowPage) => {
-		setSelectedPage(page);
-		setIsAddingContent(page.flowpage_id === 0);
-		updatePreview(page.content, page.hint_comment, page.answer_comment);
-	};
-
-	const addFlow = () => {
-		const newFlow: FlowInfo = {
-			flow_id: 0,
-			id_in_yml: "",
-			flow_title: "",
-			welcome_page_content: "",
-			completion_page_content: "",
-			page_groups: [],
-		};
-		setFlowInfo([...flowInfo, newFlow]);
-		handleFlowSelect(newFlow);
-	};
-
-	const addGroup = () => {
-		if (!selectedFlow) return;
-		const newGroup: PageGroup = {
-			group_id: 0,
-			group_name: "",
-			order: 0,
-			flowpages: [],
-		};
-		selectedFlow.page_groups.push(newGroup);
-		handleGroupSelect(newGroup);
-	};
-
-	const addPage = () => {
-		if (!selectedGroup) return;
-		const newPage: FlowPage = {
-			flowpage_id: 0,
-			title: "",
-			order: 0,
-			page_type: "",
-			content: "",
-			hint_comment: "",
-			answer_comment: "",
-			correct_answers: [],
-			choices: [],
-			correct_choices: [],
-		};
-		selectedGroup.flowpages.push(newPage);
-		handlePageSelect(newPage);
-	};
-
-	const addAnswer = () => {
-		if (!selectedPage) return;
-
-		if (
-			["SingleTextQuestion", "single_text_question"].includes(
-				selectedPage.page_type,
-			)
-		) {
-			selectedPage.correct_answers.push({
-				blank_name: "",
-				type: "",
-				value: "",
-			});
-		} else if (
-			["MultipleTextQuestion", "multiple_text_question"].includes(
-				selectedPage.page_type,
-			)
-		) {
-			selectedPage.correct_answers.push({
-				blank_id: "",
-				symble: "",
-				type: "",
-				value: "",
-				answers: "",
-			});
-		} else if (
-			["ChoiceQuestion", "choice_question"].includes(selectedPage.page_type)
-		) {
-			selectedPage.choices.push({
-				choice_id: "",
-				order: selectedPage.choices.length + 1,
-				choice_text: "",
-				content: "",
-			});
+	const handleDeleteSet = async () => {
+		if (selectedSetId == null) return;
+		const set = sets.find((s) => s.id === selectedSetId);
+		if (!set) return;
+		if (!confirm(`「${set.title}」を削除しますか？この操作は取り消せません。`)) return;
+		setSetDeleting(selectedSetId);
+		setErrorMessage("");
+		try {
+			await axios.delete(`/exercise-sets/${selectedSetId}`);
+			setSets((prev) => prev.filter((s) => s.id !== selectedSetId));
+			setSelectedSetId(null);
+			setSetTitle("");
+			setSetDescription("");
+			setSetDueDate("");
+			setSelectedQuestionIds([]);
+		} catch (error) {
+			console.error("演習セット削除失敗:", error);
+			setErrorMessage("演習セットの削除に失敗しました");
+		} finally {
+			setSetDeleting(null);
 		}
-	};
-
-	const deleteAnswer = (index: number) => {
-		if (!selectedPage) return;
-		selectedPage.correct_answers.splice(index, 1);
 	};
 
 	if (initialLoading) {
 		return (
 			<div className="flex items-center justify-center py-8">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
 			</div>
 		);
 	}
@@ -264,548 +199,177 @@ function FlowContentEditor({ courseId, weekId }: FlowContentEditorProps) {
 
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-xl">演習問題編集</CardTitle>
+					<CardTitle className="text-xl">演習セット編集（新構成）</CardTitle>
 				</CardHeader>
-				<CardContent>
-					{/* 選択エリア */}
-					<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-						{/* Flow選択 */}
-						<div>
-							<label className="text-sm font-medium mb-2 block">Flow</label>
-							<Select
-								value={selectedFlow?.flow_title || ""}
-								onValueChange={(value) => {
-									const flow = flowInfo.find((f) => f.flow_title === value);
-									if (flow) handleFlowSelect(flow);
-								}}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Flowを選択" />
-								</SelectTrigger>
-								<SelectContent>
-									{flowInfo.map((flow) => (
-										<SelectItem key={flow.flow_id} value={flow.flow_title}>
-											{flow.flow_title}
-										</SelectItem>
-									))}
-									<Button
-										variant="ghost"
-										className="w-full justify-start text-primary"
-										onClick={addFlow}
-									>
-										<Plus className="h-4 w-4 mr-2" />
-										追加
-									</Button>
-								</SelectContent>
-							</Select>
-						</div>
-
-						{/* Group選択 */}
-						<div>
-							<label className="text-sm font-medium mb-2 block">
-								PageGroup
-							</label>
-							<Select
-								value={selectedGroup?.group_name || ""}
-								onValueChange={(value) => {
-									const group = selectedFlow?.page_groups.find(
-										(g) => g.group_name === value,
-									);
-									if (group) handleGroupSelect(group);
-								}}
-								disabled={!selectedFlow || selectedFlow.flow_id === 0}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Groupを選択" />
-								</SelectTrigger>
-								<SelectContent>
-									{selectedFlow?.page_groups.map((group) => (
-										<SelectItem key={group.group_id} value={group.group_name}>
-											{group.group_name}
-										</SelectItem>
-									))}
-									<Button
-										variant="ghost"
-										className="w-full justify-start text-primary"
-										onClick={addGroup}
-									>
-										<Plus className="h-4 w-4 mr-2" />
-										追加
-									</Button>
-								</SelectContent>
-							</Select>
-						</div>
-
-						{/* Page選択 */}
-						<div>
-							<label className="text-sm font-medium mb-2 block">Page</label>
-							<Select
-								value={selectedPage?.title || ""}
-								onValueChange={(value) => {
-									const page = selectedGroup?.flowpages.find(
-										(p) => p.title === value,
-									);
-									if (page) handlePageSelect(page);
-								}}
-								disabled={!selectedGroup || selectedGroup.group_id === 0}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Pageを選択" />
-								</SelectTrigger>
-								<SelectContent>
-									{selectedGroup?.flowpages.map((page) => (
-										<SelectItem key={page.flowpage_id} value={page.title}>
-											{page.title}
-										</SelectItem>
-									))}
-									<Button
-										variant="ghost"
-										className="w-full justify-start text-primary"
-										onClick={addPage}
-									>
-										<Plus className="h-4 w-4 mr-2" />
-										追加
-									</Button>
-								</SelectContent>
-							</Select>
-						</div>
-
-						{/* 操作ボタン */}
-						<div className="flex flex-col gap-2">
-							<Button
-								onClick={() => {
-									/* 実装: 更新処理 */
-								}}
-								disabled={loading || !selectedPage}
-							>
-								<Save className="h-4 w-4 mr-2" />
-								{isAddingContent ? "追加" : "更新"}
-							</Button>
+				<CardContent className="space-y-6">
+					<div className="flex items-center gap-3">
+						<Button variant="outline" onClick={handleCreateSet}>
+							<Plus className="h-4 w-4 mr-2" />
+							新しいセットを作成
+						</Button>
+						<div className="text-sm text-gray-600">
+							コース単位で演習セットを管理し、問題を複数選択して構成します。
 						</div>
 					</div>
 
-					{/* コンテンツ編集エリア */}
-					{selectedPage && (
-						<div className="space-y-6">
-							{/* 基本情報 */}
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										問題名
-									</label>
-									<Input
-										value={selectedPage.title}
-										onChange={(e) => {
-											selectedPage.title = e.target.value;
-											setSelectedPage({ ...selectedPage });
-										}}
-										placeholder="演習問題名"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										表示順
-									</label>
-									<Input
-										type="number"
-										value={selectedPage.order}
-										onChange={(e) => {
-											selectedPage.order = parseInt(e.target.value);
-											setSelectedPage({ ...selectedPage });
-										}}
-										placeholder="表示順"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">形式</label>
-									<Select
-										value={selectedPage.page_type}
-										onValueChange={(value) => {
-											selectedPage.page_type = value;
-											setSelectedPage({ ...selectedPage });
-										}}
-										disabled={!isAddingContent}
+					<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+						<div className="space-y-2">
+							<h3 className="text-sm font-semibold text-gray-700">セット一覧</h3>
+							<div className="border rounded-md max-h-[520px] overflow-auto">
+								{sets.length === 0 ? (
+									<div className="p-4 text-sm text-gray-500">
+										まだ演習セットがありません。
+									</div>
+								) : (
+									sets.map((set) => (
+										<button
+											type="button"
+											key={set.id}
+											onClick={() => setSelectedSetId(set.id)}
+											className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 ${selectedSetId === set.id ? "bg-gray-100" : ""}`}
+										>
+											<div className="font-medium">{set.title}</div>
+											<div className="text-xs text-gray-500 mt-1">
+												問題数: {set.question_ids?.length ?? 0}
+											</div>
+										</button>
+									))
+								)}
+							</div>
+						</div>
+
+						<div className="lg:col-span-2 space-y-4">
+							{selectedSet && (
+								<div className="flex flex-wrap items-center gap-2">
+									<Button variant="outline" size="sm" asChild>
+										<Link
+											href={`/t/course/${courseId}/exercise-set-preview/${selectedSet.id}`}
+											target="_blank"
+											rel="noopener noreferrer"
+										>
+											<Eye className="h-4 w-4 mr-2" />
+											学習者と同じUIでプレビュー
+										</Link>
+									</Button>
+									<Button
+										variant="destructive"
+										size="sm"
+										onClick={handleDeleteSet}
+										disabled={setDeleting !== null}
 									>
-										<SelectTrigger>
-											<SelectValue placeholder="ページタイプ" />
-										</SelectTrigger>
-										<SelectContent>
-											{pageTypes.map((type) => (
-												<SelectItem key={type} value={type}>
-													{type}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-
-							{/* 問題文 */}
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										問題文
-									</label>
-									<Textarea
-										value={selectedPage.content}
-										onChange={(e) => {
-											selectedPage.content = e.target.value;
-											setSelectedPage({ ...selectedPage });
-											// リアルタイムプレビュー更新
-											updatePreview(
-												e.target.value,
-												selectedPage.hint_comment,
-												selectedPage.answer_comment,
-											);
-										}}
-										className="min-h-[200px]"
-										placeholder="問題文を入力"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										プレビュー（学生表示）
-									</label>
-									<div className="border border-gray-200 rounded-lg min-h-[200px] bg-white overflow-auto">
-										<div className="container mx-auto p-0">
-											<div className="min-h-[150px]">
-												<div className="p-4">
-													<MathJax text={previewContent} />
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							{/* ヒント */}
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										ヒント
-									</label>
-									<Textarea
-										value={selectedPage.hint_comment}
-										onChange={(e) => {
-											selectedPage.hint_comment = e.target.value;
-											setSelectedPage({ ...selectedPage });
-											// リアルタイムプレビュー更新
-											updatePreview(
-												selectedPage.content,
-												e.target.value,
-												selectedPage.answer_comment,
-											);
-										}}
-										className="min-h-[150px]"
-										placeholder="ヒントを入力"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										プレビュー（学生表示）
-									</label>
-									<div className="border border-gray-200 rounded-lg min-h-[150px] bg-white overflow-auto">
-										<div className="container mx-auto p-0">
-											<div className="min-h-[100px]">
-												<div className="p-4">
-													<MathJax text={previewHint} />
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							{/* 解説 */}
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">解説</label>
-									<Textarea
-										value={selectedPage.answer_comment}
-										onChange={(e) => {
-											selectedPage.answer_comment = e.target.value;
-											setSelectedPage({ ...selectedPage });
-											// リアルタイムプレビュー更新
-											updatePreview(
-												selectedPage.content,
-												selectedPage.hint_comment,
-												e.target.value,
-											);
-										}}
-										className="min-h-[150px]"
-										placeholder="解説を入力"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										プレビュー（学生表示）
-									</label>
-									<div className="border border-gray-200 rounded-lg min-h-[150px] bg-white overflow-auto">
-										<div className="container mx-auto p-0">
-											<div className="min-h-[100px]">
-												<div className="p-4">
-													<MathJax text={previewAnswer} />
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							{/* 解答設定 */}
-							{selectedPage.page_type === "ChoiceQuestion" && (
-								<div>
-									<div className="flex items-center justify-between mb-4">
-										<label className="text-sm font-medium">選択肢</label>
-										<Button onClick={addAnswer} disabled={!isAddingContent}>
-											<Plus className="h-4 w-4 mr-2" />
-											追加
-										</Button>
-									</div>
-									{selectedPage.choices.map((choice, index) => (
-										<div
-											key={index}
-											className="flex items-center gap-4 mb-2 p-4 bg-gray-50 rounded-lg"
-										>
-											<div className="w-16">
-												<Checkbox
-													checked={selectedChoices.includes(choice)}
-													onCheckedChange={(checked) => {
-														if (checked) {
-															setSelectedChoices([...selectedChoices, choice]);
-														} else {
-															setSelectedChoices(
-																selectedChoices.filter((c) => c !== choice),
-															);
-														}
-													}}
-												/>
-												{choice.order}
-											</div>
-											<div className="flex-1">
-												<Input
-													value={choice.choice_id}
-													onChange={(e) => {
-														choice.choice_id = e.target.value;
-														setSelectedPage({ ...selectedPage });
-													}}
-													placeholder="ID"
-												/>
-											</div>
-											<div className="flex-[2]">
-												<Input
-													value={choice.choice_text}
-													onChange={(e) => {
-														choice.choice_text = e.target.value;
-														setSelectedPage({ ...selectedPage });
-													}}
-													placeholder="選択肢"
-												/>
-											</div>
-										</div>
-									))}
+										{setDeleting === selectedSet.id ? (
+											<span className="flex items-center gap-2">
+												<span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+												削除中...
+											</span>
+										) : (
+											<>
+												<Trash2 className="h-4 w-4 mr-2" />
+												セットを削除
+											</>
+										)}
+									</Button>
 								</div>
 							)}
-
-							{["SingleTextQuestion", "MultipleTextQuestion"].includes(
-								selectedPage.page_type,
-							) && (
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 								<div>
-									<div className="flex items-center justify-between mb-4">
-										<label className="text-sm font-medium">解答</label>
-										<Button onClick={addAnswer} disabled={!isAddingContent}>
-											<Plus className="h-4 w-4 mr-2" />
-											追加
-										</Button>
-									</div>
-									{selectedPage.correct_answers.map((answer, index) => (
-										<div
-											key={index}
-											className="flex items-center gap-4 mb-2 p-4 bg-gray-50 rounded-lg"
-										>
-											<div className="flex-1">
-												<Input
-													value={answer.blank_id || ""}
-													onChange={(e) => {
-														answer.blank_id = e.target.value;
-														setSelectedPage({ ...selectedPage });
-													}}
-													placeholder="ID"
-													disabled={
-														!isAddingContent ||
-														selectedPage.page_type === "SingleTextQuestion"
-													}
-												/>
-											</div>
-											{selectedPage.page_type === "MultipleTextQuestion" && (
-												<div className="flex-1">
-													<Input
-														value={answer.symble || ""}
-														onChange={(e) => {
-															answer.symble = e.target.value;
-															setSelectedPage({ ...selectedPage });
-														}}
-														placeholder="記号"
-														disabled={!isAddingContent}
-													/>
-												</div>
-											)}
-											<div className="flex-1">
-												<Select
-													value={answer.type}
-													onValueChange={(value) => {
-														answer.type = value;
-														setSelectedPage({ ...selectedPage });
-													}}
-													disabled={!isAddingContent}
+									<label className="text-sm font-medium mb-1 block">セット名</label>
+									<Input
+										value={setTitle}
+										onChange={(e) => setSetTitle(e.target.value)}
+										placeholder="例: 第1回確認テスト"
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium mb-1 block">回答期限 (任意)</label>
+									<Input
+										type="datetime-local"
+										value={setDueDate}
+										onChange={(e) => setSetDueDate(e.target.value)}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium mb-1 block">問題検索</label>
+									<Input
+										value={questionKeyword}
+										onChange={(e) => setQuestionKeyword(e.target.value)}
+										placeholder="問題名 / タグ / タイプ"
+									/>
+								</div>
+							</div>
+
+							<div>
+								<label className="text-sm font-medium mb-1 block">説明</label>
+								<Textarea
+									value={setDescription}
+									onChange={(e) => setSetDescription(e.target.value)}
+									className="min-h-[90px]"
+								/>
+							</div>
+
+							<div>
+								<div className="flex items-center justify-between mb-2">
+									<label className="text-sm font-medium">セットに含める問題</label>
+									<span className="text-xs text-gray-500">
+										選択中 {selectedQuestionIds.length} 件
+									</span>
+								</div>
+								<div className="border rounded-md max-h-[340px] overflow-auto">
+									{filteredQuestions.length === 0 ? (
+										<div className="p-4 text-sm text-gray-500">該当する問題がありません。</div>
+									) : (
+										filteredQuestions.map((q) => {
+											const checked = selectedQuestionIds.includes(q.id);
+											return (
+												<label
+													key={q.id}
+													className="flex items-start gap-3 p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
 												>
-													<SelectTrigger>
-														<SelectValue placeholder="形式" />
-													</SelectTrigger>
-													<SelectContent>
-														{answerTypes.map((type) => (
-															<SelectItem key={type} value={type}>
-																{type}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-											</div>
-											<div className="flex-[2]">
-												<Input
-													value={answer.value}
-													onChange={(e) => {
-														answer.value = e.target.value;
-														setSelectedPage({ ...selectedPage });
-													}}
-													placeholder="解答"
-													disabled={!isAddingContent}
-												/>
-											</div>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => deleteAnswer(index)}
-												disabled={!isAddingContent}
-											>
-												<Trash2 className="h-4 w-4" />
-											</Button>
-										</div>
-									))}
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* Group編集エリア */}
-					{selectedGroup && !selectedPage && (
-						<div className="space-y-4">
-							<h3 className="text-lg font-semibold">グループ設定</h3>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										グループ名
-									</label>
-									<Input
-										value={selectedGroup.group_name}
-										onChange={(e) => {
-											selectedGroup.group_name = e.target.value;
-											setSelectedGroup({ ...selectedGroup });
-										}}
-										placeholder="グループ名"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										表示順
-									</label>
-									<Input
-										type="number"
-										value={selectedGroup.order}
-										onChange={(e) => {
-											selectedGroup.order = parseInt(e.target.value);
-											setSelectedGroup({ ...selectedGroup });
-										}}
-										placeholder="表示順"
-									/>
+													<Checkbox
+														checked={checked}
+														onCheckedChange={(value) => toggleQuestion(q.id, Boolean(value))}
+													/>
+													<div className="min-w-0">
+														<div className="font-medium text-sm">{q.title}</div>
+														<div className="text-xs text-gray-500 mt-1">
+															type: {q.question_type}
+															{q.difficulty != null ? ` / difficulty: ${q.difficulty}` : ""}
+														</div>
+														<div className="flex gap-1 flex-wrap mt-1">
+															{q.tag_names.map((tag) => (
+																<Badge key={`${q.id}-${tag}`} variant="secondary">
+																	{tag}
+																</Badge>
+															))}
+														</div>
+													</div>
+												</label>
+											);
+										})
+									)}
 								</div>
 							</div>
-						</div>
-					)}
 
-					{/* Flow編集エリア */}
-					{selectedFlow && !selectedGroup && (
-						<div className="space-y-4">
-							<h3 className="text-lg font-semibold">Flow設定</h3>
-							<div className="space-y-4">
-								<div>
-									<label className="text-sm font-medium mb-2 block">名称</label>
-									<Input
-										value={selectedFlow.id_in_yml}
-										onChange={(e) => {
-											selectedFlow.id_in_yml = e.target.value;
-											setSelectedFlow({ ...selectedFlow });
-										}}
-										placeholder="コンテンツ内での名称"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										演習問題名
-									</label>
-									<Input
-										value={selectedFlow.flow_title}
-										onChange={(e) => {
-											selectedFlow.flow_title = e.target.value;
-											setSelectedFlow({ ...selectedFlow });
-										}}
-										placeholder="演習問題名"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										演習開始前
-									</label>
-									<Textarea
-										value={selectedFlow.welcome_page_content}
-										onChange={(e) => {
-											selectedFlow.welcome_page_content = e.target.value;
-											setSelectedFlow({ ...selectedFlow });
-										}}
-										placeholder="演習問題開始前"
-										className="min-h-[100px]"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-2 block">
-										演習終了後
-									</label>
-									<Textarea
-										value={selectedFlow.completion_page_content}
-										onChange={(e) => {
-											selectedFlow.completion_page_content = e.target.value;
-											setSelectedFlow({ ...selectedFlow });
-										}}
-										placeholder="演習問題終了後"
-										className="min-h-[100px]"
-									/>
-								</div>
+							<div className="flex justify-end">
+								<Button onClick={handleSaveSet} disabled={loading}>
+									<Save className="h-4 w-4 mr-2" />
+									{loading ? "保存中..." : "演習セットを保存"}
+								</Button>
 							</div>
 						</div>
-					)}
+					</div>
 				</CardContent>
 			</Card>
 
-			{/* 成功ダイアログ */}
 			<Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader className="text-center">
 						<div className="mx-auto mb-4">
 							<CheckCircle className="h-16 w-16 text-green-500" />
 						</div>
-						<DialogTitle className="text-xl">更新完了</DialogTitle>
+						<DialogTitle className="text-xl">保存完了</DialogTitle>
 						<DialogDescription>
-							演習問題が正常に更新されました
+							演習セットを更新しました。
 						</DialogDescription>
 					</DialogHeader>
 				</DialogContent>

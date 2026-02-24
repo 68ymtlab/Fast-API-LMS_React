@@ -101,7 +101,7 @@ function CourseTakingPage() {
 
 	const fetchCourseInfo = async () => {
 		try {
-			const response = await axios.get(`/get_course_info/${params.course_id}`);
+			const response = await axios.get(`/courses/${params.course_id}`);
 			setCourseInfo(response.data);
 		} catch (error) {
 			console.error("Error fetching course info:", error);

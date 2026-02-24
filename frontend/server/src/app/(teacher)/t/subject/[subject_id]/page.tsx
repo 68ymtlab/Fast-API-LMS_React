@@ -28,24 +28,38 @@ import { Label } from "@/components/ui/label";
 import axios from "@/lib/axios";
 
 type Course = {
-	course_id: number;
+	id: number;
 	course_name: string;
-	subject_name: string;
-	period: string;
-	username: string;
-	last_accessed?: string;
+	description: string | null;
+	session_count: number | null;
+	start_date_time: string;
+	end_date_time: string;
+	is_active: boolean;
+	subject_id: number | null;
+	created_at: string;
+	updated_at: string;
+	created_by_user_id: number | null;
+	updated_by_user_id: number | null;
+	subject: {
+		id: number;
+		subject_name: string;
+		academic_year: number;
+		semester_id: number;
+		is_active: boolean;
+		created_at: string;
+		updated_at: string;
+		semester: {
+			id: number;
+			name: string;
+			sort_order: number | null;
+		};
+	} | null;
 };
 
-type ApiResponse = {
-	created: Course[];
-	shared: Course[];
-};
-
-export const SubjectPage = () => {
+const SubjectPage = () => {
 	const params = useParams();
 	const router = useRouter();
-	const [createdCourses, setCreatedCourses] = useState<Course[]>([]);
-	const [sharedCourses, setSharedCourses] = useState<Course[]>([]);
+	const [courses, setCourses] = useState<Course[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [loadingButtons, setLoadingButtons] = useState<{
@@ -76,30 +90,30 @@ export const SubjectPage = () => {
 		}
 	};
 
-	useEffect(() => {
-		const fetchCourses = async () => {
-			setIsLoading(true);
-			setError(null);
-			try {
-				const response = await axios.get<ApiResponse>(
-					`/get_created_courses/${params.subject_id}`,
-					{
-						withCredentials: true,
-					},
-				);
-				if (response.status === 200) {
-					setCreatedCourses(response.data.created || []);
-					setSharedCourses(response.data.shared || []);
-				} else {
-					setError("コース情報の取得に失敗しました");
-				}
-			} catch (_error) {
+	const fetchCourses = async () => {
+		setIsLoading(true);
+		setError(null);
+		try {
+			const response = await axios.get<Course[]>(
+				`/courses/teacher/by-subject/${params.subject_id}`,
+				{
+					withCredentials: true,
+				},
+			);
+			if (response.status === 200) {
+				setCourses(response.data);
+			} else {
 				setError("コース情報の取得に失敗しました");
-			} finally {
-				setIsLoading(false);
 			}
-		};
+		} catch (_error) {
+			console.error("コース情報の取得に失敗:", _error);
+			setError("コース情報の取得に失敗しました");
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
+	useEffect(() => {
 		fetchCourses();
 	}, [params.subject_id]);
 
@@ -146,16 +160,7 @@ export const SubjectPage = () => {
 			if (response.data.success) {
 				setIsCreateDialogOpen(false);
 				// コース一覧を更新
-				const coursesResponse = await axios.get<ApiResponse>(
-					`/get_created_courses/${params.subject_id}`,
-					{
-						withCredentials: true,
-					},
-				);
-				if (coursesResponse.status === 200) {
-					setCreatedCourses(coursesResponse.data.created || []);
-					setSharedCourses(coursesResponse.data.shared || []);
-				}
+				await fetchCourses();
 			}
 		} catch (error) {
 			console.error("コースの作成に失敗しました:", error);
@@ -164,9 +169,18 @@ export const SubjectPage = () => {
 		}
 	};
 
+	const formatDateTime = (dateTimeStr: string) => {
+		const date = new Date(dateTimeStr);
+		return date.toLocaleDateString("ja-JP", {
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+		});
+	};
+
 	const CourseCard = ({ course }: { course: Course }) => (
 		<Card
-			key={course.course_id}
+			key={course.id}
 			className="hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden group shadow-lg hover:shadow-primary/10"
 		>
 			<CardHeader className="p-4 rounded-t-xl border-b border-primary/10 relative">
@@ -180,51 +194,47 @@ export const SubjectPage = () => {
 							<h3 className="text-xl font-semibold text-gray-800">
 								{course.course_name}
 							</h3>
-							<span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
-								必修
-							</span>
-							<span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-								基礎
-							</span>
 						</div>
 					</div>
 				</div>
 			</CardHeader>
 			<CardContent className="p-4 space-y-3">
-				<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-					<Users className="text-primary w-4 h-4" />
-					<span className="text-sm text-neutral-700 font-medium">
-						作成者: {course.username}
-					</span>
-				</div>
+				{course.description && (
+					<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
+						<FileText className="text-primary w-4 h-4" />
+						<span className="text-sm text-neutral-700 font-medium">
+							{course.description}
+						</span>
+					</div>
+				)}
 				<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
 					<Calendar className="text-primary w-4 h-4" />
 					<span className="text-sm text-neutral-700 font-medium">
-						開講期間: {course.period}
+						開講期間: {formatDateTime(course.start_date_time)} 〜{" "}
+						{formatDateTime(course.end_date_time)}
 					</span>
 				</div>
-				<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-					<Clock className="text-primary w-4 h-4" />
-					<span className="text-sm text-neutral-700 font-medium">
-						最終アクセス:{" "}
-						{course.last_accessed
-							? new Date(course.last_accessed).toLocaleString("ja-JP")
-							: "準備中"}
-					</span>
-				</div>
+				{course.session_count && (
+					<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
+						<Clock className="text-primary w-4 h-4" />
+						<span className="text-sm text-neutral-700 font-medium">
+							セッション数: {course.session_count}
+						</span>
+					</div>
+				)}
 			</CardContent>
 			<CardFooter className="p-4 pt-0">
 				<div className="w-full flex gap-3">
 					<Button
 						className="flex-1 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-white font-medium py-2 rounded-xl transition-shadow hover:shadow-xl text-sm flex items-center justify-center gap-2"
 						onClick={() =>
-							handleButtonClick(`course-${course.course_id}`, () =>
-								router.push(`/t/course/${course.course_id}`),
+							handleButtonClick(`course-${course.id}`, () =>
+								router.push(`/t/course/${course.id}`),
 							)
 						}
-						disabled={loadingButtons[`course-${course.course_id}`]}
+						disabled={loadingButtons[`course-${course.id}`]}
 					>
-						{loadingButtons[`course-${course.course_id}`] ? (
+						{loadingButtons[`course-${course.id}`] ? (
 							<Loader2 className="w-4 h-4 animate-spin" />
 						) : (
 							<>
@@ -237,13 +247,13 @@ export const SubjectPage = () => {
 						variant="outline"
 						className="flex-1 border border-primary/20 hover:bg-primary/5 text-primary font-medium py-2 rounded-xl transition-all text-sm flex items-center justify-center gap-2 bg-white"
 						onClick={() =>
-							handleButtonClick(`status-${course.course_id}`, () =>
-								router.push(`/t/course/${course.course_id}/score`),
+							handleButtonClick(`status-${course.id}`, () =>
+								router.push(`/t/course/${course.id}/score`),
 							)
 						}
-						disabled={loadingButtons[`status-${course.course_id}`]}
+						disabled={loadingButtons[`status-${course.id}`]}
 					>
-						{loadingButtons[`status-${course.course_id}`] ? (
+						{loadingButtons[`status-${course.id}`] ? (
 							<Loader2 className="w-4 h-4 animate-spin" />
 						) : (
 							<>
@@ -439,49 +449,17 @@ export const SubjectPage = () => {
 						<div className="text-center py-8 text-red-500">{error}</div>
 					) : (
 						<>
-							<div className="mb-12">
-								<div className="flex items-center gap-3 mb-6">
-									<h3 className="text-2xl font-semibold text-gray-800">
-										共有中のコース
-									</h3>
-									<span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
-										共有中
-									</span>
+							{courses.length > 0 ? (
+								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+									{courses.map((course) => (
+										<CourseCard key={course.id} course={course} />
+									))}
 								</div>
-								{sharedCourses.length > 0 ? (
-									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-										{sharedCourses.map((course) => (
-											<CourseCard key={course.course_id} course={course} />
-										))}
-									</div>
-								) : (
-									<div className="text-center py-8 text-gray-500 bg-white rounded-xl shadow-sm">
-										共有中のコースはありません
-									</div>
-								)}
-							</div>
-
-							<div>
-								<div className="flex items-center gap-3 mb-6">
-									<h3 className="text-2xl font-semibold text-gray-800">
-										作成したコース
-									</h3>
-									<span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
-										作成済み
-									</span>
+							) : (
+								<div className="text-center py-8 text-gray-500 bg-white rounded-xl shadow-sm">
+									コースはまだありません
 								</div>
-								{createdCourses.length > 0 ? (
-									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-										{createdCourses.map((course) => (
-											<CourseCard key={course.course_id} course={course} />
-										))}
-									</div>
-								) : (
-									<div className="text-center py-8 text-gray-500 bg-white rounded-xl shadow-sm">
-										作成したコースはありません
-									</div>
-								)}
-							</div>
+							)}
 						</>
 					)}
 				</div>

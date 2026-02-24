@@ -24,11 +24,12 @@ interface Week {
 	order: number;
 }
 
-interface Flow {
+interface ExerciseSet {
 	id: number;
 	title: string;
-	description?: string;
-	order_number: number;
+	description?: string | null;
+	question_ids: number[];
+	due_date?: string | null;
 }
 
 interface UserInfo {
@@ -37,13 +38,13 @@ interface UserInfo {
 	email: string;
 }
 
-export const WeekFlowsPage = () => {
+const WeekFlowsPage = () => {
 	const params = useParams();
 	const course_id = params.course_id as string;
 	const week_id = params.week_id as string;
 
 	const [week, setWeek] = useState<Week | null>(null);
-	const [flows, setFlows] = useState<Flow[]>([]);
+	const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
 	const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
 	const [sessionError, setSessionError] = useState(false);
 	const [loading, setLoading] = useState(true);
@@ -80,14 +81,14 @@ export const WeekFlowsPage = () => {
 				});
 		};
 
-		const getWeekFlows = () => {
+		const getExerciseSets = () => {
 			axios
-				.get(`/get_week_flows/${week_id}`)
+				.get(`/courses/${course_id}/exercise-sets`)
 				.then((response) => {
-					setFlows(response.data);
+					setExerciseSets(response.data);
 				})
 				.catch((error) => {
-					console.error("演習問題の取得に失敗しました:", error);
+					console.error("演習セットの取得に失敗しました:", error);
 				})
 				.finally(() => {
 					setLoading(false);
@@ -96,14 +97,11 @@ export const WeekFlowsPage = () => {
 
 		homeProfile();
 		getWeek();
-		getWeekFlows();
+		getExerciseSets();
 	}, [course_id, week_id]);
 
-	const handleStartFlow = (flowId: number) => {
-		// 演習問題開始の処理
-		console.log(`演習問題 ${flowId} を開始します`);
-		// 演習問題実行ページに遷移
-		window.location.href = `/weekflows/${course_id}/${week_id}/${flowId}/session`;
+	const handleStartSet = (setId: number) => {
+		window.location.href = `/weekflows/${course_id}/${week_id}/set/${setId}`;
 	};
 
 	if (sessionError) {
@@ -141,7 +139,10 @@ export const WeekFlowsPage = () => {
 
 	return (
 		<>
-			<TcAccessTime page="student_weekflows" />
+			<TcAccessTime 
+				page="student_weekflows" 
+				details={JSON.stringify({ course_id, week_id })}
+			/>
 			<main>
 				<div className="min-h-screen bg-gray-100">
 					<div className="container mx-auto px-4 py-8">
@@ -156,21 +157,33 @@ export const WeekFlowsPage = () => {
 
 						{/* 演習問題一覧 */}
 						<div className="space-y-6">
-							{flows.length > 0 ? (
-								flows.map((flow, index) => (
-									<Card key={flow.id} className="w-full">
+							{exerciseSets.length > 0 ? (
+								exerciseSets.map((set, index) => (
+									<Card key={set.id} className="w-full">
 										<CardHeader>
-											<CardTitle>演習問題{index + 1}</CardTitle>
+											<CardTitle>演習セット{index + 1}</CardTitle>
 											<CardDescription>
-												{flow.description || "演習問題概要がここに表示されます"}
+												{set.description || "演習セットの説明がありません"}
 											</CardDescription>
 										</CardHeader>
 										<CardContent>
+											<div className="flex flex-col gap-2 mb-4">
+												<p className="text-sm text-gray-500">
+													問題数: {set.question_ids?.length ?? 0}
+												</p>
+												{set.due_date && (
+													<p className="text-sm font-medium text-red-500">
+														回答期限: {new Date(set.due_date).toLocaleString("ja-JP")}
+														{new Date(set.due_date) < new Date() && " (期限切れ)"}
+													</p>
+												)}
+											</div>
 											<Button
-												onClick={() => handleStartFlow(flow.id)}
+												onClick={() => handleStartSet(set.id)}
+												disabled={!!set.due_date && new Date(set.due_date) < new Date()}
 												className="w-auto"
 											>
-												演習問題を開始
+												{!!set.due_date && new Date(set.due_date) < new Date() ? "解答期限切れ" : "このセットを解く"}
 											</Button>
 										</CardContent>
 									</Card>

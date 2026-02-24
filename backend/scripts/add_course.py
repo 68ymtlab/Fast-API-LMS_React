@@ -31,6 +31,7 @@ from api.models import contents_model
 from api.models import questions_model
 from api.models import adaptive_model
 from api.models import enum
+from api.models import assignments_model  # Ensure Assignments model is registered for relationships
 
 COURSES = [
     {

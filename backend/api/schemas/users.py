@@ -1,6 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 #
 # Token Schemas
@@ -47,7 +47,9 @@ class StudentBase(BaseModel):
     """学生情報の共通ベース"""
     grade: Optional[int] = Field(None, description="学年")
     department: Optional[str] = Field(None, description="所属")
+    student_number: Optional[str] = Field(None, description="学籍番号")
     class_number: Optional[str] = Field(None, description="クラス番号")
+    class_roster_number: Optional[str] = Field(None, description="名列番号")
 
 class StudentCreate(StudentBase):
     """学生情報作成時の入力スキーマ"""
@@ -124,3 +126,50 @@ class LoginResponse(BaseModel):
 class UserWithStudent(User):
     """学生情報を含むユーザー情報のレスポンススキーマ"""
     student: Optional[StudentInDB] = None
+
+
+class UserBulkCreateResult(BaseModel):
+    """一括登録の1件分結果"""
+    email: EmailStr
+    status: str = Field(..., description="created または failed")
+    user_id: Optional[int] = None
+    message: Optional[str] = None
+
+
+class UserBulkCreateResponse(BaseModel):
+    """一括登録レスポンス"""
+    created_count: int
+    failed_count: int
+    results: List[UserBulkCreateResult]
+
+
+class StudentUserOption(BaseModel):
+    """履修登録UI向けの学生ユーザー簡易情報"""
+    id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: EmailStr
+    grade: Optional[int] = None
+    department: Optional[str] = None
+    student_number: Optional[str] = None
+    class_number: Optional[str] = None
+    class_roster_number: Optional[str] = None
+
+class AccessHistoryCreate(BaseModel):
+    """アクセス履歴作成用スキーマ"""
+    date: str = Field(..., description="アクセス日付 (YYYY-MM-DD)")
+    page: str = Field(..., description="ページ識別子")
+    time: int = Field(..., description="滞在時間(秒)")
+    details: Optional[str] = Field(None, description="詳細情報")
+
+class AccessHistoryResponse(BaseModel):
+    """アクセス履歴レスポンス"""
+    id: int
+    user_id: int
+    access_date: datetime
+    page: str
+    time: int
+    details: Optional[str] = None
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)

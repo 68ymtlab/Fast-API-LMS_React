@@ -134,7 +134,7 @@ function EditCourseInfoPage() {
 	const fetchCourseInfo = async () => {
 		try {
 			setInitialLoading(true);
-			const response = await axios.get(`/get_course_info/${params.course_id}`);
+			const response = await axios.get(`/courses/${params.course_id}`);
 			const data = response.data;
 			setCourseInfo(data);
 
@@ -199,7 +199,7 @@ function EditCourseInfoPage() {
 				weeks: data.weeks,
 			};
 
-			const response = await axios.post("/update_course", updateData);
+			const response = await axios.put(`/courses/${params.course_id}`, updateData);
 
 			if (response.data.success) {
 				setSuccess(true);
@@ -228,9 +228,7 @@ function EditCourseInfoPage() {
 
 	const handleDelete = async () => {
 		try {
-			const response = await axios.post("/delete_course", {
-				course_id: params.course_id,
-			});
+			const response = await axios.delete(`/courses/${params.course_id}`);
 
 			if (response.data.success) {
 				router.push("/t/home");

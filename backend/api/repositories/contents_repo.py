@@ -66,6 +66,46 @@ class ContentRepository(BaseRepository):
         stmt = select(contents_model.Images).where(contents_model.Images.id == image_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
+    async def exists_image_with_original_name(self, *, original_name: str) -> bool:
+        """指定した original_name を持つ画像が既に存在するか（ファイル名は大文字小文字を区別しない）。"""
+        if not original_name or not original_name.strip():
+            return False
+        name_lower = original_name.strip().lower()
+        stmt = select(contents_model.Images.id).where(
+            contents_model.Images.original_name.isnot(None),
+            func.lower(contents_model.Images.original_name) == name_lower,
+        ).limit(1)
+        return (await self.db.execute(stmt)).scalar_one_or_none() is not None
+
+    async def get_image_by_original_name(
+        self, *, original_name: str
+    ) -> Optional[contents_model.Images]:
+        """original_name で画像を1件取得します（大文字小文字を区別しない）。"""
+        if not original_name or not original_name.strip():
+            return None
+        name_lower = original_name.strip().lower()
+        stmt = (
+            select(contents_model.Images)
+            .where(
+                contents_model.Images.original_name.isnot(None),
+                func.lower(contents_model.Images.original_name) == name_lower,
+            )
+            .limit(1)
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def list_images(
+        self, *, limit: int = 100, offset: int = 0
+    ) -> List[contents_model.Images]:
+        """画像一覧を取得します（新しい順）。"""
+        stmt = (
+            select(contents_model.Images)
+            .order_by(contents_model.Images.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
     async def delete_image(self, *, image: contents_model.Images) -> bool:
         """画像情報を削除します。"""
         await self.db.delete(image)

@@ -97,12 +97,30 @@ class ContentService:
         """IDで画像情報を取得します。"""
         return await self.content_repo.get_image_by_id(image_id=image_id)
 
+    async def image_original_name_exists(self, *, original_name: str) -> bool:
+        """指定した original_name の画像が既に登録されているか。"""
+        return await self.content_repo.exists_image_with_original_name(original_name=original_name)
+
+    async def get_image_by_original_name(
+        self, *, original_name: str
+    ) -> Optional[contents_model.Images]:
+        """original_name で画像を取得します（大文字小文字を区別しない）。"""
+        return await self.content_repo.get_image_by_original_name(
+            original_name=original_name
+        )
+
     async def get_image_file_path(self, *, image_id: int) -> Optional[str]:
         """画像IDからファイルシステム上のパスを取得します。"""
         image = await self.content_repo.get_image_by_id(image_id=image_id)
         if image:
             return image.file_path
         return None
+
+    async def list_images(
+        self, *, limit: int = 100, offset: int = 0
+    ) -> List[contents_model.Images]:
+        """画像一覧を取得します。"""
+        return await self.content_repo.list_images(limit=limit, offset=offset)
 
     async def delete_image(self, *, image_id: int, current_user: users_model.Users) -> bool:
         """画像情報を削除します。"""

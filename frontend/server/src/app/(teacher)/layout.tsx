@@ -3,6 +3,7 @@
 import {
 	ArrowLeft,
 	Book,
+	ClipboardList,
 	ChevronRight,
 	FileText,
 	Home,
@@ -20,7 +21,7 @@ import type { SidebarGroups } from "@/types/sidebarGroups";
 
 const sidebarGroups: SidebarGroups[] = [
 	{
-		groupLabel: "メインメニュー",
+		groupLabel: "メイン",
 		groupItems: [
 			{
 				title: "ホーム",
@@ -30,7 +31,27 @@ const sidebarGroups: SidebarGroups[] = [
 		],
 	},
 	{
-		groupLabel: "ユーザー設定",
+		groupLabel: "授業・教材管理",
+		groupItems: [
+			{
+				title: "演習問題管理",
+				url: "/t/exercises",
+				icon: ClipboardList,
+			},
+		],
+	},
+	{
+		groupLabel: "ユーザー管理",
+		groupItems: [
+			{
+				title: "ユーザー登録",
+				url: "/t/users/add",
+				icon: Users,
+			},
+		],
+	},
+	{
+		groupLabel: "アカウント",
 		groupItems: [
 			{
 				title: "アカウント設定",
@@ -40,7 +61,7 @@ const sidebarGroups: SidebarGroups[] = [
 		],
 	},
 	{
-		groupLabel: undefined,
+		groupLabel: "サポート",
 		groupItems: [
 			{
 				title: "ヘルプ",
@@ -174,6 +195,12 @@ const TeacherBreadcrumb = memo(() => {
 															プレビュー
 														</span>
 													)}
+													{paths[3] === "enrollments" && (
+														<span className="flex items-center gap-1 text-gray-800 font-medium">
+															<Users className="size-4" />
+															履修者登録
+														</span>
+													)}
 												</>
 											)}
 										</>
@@ -187,6 +214,18 @@ const TeacherBreadcrumb = memo(() => {
 											<Settings className="size-4" />
 											設定
 										</button>
+									)}
+									{paths[1] === "exercises" && (
+										<span className="flex items-center gap-1 text-gray-800 font-medium">
+											<ClipboardList className="size-4" />
+											演習問題管理
+										</span>
+									)}
+									{paths[1] === "users" && (
+										<span className="flex items-center gap-1 text-gray-800 font-medium">
+											<Users className="size-4" />
+											ユーザー登録
+										</span>
 									)}
 								</>
 							)}
@@ -206,7 +245,7 @@ const TeacherBreadcrumb = memo(() => {
 	);
 });
 
-export const TeacherLayoutInner = memo(
+const TeacherLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
 			<div className="flex h-screen pt-16">

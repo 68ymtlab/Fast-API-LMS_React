@@ -44,17 +44,32 @@ CREATE TABLE users (
   deleted_at TIMESTAMP
 );
 
--- 5. students
+-- 5. goals（目標）
+CREATE TABLE goals (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  is_achieved BOOLEAN DEFAULT false NOT NULL,
+  is_point_granted BOOLEAN DEFAULT false NOT NULL,
+  is_disabled BOOLEAN DEFAULT false NOT NULL,
+  achieved_at TIMESTAMP
+);
+
+-- 6. students
 CREATE TABLE students (
   user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   grade INT,
   department VARCHAR(255),
+  student_number VARCHAR(64),
   class_number VARCHAR(255),
+  class_roster_number VARCHAR(64),
   points INT DEFAULT 0,
+  login_days INT DEFAULT 0 NOT NULL,
   student_metadata JSONB
 );
 
--- 6. contents
+-- 7. contents
 CREATE TABLE contents (
   id SERIAL PRIMARY KEY,
   content_body TEXT NOT NULL,
@@ -65,7 +80,7 @@ CREATE TABLE contents (
   version_notes VARCHAR(255)
 );
 
--- 7. subjects
+-- 8. subjects
 CREATE TABLE subjects (
   id SERIAL PRIMARY KEY,
   subject_name VARCHAR(255) NOT NULL,
@@ -79,7 +94,7 @@ CREATE TABLE subjects (
   deleted_at TIMESTAMP
 );
 
--- 8. subject_syllabuses
+-- 9. subject_syllabuses
 CREATE TABLE subject_syllabuses (
   subject_id INT PRIMARY KEY REFERENCES subjects(id) ON DELETE CASCADE,
   subject_category_id INT NOT NULL REFERENCES subject_categories(id) ON DELETE RESTRICT,
@@ -97,7 +112,7 @@ CREATE TABLE subject_syllabuses (
   updated_by_user_id INT REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 9. courses
+-- 10. courses
 CREATE TABLE courses (
   id SERIAL PRIMARY KEY,
   subject_id INT REFERENCES subjects(id) ON DELETE SET NULL,
@@ -115,7 +130,7 @@ CREATE TABLE courses (
   deleted_at TIMESTAMP
 );
 
--- 10. course_enrollments
+-- 11. course_enrollments
 CREATE TABLE course_enrollments (
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -125,7 +140,7 @@ CREATE TABLE course_enrollments (
   PRIMARY KEY (user_id, course_id)
 );
 
--- 11. course_content_permissions
+-- 12. course_content_permissions
 CREATE TABLE course_content_permissions (
   teacher_user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -140,7 +155,7 @@ CREATE TABLE course_content_permissions (
   PRIMARY KEY (teacher_user_id, course_id)
 );
 
--- 12. course_lessons (旧 week)
+-- 13. course_lessons (旧 week)
 CREATE TABLE course_lessons (
   id SERIAL PRIMARY KEY,
   course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -156,7 +171,7 @@ CREATE TABLE course_lessons (
   deleted_at TIMESTAMP
 );
 
--- 13. images
+-- 14. images
 CREATE TABLE images (
   id SERIAL PRIMARY KEY,
   file_path VARCHAR(1024) NOT NULL,
@@ -164,7 +179,7 @@ CREATE TABLE images (
   original_name VARCHAR(255)
 );
 
--- 14. lesson_pages (旧 Block)
+-- 15. lesson_pages (旧 Block)
 CREATE TABLE lesson_pages (
   id SERIAL PRIMARY KEY,
   lesson_id INT NOT NULL REFERENCES course_lessons(id) ON DELETE CASCADE,
@@ -183,7 +198,7 @@ CREATE TABLE lesson_pages (
   deleted_at TIMESTAMP
 );
 
--- 15. lesson_items
+-- 16. lesson_items
 CREATE TABLE lesson_items (
   id SERIAL PRIMARY KEY,
   lesson_id INT NOT NULL REFERENCES course_lessons(id) ON DELETE CASCADE,
@@ -202,7 +217,7 @@ CREATE TABLE lesson_items (
   deleted_at TIMESTAMP
 );
 
--- 16. questions
+-- 17. questions
 CREATE TABLE questions (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -214,30 +229,31 @@ CREATE TABLE questions (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 17. tags
+-- 18. tags
 CREATE TABLE tags (
   id SERIAL PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
   slug VARCHAR(50)
 );
 
--- 18. question_tags
+-- 19. question_tags
 CREATE TABLE question_tags (
   question_id INT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
   PRIMARY KEY (question_id, tag_id)
 );
 
--- 19. exercise_sets
+-- 20. exercise_sets
 CREATE TABLE exercise_sets (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   description TEXT,
   course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  question_ids JSONB NOT NULL
+  question_ids JSONB NOT NULL,
+  due_date TIMESTAMP
 );
 
--- 20. exercise_sessions
+-- 21. exercise_sessions
 CREATE TABLE exercise_sessions (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -247,7 +263,7 @@ CREATE TABLE exercise_sessions (
   completed_at TIMESTAMP
 );
 
--- 21. student_answers
+-- 22. student_answers
 CREATE TABLE student_answers (
   id SERIAL PRIMARY KEY,
   session_id INT NOT NULL REFERENCES exercise_sessions(id) ON DELETE CASCADE,
@@ -256,7 +272,7 @@ CREATE TABLE student_answers (
   is_correct BOOLEAN
 );
 
--- 22. textbook_markers
+-- 23. textbook_markers
 CREATE TABLE textbook_markers (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -270,7 +286,19 @@ CREATE TABLE textbook_markers (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 23. student_competencies
+-- 23-1. access_histories
+CREATE TABLE access_histories (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  access_date DATE NOT NULL,
+  page VARCHAR(255) NOT NULL,
+  time INT NOT NULL,
+  details TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- 24. student_competencies
 CREATE TABLE student_competencies (
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   subject_id INT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,

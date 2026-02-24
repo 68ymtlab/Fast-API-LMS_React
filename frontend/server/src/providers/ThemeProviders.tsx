@@ -35,6 +35,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 	});
 
 	const [mode, setModeState] = useState<Mode>(() => {
+		if (typeof window === "undefined") return "light";
 		const storedMode = localStorage.getItem("app-mode") as Mode;
 		if (storedMode) return storedMode;
 		return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -56,7 +57,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
 	// システムのテーマ変更を関し
 	useEffect(() => {
-		const mediaQuery = window.matchMedia("'(prefers-color-scheme: dark)");
+		const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
 		const handleChange = () => {
 			// ユーザーが明示的にモードを選択していない場合のみシステムに追従
 			if (!localStorage.getItem("app-mode-explicitly-set")) {
@@ -81,9 +82,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 	};
 
 	return (
-		<ThemeContext value={{ theme, setTheme, mode, setMode, toggleMode }}>
+		<ThemeContext.Provider value={{ theme, setTheme, mode, setMode, toggleMode }}>
 			{children}
-		</ThemeContext>
+		</ThemeContext.Provider>
 	);
 };
 

@@ -21,6 +21,7 @@ class ExerciseSets(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     course_id: Mapped[int] = mapped_column(Integer, nullable=False)
     question_ids: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    due_date: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(True))
 
     course: Mapped['Courses'] = relationship('Courses', back_populates='exercise_sets')
     exercise_sessions: Mapped[List['ExerciseSessions']] = relationship('ExerciseSessions', back_populates='exercise_set')

@@ -36,6 +36,7 @@ class CourseLessons(Base):
     updated_by_user: Mapped[Optional['Users']] = relationship('Users', foreign_keys=[updated_by_user_id], back_populates='course_lessons_')
     lesson_items: Mapped[list['LessonItems']] = relationship('LessonItems', back_populates='lesson')
     lesson_pages: Mapped[list['LessonPages']] = relationship('LessonPages', back_populates='lesson')
+    assignments: Mapped[list['Assignments']] = relationship('Assignments', back_populates='lesson')
 
 
 class LessonItems(Base):

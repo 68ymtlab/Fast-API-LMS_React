@@ -58,12 +58,23 @@ const formSchema = z
 
 type FormData = z.infer<typeof formSchema>;
 
+type UserProfile = {
+	username?: string | null;
+	display_name?: string | null;
+	email?: string | null;
+	role?: {
+		name?: string | null;
+	};
+};
+
 function TeacherSettingsPage() {
 	const router = useRouter();
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [success, setSuccess] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
+	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+	const [profileLoading, setProfileLoading] = useState(true);
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
@@ -88,25 +99,19 @@ function TeacherSettingsPage() {
 
 		try {
 			const params = {
-				email: "exsample@example.com", // 仮のメールアドレス、必要に応じて実際のユーザーのメールアドレスに置き換えてください
-				old_password: data.currentPassword,
+				current_password: data.currentPassword,
 				new_password: data.newPassword,
 			};
 
-			const response = await axios.post("/update_password", params);
+			await axios.put("/users/me/password", params);
 
-			if (response.data.success) {
-				setSuccess(true);
-				form.reset();
-				setTimeout(() => {
-					setShowPasswordModal(false);
-					setSuccess(false);
-				}, 2000);
-			} else {
-				setErrorMessage(
-					response.data.error_msg || "パスワードの更新に失敗しました",
-				);
-			}
+			// 204 No Content が返れば成功
+			setSuccess(true);
+			form.reset();
+			setTimeout(() => {
+				setShowPasswordModal(false);
+				setSuccess(false);
+			}, 2000);
 		} catch (error: any) {
 			console.error("Error updating password:", error);
 			if (error.response?.status === 401) {
@@ -118,6 +123,31 @@ function TeacherSettingsPage() {
 			setLoading(false);
 		}
 	};
+
+	useEffect(() => {
+		const fetchUserProfile = async () => {
+			try {
+				const res = await axios.get("/users/me");
+				setUserProfile(res.data);
+			} catch (error) {
+				console.error("ユーザー情報の取得に失敗しました:", error);
+			} finally {
+				setProfileLoading(false);
+			}
+		};
+
+		fetchUserProfile();
+	}, []);
+
+	const roleName = userProfile?.role?.name ?? "teacher";
+	const roleLabel =
+		roleName === "teacher"
+			? "Teacher"
+			: roleName === "student"
+				? "Student"
+				: roleName === "admin"
+					? "Admin"
+					: roleName;
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-4xl">
@@ -141,8 +171,11 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ユーザー名
 										</h4>
-										{/* 仮のユーザー名 */}
-										<p className="text-lg">example_username</p>
+										<p className="text-lg">
+											{profileLoading
+												? "読み込み中..."
+												: (userProfile?.username ?? "-")}
+										</p>
 									</div>
 								</div>
 
@@ -152,8 +185,11 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											メールアドレス
 										</h4>
-										{/* 仮のメールアドレス */}
-										<p className="text-lg">example@example.com</p>
+										<p className="text-lg">
+											{profileLoading
+												? "読み込み中..."
+												: (userProfile?.email ?? "-")}
+										</p>
 									</div>
 								</div>
 
@@ -163,8 +199,7 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ユーザー種別
 										</h4>
-										{/* 仮のユーザー種別 */}
-										<p className="text-lg">example_kind_name</p>
+										<p className="text-lg">{roleLabel}</p>
 									</div>
 								</div>
 
@@ -174,8 +209,13 @@ function TeacherSettingsPage() {
 										<h4 className="font-semibold text-sm text-gray-600">
 											ニックネーム
 										</h4>
-										{/* 仮のニックネーム */}
-										<p className="text-lg">example_nickname</p>
+										<p className="text-lg">
+											{profileLoading
+												? "読み込み中..."
+												: (userProfile?.display_name ??
+													userProfile?.username ??
+													"-")}
+										</p>
 									</div>
 									<Button variant="ghost" size="sm" className="ml-auto">
 										<Edit className="h-4 w-4" />

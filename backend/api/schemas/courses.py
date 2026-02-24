@@ -79,6 +79,20 @@ class CourseEnrollmentBatchCreate(BaseModel):
     """複数のコース履修登録を一括で行うためのスキーマ"""
     enrollments: List[CourseEnrollmentCreate] = Field(..., description="履修登録情報のリスト")
 
+
+class CourseEnrolledStudent(BaseModel):
+    """コースに履修登録済みの学生情報"""
+    user_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    grade: Optional[int] = None
+    department: Optional[str] = None
+    student_number: Optional[str] = None
+    class_number: Optional[str] = None
+    class_roster_number: Optional[str] = None
+    enrolled_at: datetime
+
 #
 # Course Content Permission Schemas (コースコンテンツ権限関連)
 #

@@ -1,6 +1,7 @@
 import { ChevronUp, LogOut, User2 } from "lucide-react";
 import Link from "next/link";
-import { type FC, memo } from "react";
+import { type FC, memo, useEffect, useState } from "react";
+import { signOut } from "next-auth/react";
 
 import {
 	DropdownMenu,
@@ -21,18 +22,38 @@ import {
 	SidebarMenuItem,
 	SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
+import axios from "@/lib/axios";
 import type { SidebarGroups } from "@/types/sidebarGroups";
 
 type Props = {
 	sidebarGroups: SidebarGroups[];
 };
 
+type UserProfile = {
+	username?: string | null;
+	display_name?: string | null;
+};
+
 export const AppSidebar: FC<Props> = memo((props) => {
 	const { sidebarGroups } = props;
+	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-	// const handleLogout = async () => {
-	// 	await logout();
-	// };
+	useEffect(() => {
+		const fetchUser = async () => {
+			try {
+				const res = await axios.get("/users/me");
+				setUserProfile(res.data);
+			} catch (error) {
+				console.error("サイドバー用ユーザー情報の取得に失敗しました:", error);
+			}
+		};
+
+		fetchUser();
+	}, []);
+
+	const handleLogout = async () => {
+		await signOut({ callbackUrl: "/login" });
+	};
 
 	return (
 		<Sidebar>
@@ -79,7 +100,7 @@ export const AppSidebar: FC<Props> = memo((props) => {
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<SidebarMenuSubButton>
-									<User2 /> ユーザー名 {/* 仮のユーザー名 */}
+									<User2 /> {userProfile?.display_name || userProfile?.username || "ユーザー"}
 									<ChevronUp className="ml-auto" />
 								</SidebarMenuSubButton>
 							</DropdownMenuTrigger>
@@ -87,8 +108,7 @@ export const AppSidebar: FC<Props> = memo((props) => {
 								side="top"
 								className="w-[--radix-popper-anchor-width]"
 							>
-								{/* <DropdownMenuItem onClick={handleLogout}> */}
-								<DropdownMenuItem onClick={() => console.log("ログアウト")}>
+								<DropdownMenuItem onClick={handleLogout}>
 									<LogOut />
 									<span>ログアウト</span>
 								</DropdownMenuItem>

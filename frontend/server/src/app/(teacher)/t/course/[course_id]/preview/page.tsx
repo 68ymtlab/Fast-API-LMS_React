@@ -65,7 +65,7 @@ function CoursePreviewPage() {
 
 			// コース情報と週情報を並行取得
 			const [courseResponse, weeksResponse] = await Promise.all([
-				axios.get(`/get_course_info/${params.course_id}`),
+				axios.get(`/courses/${params.course_id}`),
 				axios.get(`/get_week_list/${params.course_id}`),
 			]);
 

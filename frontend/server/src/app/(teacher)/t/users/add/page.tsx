@@ -63,6 +63,11 @@ const formSchema = z
 			.min(6, "パスワードは6文字以上で入力してください"),
 		confirmPassword: z.string().min(1, "パスワードの確認を入力してください"),
 		userType: z.string().min(1, "ユーザー種別を選択してください"),
+		studentGrade: z.string().optional(),
+		studentDepartment: z.string().optional(),
+		studentClassNumber: z.string().optional(),
+		studentNumber: z.string().optional(),
+		classRosterNumber: z.string().optional(),
 	})
 	.refine((data) => data.password === data.confirmPassword, {
 		message: "パスワードが一致しません",
@@ -76,7 +81,23 @@ interface User {
 	email: string;
 	password: string;
 	kind_name: string;
+	student_grade?: string;
+	student_department?: string;
+	student_class_number?: string;
+	student_number?: string;
+	class_roster_number?: string;
 }
+
+type BulkCreateResponse = {
+	created_count: number;
+	failed_count: number;
+	results: Array<{
+		email: string;
+		status: "created" | "failed";
+		user_id?: number | null;
+		message?: string | null;
+	}>;
+};
 
 const userTypes = ["学生", "教師"];
 
@@ -99,12 +120,30 @@ function AddUserPage() {
 			password: "",
 			confirmPassword: "",
 			userType: "",
+			studentGrade: "",
+			studentDepartment: "",
+			studentClassNumber: "",
+			studentNumber: "",
+			classRosterNumber: "",
 		},
 	});
+	const selectedUserType = form.watch("userType");
+
+	// ユーザー種別名からrole_idへの変換
+	const getRoleId = (kindName: string): number => {
+		switch (kindName) {
+			case "教師":
+				return 2;
+			case "学生":
+				return 3;
+			default:
+				return 3; // デフォルトは学生
+		}
+	};
 
 	const fetchUsers = async () => {
 		try {
-			const response = await axios.get("/get_users");
+			const response = await axios.get("/admin/users");
 			setUsers(response.data);
 		} catch (error) {
 			console.error("Error fetching users:", error);
@@ -145,9 +184,26 @@ function AddUserPage() {
 					: "ユーザー種別を選択してください",
 			);
 		}
+		if (!userTypes.includes(userData.kind_name)) {
+			errors.push(
+				isFileUpload
+					? `ユーザー種別は「学生」または「教師」を指定してください: ${userData.kind_name}`
+					: "ユーザー種別が不正です",
+			);
+		}
+		if (userData.kind_name === "学生" && userData.student_grade) {
+			const grade = Number.parseInt(userData.student_grade, 10);
+			if (Number.isNaN(grade) || grade < 1) {
+				errors.push(
+					isFileUpload
+						? `${userData.email}: 学年は1以上の整数で指定してください`
+						: "学年は1以上の整数で入力してください",
+				);
+			}
+		}
 
 		// 重複チェック
-		if (users.some((u) => u.email === userData.email)) {
+		if (users.length > 0 && users.some((u) => u.email === userData.email)) {
 			errors.push(`${userData.email}：すでに登録されています`);
 		}
 
@@ -165,6 +221,11 @@ function AddUserPage() {
 				email: data.email,
 				password: data.password,
 				kind_name: data.userType,
+				student_grade: data.studentGrade?.trim() || undefined,
+				student_department: data.studentDepartment?.trim() || undefined,
+				student_class_number: data.studentClassNumber?.trim() || undefined,
+				student_number: data.studentNumber?.trim() || undefined,
+				class_roster_number: data.classRosterNumber?.trim() || undefined,
 			};
 
 			const validationErrors = validateUser(userData);
@@ -174,22 +235,38 @@ function AddUserPage() {
 				return;
 			}
 
-			const response = await axios.post("/add_user", userData);
+			const studentInfo =
+				data.userType === "学生"
+					? {
+							grade: userData.student_grade
+								? Number.parseInt(userData.student_grade, 10)
+								: undefined,
+							department: userData.student_department || undefined,
+							class_number: userData.student_class_number || undefined,
+							student_number: userData.student_number || undefined,
+							class_roster_number: userData.class_roster_number || undefined,
+						}
+					: undefined;
 
-			if (response.data.success) {
-				setSuccessMessage(`${data.username}を登録しました`);
-				setShowSuccessDialog(true);
-				form.reset();
-				await fetchUsers(); // ユーザーリストを更新
-				setTimeout(() => setShowSuccessDialog(false), 3000);
-			} else {
-				setErrorMessages([
-					response.data.error_msgs || "ユーザーの登録に失敗しました",
-				]);
-			}
+			// 新バックエンド POST /users (UserCreate スキーマ)
+			await axios.post("/users", {
+				username: userData.username,
+				email: userData.email,
+				password: userData.password,
+				role_id: getRoleId(userData.kind_name),
+				student_info: studentInfo,
+			});
+
+			// 201 Created が返れば成功
+			setSuccessMessage(`${data.username}を登録しました`);
+			setShowSuccessDialog(true);
+			form.reset();
+			await fetchUsers();
+			setTimeout(() => setShowSuccessDialog(false), 3000);
 		} catch (error: any) {
 			console.error("Error adding user:", error);
-			setErrorMessages(["ユーザーの登録に失敗しました"]);
+			const detail = error.response?.data?.detail;
+			setErrorMessages([detail || "ユーザーの登録に失敗しました"]);
 		} finally {
 			setLoading(false);
 		}
@@ -210,9 +287,9 @@ function AddUserPage() {
 
 			for (const line of lines) {
 				const parts = line.split(",");
-				if (parts.length !== 4) {
+				if (parts.length !== 4 && parts.length !== 7 && parts.length !== 9) {
 					setErrorMessages([
-						"CSVファイルのデータが間違っています。形式を確認してください",
+						"CSV形式が不正です。4列（基本）、7列（学生情報一部）、9列（学籍番号/名列番号込み）で作成してください",
 					]);
 					return;
 				}
@@ -222,6 +299,11 @@ function AddUserPage() {
 					email: parts[1].trim(),
 					password: parts[2].trim(),
 					kind_name: parts[3].replace("\r", "").trim(),
+					student_grade: parts[4]?.trim(),
+					student_department: parts[5]?.trim(),
+					student_class_number: parts[6]?.replace("\r", "").trim(),
+					student_number: parts[7]?.trim(),
+					class_roster_number: parts[8]?.replace("\r", "").trim(),
 				};
 
 				newFileUsers.push(userData);
@@ -268,21 +350,42 @@ function AddUserPage() {
 				return;
 			}
 
-			const response = await axios.post("/add_users", validUsers);
+			const payload = validUsers.map((u) => ({
+				username: u.username,
+				email: u.email,
+				password: u.password,
+				role_id: getRoleId(u.kind_name),
+				student_info:
+					u.kind_name === "学生"
+						? {
+								grade: u.student_grade
+									? Number.parseInt(u.student_grade, 10)
+									: undefined,
+								department: u.student_department || undefined,
+								class_number: u.student_class_number || undefined,
+								student_number: u.student_number || undefined,
+								class_roster_number: u.class_roster_number || undefined,
+							}
+						: undefined,
+			}));
 
-			if (response.data.success) {
-				setSuccessMessage(`${validUsers.length}件のユーザーを登録しました`);
+			const response = await axios.post<BulkCreateResponse>("/users/bulk", payload);
+			const result = response.data;
+
+			const errors = result.results
+				.filter((r) => r.status === "failed")
+				.map((r) => `${r.email}: ${r.message || "登録に失敗しました"}`);
+
+			if (errors.length > 0) setErrorMessages(errors);
+			if (result.created_count > 0) {
+				setSuccessMessage(`${result.created_count}件のユーザーを登録しました`);
 				setShowSuccessDialog(true);
 				setFileUsers([]);
 				if (fileInputRef.current) {
 					fileInputRef.current.value = "";
 				}
-				await fetchUsers(); // ユーザーリストを更新
+				await fetchUsers();
 				setTimeout(() => setShowSuccessDialog(false), 3000);
-			} else {
-				setErrorMessages([
-					response.data.error_msgs || "ユーザーの一括登録に失敗しました",
-				]);
 			}
 		} catch (error: any) {
 			console.error("Error adding users:", error);
@@ -292,8 +395,12 @@ function AddUserPage() {
 		}
 	};
 
+	useEffect(() => {
+		fetchUsers();
+	}, []);
+
 	return (
-		<div className="container mx-auto py-8 px-4 max-w-4xl">
+		<div className="container mx-auto py-8 px-4 max-w-6xl">
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-2xl flex items-center gap-3">
@@ -441,6 +548,101 @@ function AddUserPage() {
 											)}
 										/>
 
+										{selectedUserType === "学生" && (
+											<div className="space-y-4 rounded-lg border p-4 bg-muted/20">
+												<p className="text-sm font-medium">
+													学生情報（任意）
+												</p>
+												<FormField
+													control={form.control}
+													name="studentGrade"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>学年</FormLabel>
+															<FormControl>
+																<Input
+																	type="number"
+																	min="1"
+																	placeholder="例: 1"
+																	{...field}
+																	disabled={loading}
+																/>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+												<FormField
+													control={form.control}
+													name="studentDepartment"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>所属</FormLabel>
+															<FormControl>
+																<Input
+																	placeholder="例: 情報工学科"
+																	{...field}
+																	disabled={loading}
+																/>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+												<FormField
+													control={form.control}
+													name="studentClassNumber"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>クラス番号</FormLabel>
+															<FormControl>
+																<Input
+																	placeholder="例: A1"
+																	{...field}
+																	disabled={loading}
+																/>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+												<FormField
+													control={form.control}
+													name="studentNumber"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>学籍番号</FormLabel>
+															<FormControl>
+																<Input
+																	placeholder="例: 24A1234"
+																	{...field}
+																	disabled={loading}
+																/>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+												<FormField
+													control={form.control}
+													name="classRosterNumber"
+													render={({ field }) => (
+														<FormItem>
+															<FormLabel>名列番号</FormLabel>
+															<FormControl>
+																<Input
+																	placeholder="例: 12"
+																	{...field}
+																	disabled={loading}
+																/>
+															</FormControl>
+															<FormMessage />
+														</FormItem>
+													)}
+												/>
+											</div>
+										)}
+
 										<div className="flex justify-center">
 											<Button type="submit" disabled={loading} className="px-8">
 												{loading ? "登録中..." : "登録"}
@@ -469,44 +671,77 @@ function AddUserPage() {
 									{/* CSVフォーマット説明 */}
 									<div>
 										<h4 className="font-semibold mb-3">CSVの形式</h4>
-										<div className="overflow-x-auto">
-											<table className="w-full border border-gray-300 rounded-lg">
+										<div className="overflow-x-auto border border-gray-300 rounded-lg">
+											<table className="w-full min-w-[1100px] text-sm">
 												<thead>
 													<tr className="bg-gray-50">
-														<th className="border border-gray-300 px-4 py-2 text-left">
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
 															ユーザー名
 														</th>
-														<th className="border border-gray-300 px-4 py-2 text-left">
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
 															メールアドレス
 														</th>
-														<th className="border border-gray-300 px-4 py-2 text-left">
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
 															パスワード
 														</th>
-														<th className="border border-gray-300 px-4 py-2 text-left">
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
 															ユーザー種別
+														</th>
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
+															学年（任意）
+														</th>
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
+															所属（任意）
+														</th>
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
+															クラス番号（任意）
+														</th>
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
+															学籍番号（任意）
+														</th>
+														<th className="border border-gray-300 px-4 py-2 text-left whitespace-nowrap">
+															名列番号（任意）
 														</th>
 													</tr>
 												</thead>
 												<tbody>
 													<tr className="text-sm text-gray-600">
-														<td className="border border-gray-300 px-4 py-2">
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
 															田中太郎
 														</td>
-														<td className="border border-gray-300 px-4 py-2">
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
 															tanaka@example.com
 														</td>
-														<td className="border border-gray-300 px-4 py-2">
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
 															password123
 														</td>
-														<td className="border border-gray-300 px-4 py-2">
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
 															学生
+														</td>
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
+															1
+														</td>
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
+															情報工学科
+														</td>
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
+															A1
+														</td>
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
+															24A1234
+														</td>
+														<td className="border border-gray-300 px-4 py-2 whitespace-nowrap">
+															12
 														</td>
 													</tr>
 												</tbody>
 											</table>
 										</div>
 										<p className="text-sm text-gray-500 mt-2">
-											※ ユーザー種別は「学生」または「教師」を指定してください
+											※ 基本4列（ユーザー名,メール,パスワード,ユーザー種別）でも登録可能です
+										</p>
+										<p className="text-sm text-gray-500">
+											※ 学生情報を入れる場合は7列または9列にしてください（学籍番号/名列番号は9列目まで）
 										</p>
 									</div>
 
@@ -537,18 +772,27 @@ function AddUserPage() {
 												<Users className="h-4 w-4" />
 												プレビュー（{fileUsers.length}件）
 											</h4>
-											<div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg">
-												<table className="w-full text-sm">
+											<div className="max-h-56 overflow-auto border border-gray-300 rounded-lg">
+												<table className="w-full min-w-[760px] text-sm">
 													<thead className="bg-gray-50 sticky top-0">
 														<tr>
-															<th className="border-b border-gray-300 px-3 py-2 text-left">
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
 																ユーザー名
 															</th>
-															<th className="border-b border-gray-300 px-3 py-2 text-left">
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
 																メール
 															</th>
-															<th className="border-b border-gray-300 px-3 py-2 text-left">
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
 																種別
+															</th>
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
+																学年
+															</th>
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
+																学籍番号
+															</th>
+															<th className="border-b border-gray-300 px-3 py-2 text-left whitespace-nowrap">
+																名列番号
 															</th>
 														</tr>
 													</thead>
@@ -563,6 +807,15 @@ function AddUserPage() {
 																</td>
 																<td className="border-b border-gray-200 px-3 py-2">
 																	{user.kind_name}
+																</td>
+																<td className="border-b border-gray-200 px-3 py-2">
+																	{user.student_grade || "-"}
+																</td>
+																<td className="border-b border-gray-200 px-3 py-2">
+																	{user.student_number || "-"}
+																</td>
+																<td className="border-b border-gray-200 px-3 py-2">
+																	{user.class_roster_number || "-"}
 																</td>
 															</tr>
 														))}

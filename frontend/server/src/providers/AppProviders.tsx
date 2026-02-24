@@ -1,10 +1,8 @@
 "use client";
-// import dynamic from "next/dynamic";
+
 import { CookiesProvider } from "react-cookie";
-
 import { SessionProvider } from "next-auth/react";
-
-// import { ThemeProvider } from "./ThemeProviders";
+import { ThemeProvider } from "./ThemeProviders";
 
 // // MathJaxの設定を動的にインポート
 // const MathJaxSetup = dynamic(
@@ -12,17 +10,18 @@ import { SessionProvider } from "next-auth/react";
 // 	{ ssr: false },
 // );
 
-export default function Providers({ children }: { children: React.ReactNode }, session: any) {
+export default function Providers({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
 	return (
-		<SessionProvider session={session} >
+		<SessionProvider>
 			<CookiesProvider>
-			{/* <MathJaxSetup>
-				<ThemeProvider> */}
+				<ThemeProvider>
 					<main>{children}</main>
-				{/* </ThemeProvider>
-			</MathJaxSetup> */}
-		</CookiesProvider>
+				</ThemeProvider>
+			</CookiesProvider>
 		</SessionProvider>
-		
 	);
 }

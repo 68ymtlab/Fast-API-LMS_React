@@ -86,6 +86,47 @@ async def seed_users():
         )
         await session.commit()
 
+        # 既存DB互換: login_days カラムが無い場合は追加
+        await session.execute(
+            text(
+                """
+                ALTER TABLE students
+                ADD COLUMN IF NOT EXISTS login_days INT DEFAULT 0 NOT NULL
+                """
+            )
+        )
+        # 既存DB互換: 学籍番号 / 名列番号カラムを追加
+        await session.execute(
+            text(
+                """
+                ALTER TABLE students
+                ADD COLUMN IF NOT EXISTS student_number VARCHAR(64)
+                """
+            )
+        )
+        await session.execute(
+            text(
+                """
+                ALTER TABLE students
+                ADD COLUMN IF NOT EXISTS class_roster_number VARCHAR(64)
+                """
+            )
+        )
+        await session.commit()
+
+        # 学生・テストユーザー用の students レコードを作成（role_id: 3=student, 4=test）
+        student_user_ids = [u["id"] for u in USERS if u["role_id"] in (3, 4)]
+        for user_id in student_user_ids:
+            await session.execute(
+                text("""
+                    INSERT INTO students (user_id, grade, department, class_number, points, login_days)
+                    VALUES (:user_id, NULL, NULL, NULL, 0, 0)
+                    ON CONFLICT (user_id) DO NOTHING
+                """),
+                {"user_id": user_id},
+            )
+        await session.commit()
+
     await engine.dispose()
     print(f"✅ Seeded {len(USERS)} users. Password for all: {SEED_PASSWORD!r}")
 

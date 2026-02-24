@@ -6,7 +6,7 @@ Pydanticスキーマを定義します。
 """
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 #
 # Lesson Schemas (レッスン関連)
@@ -126,6 +126,74 @@ class LessonPageWithContentBody(LessonPageInDBBase):
     raw_content_body: Optional[str] = Field(None, description="元コンテンツの本文")
     rendered_content_body: Optional[str] = Field(None, description="レンダリング済みコンテンツの本文")
 
+
+class LessonPageContentUpdate(BaseModel):
+    """レッスンページ本文更新時の入力スキーマ"""
+    content: str = Field(..., description="更新する本文")
+
+
+class CourseQuestion(BaseModel):
+    """コース用問題一覧の返却スキーマ"""
+    id: int
+    title: str
+    question_type: str
+    difficulty: Optional[int] = None
+    is_active: bool
+    content_data: Dict[str, Any]
+    tag_names: List[str] = []
+
+
+class CourseQuestionCreate(BaseModel):
+    """演習問題作成時の入力スキーマ"""
+    title: str = Field(..., min_length=1, max_length=255)
+    question_type: str = Field(..., min_length=1, max_length=50)
+    difficulty: Optional[int] = None
+    content_data: Dict[str, Any] = Field(default_factory=dict)
+    tag_names: List[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class CourseQuestionUpdate(BaseModel):
+    """演習問題更新時の入力スキーマ"""
+    title: str = Field(..., min_length=1, max_length=255)
+    question_type: str = Field(..., min_length=1, max_length=50)
+    difficulty: Optional[int] = None
+    content_data: Dict[str, Any] = Field(default_factory=dict)
+    tag_names: List[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
+class CourseTag(BaseModel):
+    """タグ返却スキーマ"""
+    id: int
+    name: str
+    slug: Optional[str] = None
+
+
+class CourseTagCreate(BaseModel):
+    """タグ作成入力スキーマ"""
+    name: str = Field(..., min_length=1, max_length=50)
+
+
+class ExerciseSet(BaseModel):
+    """演習セット返却スキーマ"""
+    id: int
+    title: str
+    description: Optional[str] = None
+    course_id: int
+    question_ids: List[int]
+    due_date: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExerciseSetCreate(BaseModel):
+    """演習セット作成/更新入力スキーマ"""
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    question_ids: List[int] = Field(default_factory=list)
+    due_date: Optional[datetime] = None
+
 #
 # Lesson Content Upload Schemas (レッスンコンテンツアップロード関連)
 #
@@ -174,3 +242,87 @@ class FlowpageSetWithQuestions(BaseModel):
     time_limit_seconds: Optional[int]
     challenge_limit: Optional[int]
     questions: List[FlowpageQuestionDetail]
+
+#
+# Exercise Session Schemas (セッション・解答保存)
+#
+
+class ExerciseSessionCreate(BaseModel):
+    """
+    演習セッション開始リクエスト
+    """
+    pass
+
+class ExerciseSessionResponse(BaseModel):
+    """
+    演習セッション開始レスポンス
+    """
+    id: int
+    user_id: int
+    exercise_set_id: int
+    started_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class StudentAnswerCreate(BaseModel):
+    """
+    1問ごとの解答保存リクエスト
+    """
+    question_id: int
+    answer_data: Dict[str, Any]
+    is_correct: Optional[bool] = None
+
+class StudentAnswerResponse(BaseModel):
+    """
+    解答保存レスポンス
+    """
+    id: int
+    session_id: int
+    question_id: int
+    is_correct: Optional[bool]
+    model_config = ConfigDict(from_attributes=True)
+
+class ExerciseSessionFinish(BaseModel):
+    """
+    演習セッション完了(提出)リクエスト
+    """
+    score: Optional[float] = None
+
+
+#
+# Exercise Session Summary Schemas (教師向け閲覧)
+#
+
+class ExerciseSessionStudentInfo(BaseModel):
+    """
+    教師向けに返す学生情報サマリ
+    """
+    user_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: str
+    grade: Optional[int] = None
+    department: Optional[str] = None
+    student_number: Optional[str] = None
+    class_number: Optional[str] = None
+    class_roster_number: Optional[str] = None
+
+
+class ExerciseSessionSummary(BaseModel):
+    """
+    教師向けに返す個々の演習セッション情報
+    """
+    session_id: int
+    exercise_set_id: int
+    exercise_set_title: str
+    score: Optional[float] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+class StudentExerciseSessions(BaseModel):
+    """
+    学生ごとの演習セッション一覧
+    """
+    student: ExerciseSessionStudentInfo
+    sessions: List[ExerciseSessionSummary] = []
+

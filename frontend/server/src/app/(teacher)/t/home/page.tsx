@@ -26,17 +26,22 @@ import {
 } from "@/components/ui/tooltip";
 import axios from "@/lib/axios";
 
+type Semester = {
+	id: number;
+	name: string;
+	sort_order: number | null;
+};
+
 type Subject = {
 	id: number;
 	subject_name: string;
-	period: string;
-	created: string;
-	username: string;
-};
-
-type SubjectResponse = {
-	during_result: Subject[];
-	outside_result: Subject[];
+	academic_year: number;
+	semester_id: number;
+	is_active: boolean;
+	created_at: string;
+	updated_at: string;
+	updated_by_user_id: number | null;
+	semester: Semester;
 };
 
 function TeacherHome() {
@@ -65,49 +70,30 @@ function TeacherHome() {
 		}
 	};
 
-	// useEffect(() => {
-	// 	const fetchUserName = async () => {
-	// 		try {
-	// 			const response = await axios.get("/user_name");
-	// 			if (response.status === 200) {
-	// 				setUserName(response.data);
-	// 			}
-	// 		} catch (_error) {
-	// 			console.error("ユーザー名の取得に失敗しました");
-	// 		}
-	// 	};
+	useEffect(() => {
+		const fetchSubjects = async () => {
+			setIsLoading(true);
+			setError(null);
+			try {
+				const response = await axios.get<Subject[]>("/subjects");
+				if (response.status === 200) {
+					const subjects = response.data;
+					// is_active で開講中・過去に分割
+					setDuringSubjects(subjects.filter((s) => s.is_active));
+					setOutsideSubjects(subjects.filter((s) => !s.is_active));
+				} else {
+					setError("科目情報の取得に失敗しました");
+				}
+			} catch (_error) {
+				console.error("科目情報の取得に失敗:", _error);
+				setError("科目情報の取得に失敗しました");
+			} finally {
+				setIsLoading(false);
+			}
+		};
 
-	// 	fetchUserName();
-	// }, [loginUser]);
-
-	// useEffect(() => {
-	// 	if (!loginUser) return;
-
-	// 	const fetchSubjects = async () => {
-	// 		setIsLoading(true);
-	// 		setError(null);
-	// 		try {
-	// 			const response = await axios.get<SubjectResponse>("/get_subjects");
-	// 			if (response.status === 200) {
-	// 				setDuringSubjects(response.data.during_result);
-	// 				setOutsideSubjects(response.data.outside_result);
-	// 			} else {
-	// 				setError("科目情報の取得に失敗しました");
-	// 			}
-	// 		} catch (_error) {
-	// 			setError("科目情報の取得に失敗しました");
-	// 		} finally {
-	// 			setIsLoading(false);
-	// 		}
-	// 	};
-
-	// 	fetchSubjects();
-	// }, [loginUser]);
-
-	// // ログインしていない場合は何も表示しない
-	// if (!loginUser) {
-	// 	return null;
-	// }
+		fetchSubjects();
+	}, []);
 
 	return (
 		<>
@@ -183,15 +169,15 @@ function TeacherHome() {
 													</CardHeader>
 													<CardContent className="p-4 space-y-3">
 														<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-															<Users className="text-primary w-4 h-4" />
+															<Calendar className="text-primary w-4 h-4" />
 															<span className="text-sm text-neutral-700 font-medium">
-																作成者: {item.username}
+																開講年: {item.academic_year}年
 															</span>
 														</div>
 														<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-															<Calendar className="text-primary w-4 h-4" />
+															<BookOpen className="text-primary w-4 h-4" />
 															<span className="text-sm text-neutral-700 font-medium">
-																開講期間: {item.period}
+																学期: {item.semester.name}
 															</span>
 														</div>
 													</CardContent>
@@ -250,15 +236,15 @@ function TeacherHome() {
 													</CardHeader>
 													<CardContent className="p-4 space-y-3">
 														<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-															<Users className="text-primary w-4 h-4" />
+															<Calendar className="text-primary w-4 h-4" />
 															<span className="text-sm text-neutral-700 font-medium">
-																作成者: {item.username}
+																開講年: {item.academic_year}年
 															</span>
 														</div>
 														<div className="flex items-center gap-3 bg-white/80 rounded-xl p-3 shadow-inner">
-															<Calendar className="text-primary w-4 h-4" />
+															<BookOpen className="text-primary w-4 h-4" />
 															<span className="text-sm text-neutral-700 font-medium">
-																開講期間: {item.period}
+																学期: {item.semester.name}
 															</span>
 														</div>
 													</CardContent>

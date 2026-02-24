@@ -67,21 +67,15 @@ function TeacherPasswordUpdatePage() {
 
 		try {
 			const params = {
-				email: "example@example.com", // 仮のメールアドレス、必要に応じて実際のユーザーのメールアドレスに置き換えてください
-				old_password: data.currentPassword,
+				current_password: data.currentPassword,
 				new_password: data.newPassword,
 			};
 
-			const response = await axios.post("/update_password", params);
+			await axios.put("/users/me/password", params);
 
-			if (response.data.success) {
-				setSuccess(true);
-				form.reset();
-			} else {
-				setErrorMessage(
-					response.data.error_msg || "パスワードの更新に失敗しました",
-				);
-			}
+			// 204 No Content が返れば成功
+			setSuccess(true);
+			form.reset();
 		} catch (error: any) {
 			console.error("Error updating password:", error);
 			if (error.response?.status === 401) {

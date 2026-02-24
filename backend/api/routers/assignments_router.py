@@ -1,0 +1,541 @@
+"""
+課題・ファイル提出関連のAPIエンドポイント
+
+設計:
+  - 課題はコースレッスン（course_lessons）に紐づく。各レッスンに複数作成可能。
+  - ファイルはサーバーのファイルシステムに保存。
+  - 学生は何度でも再提出可能（is_latest フラグで最新を管理）。
+  - 教師は採点（点数＋コメント）と課題の公開/非公開を制御できる。
+  - 提出ファイルのダウンロードは教師・当該学生のみ可能。
+"""
+import os
+import uuid
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Optional
+
+from fastapi import (
+    APIRouter, Depends, File, HTTPException, Query,
+    UploadFile, status
+)
+from fastapi.responses import FileResponse
+from sqlalchemy import select, func, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from api.db.session import get_db
+from api.core.security import get_current_active_user, require_teacher_or_higher
+from api.models import users_model
+from api.models.assignments_model import Assignments, AssignmentSubmissions
+from api.models.lessons_model import CourseLessons
+import api.schemas.assignments as assignments_schema
+
+assignments_router = APIRouter(tags=["課題管理"])
+
+# ── ファイル保存ルートディレクトリ ──────────────────────
+UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "/app/uploads"))
+SUBMISSIONS_DIR = UPLOAD_ROOT / "submissions"
+SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ── ヘルパー ────────────────────────────────────────────
+
+def _is_teacher_or_admin(user: users_model.Users) -> bool:
+    return user.role_id in (1, 2)  # 1=admin, 2=teacher
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def _get_assignment_or_404(
+    assignment_id: int, db: AsyncSession
+) -> Assignments:
+    stmt = select(Assignments).where(
+        Assignments.id == assignment_id,
+        Assignments.deleted_at == None  # noqa: E711
+    )
+    obj = (await db.execute(stmt)).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="課題が見つかりません")
+    return obj
+
+
+def _assignment_to_response(
+    obj: Assignments,
+    submission_count: int = 0,
+    my_submission: Optional[AssignmentSubmissions] = None,
+) -> assignments_schema.AssignmentResponse:
+    my_sub_resp = None
+    if my_submission:
+        my_sub_resp = _submission_to_response(my_submission)
+    return assignments_schema.AssignmentResponse(
+        id=obj.id,
+        lesson_id=obj.lesson_id,
+        title=obj.title,
+        description=obj.description,
+        is_published=obj.is_published,
+        publish_start_at=obj.publish_start_at,
+        publish_end_at=obj.publish_end_at,
+        due_date=obj.due_date,
+        allow_late_submission=obj.allow_late_submission,
+        max_file_size_mb=obj.max_file_size_mb or 50,
+        allowed_file_types=obj.allowed_file_types,
+        display_order=obj.display_order,
+        created_at=obj.created_at,
+        created_by_user_id=obj.created_by_user_id,
+        updated_at=obj.updated_at,
+        updated_by_user_id=obj.updated_by_user_id,
+        submission_count=submission_count,
+        my_submission=my_sub_resp,
+    )
+
+
+def _submission_to_response(
+    sub: AssignmentSubmissions,
+    student: Optional[users_model.Users] = None,
+) -> assignments_schema.SubmissionResponse:
+    return assignments_schema.SubmissionResponse(
+        id=sub.id,
+        assignment_id=sub.assignment_id,
+        student_user_id=sub.student_user_id,
+        original_filename=sub.original_filename,
+        file_size_bytes=sub.file_size_bytes,
+        content_type=sub.content_type,
+        submission_number=sub.submission_number,
+        is_latest=sub.is_latest,
+        score=float(sub.score) if sub.score is not None else None,
+        max_score=float(sub.max_score) if sub.max_score is not None else None,
+        teacher_comment=sub.teacher_comment,
+        graded_at=sub.graded_at,
+        graded_by_user_id=sub.graded_by_user_id,
+        submitted_at=sub.submitted_at,
+        student_display_name=(student or getattr(sub, 'student', None)) and (
+            (student or sub.student).display_name
+        ) or None,
+        student_email=(student or getattr(sub, 'student', None)) and (
+            (student or sub.student).email
+        ) or None,
+    )
+
+
+# ── 課題 CRUD ──────────────────────────────────────────
+
+@assignments_router.post(
+    "/lessons/{lesson_id}/assignments",
+    response_model=assignments_schema.AssignmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="課題作成（教師向け）",
+)
+async def create_assignment(
+    lesson_id: int,
+    body: assignments_schema.AssignmentCreate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """指定レッスンに課題を作成します（教師・管理者のみ）。"""
+    # レッスン存在確認
+    lesson = (await db.execute(
+        select(CourseLessons).where(CourseLessons.id == lesson_id)
+    )).scalar_one_or_none()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="レッスンが見つかりません")
+
+    obj = Assignments(
+        lesson_id=lesson_id,
+        title=body.title.strip(),
+        description=body.description,
+        is_published=body.is_published,
+        publish_start_at=body.publish_start_at,
+        publish_end_at=body.publish_end_at,
+        due_date=body.due_date,
+        allow_late_submission=body.allow_late_submission,
+        max_file_size_mb=body.max_file_size_mb,
+        allowed_file_types=body.allowed_file_types,
+        display_order=body.display_order,
+        created_by_user_id=current_user.id,
+        updated_by_user_id=current_user.id,
+    )
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+    return _assignment_to_response(obj)
+
+
+@assignments_router.get(
+    "/lessons/{lesson_id}/assignments",
+    response_model=List[assignments_schema.AssignmentResponse],
+    summary="課題一覧取得",
+)
+async def list_assignments(
+    lesson_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    include_unpublished: bool = Query(False, description="非公開課題も含める（教師のみ有効）"),
+):
+    """指定レッスンの課題一覧を取得します。学生には公開中の課題のみ返します。"""
+    stmt = select(Assignments).where(
+        Assignments.lesson_id == lesson_id,
+        Assignments.deleted_at == None,  # noqa: E711
+    ).order_by(Assignments.display_order, Assignments.id)
+
+    # 学生は公開中のみ
+    if not _is_teacher_or_admin(current_user):
+        now = _now_utc()
+        stmt = stmt.where(
+            Assignments.is_published == True,  # noqa: E712
+        )
+    elif not include_unpublished:
+        pass  # 教師はデフォルトで全て見える
+
+    assignments = (await db.execute(stmt)).scalars().all()
+
+    results = []
+    for a in assignments:
+        # 提出件数（教師向け）
+        count = 0
+        my_sub = None
+        if _is_teacher_or_admin(current_user):
+            count_stmt = select(func.count()).where(
+                AssignmentSubmissions.assignment_id == a.id,
+                AssignmentSubmissions.is_latest == True,  # noqa: E712
+            )
+            count = (await db.execute(count_stmt)).scalar() or 0
+        else:
+            # 自分の最新提出
+            my_sub_stmt = select(AssignmentSubmissions).where(
+                AssignmentSubmissions.assignment_id == a.id,
+                AssignmentSubmissions.student_user_id == current_user.id,
+                AssignmentSubmissions.is_latest == True,  # noqa: E712
+            )
+            my_sub = (await db.execute(my_sub_stmt)).scalar_one_or_none()
+
+        results.append(_assignment_to_response(a, submission_count=count, my_submission=my_sub))
+
+    return results
+
+
+@assignments_router.get(
+    "/assignments/{assignment_id}",
+    response_model=assignments_schema.AssignmentResponse,
+    summary="課題詳細取得",
+)
+async def get_assignment(
+    assignment_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """課題の詳細を取得します。"""
+    obj = await _get_assignment_or_404(assignment_id, db)
+
+    # 学生は非公開課題を見られない
+    if not _is_teacher_or_admin(current_user) and not obj.is_published:
+        raise HTTPException(status_code=403, detail="この課題は非公開です")
+
+    count = 0
+    my_sub = None
+    if _is_teacher_or_admin(current_user):
+        count_stmt = select(func.count()).where(
+            AssignmentSubmissions.assignment_id == obj.id,
+            AssignmentSubmissions.is_latest == True,  # noqa: E712
+        )
+        count = (await db.execute(count_stmt)).scalar() or 0
+    else:
+        my_sub_stmt = select(AssignmentSubmissions).where(
+            AssignmentSubmissions.assignment_id == obj.id,
+            AssignmentSubmissions.student_user_id == current_user.id,
+            AssignmentSubmissions.is_latest == True,  # noqa: E712
+        )
+        my_sub = (await db.execute(my_sub_stmt)).scalar_one_or_none()
+
+    return _assignment_to_response(obj, submission_count=count, my_submission=my_sub)
+
+
+@assignments_router.put(
+    "/assignments/{assignment_id}",
+    response_model=assignments_schema.AssignmentResponse,
+    summary="課題更新（教師向け）",
+)
+async def update_assignment(
+    assignment_id: int,
+    body: assignments_schema.AssignmentUpdate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """課題情報を更新します（教師・管理者のみ）。"""
+    obj = await _get_assignment_or_404(assignment_id, db)
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        if field == "title" and value:
+            value = value.strip()
+        setattr(obj, field, value)
+    obj.updated_at = _now_utc()
+    obj.updated_by_user_id = current_user.id
+
+    db.add(obj)
+    await db.commit()
+    await db.refresh(obj)
+
+    count_stmt = select(func.count()).where(
+        AssignmentSubmissions.assignment_id == obj.id,
+        AssignmentSubmissions.is_latest == True,  # noqa: E712
+    )
+    count = (await db.execute(count_stmt)).scalar() or 0
+    return _assignment_to_response(obj, submission_count=count)
+
+
+@assignments_router.delete(
+    "/assignments/{assignment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="課題削除（論理削除）（教師向け）",
+)
+async def delete_assignment(
+    assignment_id: int,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """課題を論理削除します（教師・管理者のみ）。"""
+    obj = await _get_assignment_or_404(assignment_id, db)
+    obj.deleted_at = _now_utc()
+    obj.updated_by_user_id = current_user.id
+    db.add(obj)
+    await db.commit()
+
+
+# ── 提出物 ────────────────────────────────────────────
+
+@assignments_router.post(
+    "/assignments/{assignment_id}/submissions",
+    response_model=assignments_schema.SubmissionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="課題ファイルを提出（学生向け）",
+)
+async def submit_assignment(
+    assignment_id: int,
+    file: UploadFile = File(..., description="提出するファイル"),
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """学生が課題にファイルを提出します。再提出の場合は前の提出を非最新にします。"""
+    # 課題取得
+    obj = await _get_assignment_or_404(assignment_id, db)
+
+    # 公開チェック（学生のみ）
+    if not _is_teacher_or_admin(current_user):
+        if not obj.is_published:
+            raise HTTPException(status_code=403, detail="この課題は現在提出できません")
+        # 締切チェック
+        if obj.due_date and not obj.allow_late_submission:
+            if _now_utc() > obj.due_date.replace(tzinfo=None):
+                raise HTTPException(status_code=400, detail="提出期限を過ぎています")
+
+    # ファイルサイズチェック
+    file_content = await file.read()
+    max_bytes = (obj.max_file_size_mb or 50) * 1024 * 1024
+    if len(file_content) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ファイルサイズが上限（{obj.max_file_size_mb}MB）を超えています"
+        )
+
+    # ファイル拡張子チェック
+    if obj.allowed_file_types:
+        allowed = [ext.strip().lower() for ext in obj.allowed_file_types.split(",")]
+        filename = file.filename or ""
+        ext = Path(filename).suffix.lower()
+        if ext not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"許可されていないファイル形式です。許可: {obj.allowed_file_types}"
+            )
+
+    # 既存提出の is_latest を False に更新
+    prev_stmt = select(AssignmentSubmissions).where(
+        AssignmentSubmissions.assignment_id == assignment_id,
+        AssignmentSubmissions.student_user_id == current_user.id,
+        AssignmentSubmissions.is_latest == True,  # noqa: E712
+    )
+    prev_sub = (await db.execute(prev_stmt)).scalar_one_or_none()
+    submission_number = 1
+    if prev_sub:
+        prev_sub.is_latest = False
+        submission_number = prev_sub.submission_number + 1
+        db.add(prev_sub)
+
+    # ファイルを保存
+    save_dir = SUBMISSIONS_DIR / str(assignment_id) / str(current_user.id)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    unique_name = f"{uuid.uuid4()}_{file.filename}"
+    save_path = save_dir / unique_name
+
+    with open(save_path, "wb") as f_out:
+        f_out.write(file_content)
+
+    # レコード作成
+    new_sub = AssignmentSubmissions(
+        assignment_id=assignment_id,
+        student_user_id=current_user.id,
+        file_path=str(save_path),
+        original_filename=file.filename or "unknown",
+        file_size_bytes=len(file_content),
+        content_type=file.content_type,
+        submission_number=submission_number,
+        is_latest=True,
+    )
+    db.add(new_sub)
+    await db.commit()
+    await db.refresh(new_sub)
+
+    return _submission_to_response(new_sub)
+
+
+@assignments_router.get(
+    "/assignments/{assignment_id}/submissions",
+    response_model=List[assignments_schema.SubmissionResponse],
+    summary="提出一覧取得（教師向け）",
+)
+async def list_submissions(
+    assignment_id: int,
+    latest_only: bool = Query(True, description="最新提出のみ取得するか"),
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """指定課題の全提出一覧を取得します（教師・管理者のみ）。"""
+    stmt = (
+        select(AssignmentSubmissions)
+        .where(AssignmentSubmissions.assignment_id == assignment_id)
+        .options(selectinload(AssignmentSubmissions.student))
+        .order_by(AssignmentSubmissions.submitted_at.desc())
+    )
+    if latest_only:
+        stmt = stmt.where(AssignmentSubmissions.is_latest == True)  # noqa: E712
+
+    subs = (await db.execute(stmt)).scalars().all()
+
+    return [
+        assignments_schema.SubmissionResponse(
+            id=s.id,
+            assignment_id=s.assignment_id,
+            student_user_id=s.student_user_id,
+            original_filename=s.original_filename,
+            file_size_bytes=s.file_size_bytes,
+            content_type=s.content_type,
+            submission_number=s.submission_number,
+            is_latest=s.is_latest,
+            score=float(s.score) if s.score is not None else None,
+            max_score=float(s.max_score) if s.max_score is not None else None,
+            teacher_comment=s.teacher_comment,
+            graded_at=s.graded_at,
+            graded_by_user_id=s.graded_by_user_id,
+            submitted_at=s.submitted_at,
+            student_display_name=s.student.display_name if s.student else None,
+            student_email=s.student.email if s.student else None,
+        )
+        for s in subs
+    ]
+
+
+@assignments_router.get(
+    "/submissions/{submission_id}/download",
+    summary="提出ファイルダウンロード",
+)
+async def download_submission(
+    submission_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """提出ファイルをダウンロードします。教師または提出した本人のみ可能。"""
+    stmt = select(AssignmentSubmissions).where(AssignmentSubmissions.id == submission_id)
+    sub = (await db.execute(stmt)).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="提出物が見つかりません")
+
+    # アクセス制御
+    if not _is_teacher_or_admin(current_user) and sub.student_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="このファイルにアクセスする権限がありません")
+
+    file_path = Path(sub.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません（サーバー上のファイルが欠損しています）")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=sub.original_filename,
+        media_type=sub.content_type or "application/octet-stream",
+    )
+
+
+@assignments_router.put(
+    "/submissions/{submission_id}/grade",
+    response_model=assignments_schema.SubmissionResponse,
+    summary="採点（教師向け）",
+)
+async def grade_submission(
+    submission_id: int,
+    body: assignments_schema.GradeSubmissionRequest,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """提出物に採点とコメントをつけます（教師・管理者のみ）。"""
+    stmt = (
+        select(AssignmentSubmissions)
+        .where(AssignmentSubmissions.id == submission_id)
+        .options(selectinload(AssignmentSubmissions.student))
+    )
+    sub = (await db.execute(stmt)).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="提出物が見つかりません")
+
+    sub.score = body.score
+    sub.max_score = body.max_score
+    sub.teacher_comment = body.teacher_comment
+    sub.graded_at = _now_utc() if (body.score is not None or body.teacher_comment) else None
+    sub.graded_by_user_id = current_user.id if sub.graded_at else None
+
+    db.add(sub)
+    await db.commit()
+    await db.refresh(sub)
+
+    return assignments_schema.SubmissionResponse(
+        id=sub.id,
+        assignment_id=sub.assignment_id,
+        student_user_id=sub.student_user_id,
+        original_filename=sub.original_filename,
+        file_size_bytes=sub.file_size_bytes,
+        content_type=sub.content_type,
+        submission_number=sub.submission_number,
+        is_latest=sub.is_latest,
+        score=float(sub.score) if sub.score is not None else None,
+        max_score=float(sub.max_score) if sub.max_score is not None else None,
+        teacher_comment=sub.teacher_comment,
+        graded_at=sub.graded_at,
+        graded_by_user_id=sub.graded_by_user_id,
+        submitted_at=sub.submitted_at,
+        student_display_name=sub.student.display_name if sub.student else None,
+        student_email=sub.student.email if sub.student else None,
+    )
+
+
+@assignments_router.get(
+    "/assignments/{assignment_id}/my-submissions",
+    response_model=List[assignments_schema.SubmissionResponse],
+    summary="自分の提出履歴取得（学生向け）",
+)
+async def get_my_submissions(
+    assignment_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """学生が自分の提出履歴を取得します（全バージョン）。"""
+    stmt = (
+        select(AssignmentSubmissions)
+        .where(
+            AssignmentSubmissions.assignment_id == assignment_id,
+            AssignmentSubmissions.student_user_id == current_user.id,
+        )
+        .order_by(AssignmentSubmissions.submission_number.desc())
+    )
+    subs = (await db.execute(stmt)).scalars().all()
+    return [_submission_to_response(s) for s in subs]

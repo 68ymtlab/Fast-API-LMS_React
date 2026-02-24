@@ -74,7 +74,7 @@ const sidebarGroups: SidebarGroups[] = [
 	},
 ];
 
-export const AdminLayoutInner = memo(
+const AdminLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
 			<div className="flex h-screen pt-16">

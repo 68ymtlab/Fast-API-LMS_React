@@ -83,6 +83,46 @@ class UserService:
         await self.user_repo.db.refresh(created_user)
         return created_user
 
+    async def create_users_bulk(
+        self,
+        *,
+        users_in: List[user_schema.UserCreate],
+        current_user: user_model.Users,
+    ) -> user_schema.UserBulkCreateResponse:
+        """複数ユーザーを一括作成します。失敗行はスキップして継続します。"""
+        results: List[user_schema.UserBulkCreateResult] = []
+
+        for user_in in users_in:
+            try:
+                created = await self.create_user(user_in=user_in, current_user=current_user)
+                results.append(
+                    user_schema.UserBulkCreateResult(
+                        email=user_in.email,
+                        status="created",
+                        user_id=created.id,
+                        message=None,
+                    )
+                )
+            except ValueError as e:
+                results.append(
+                    user_schema.UserBulkCreateResult(
+                        email=user_in.email,
+                        status="failed",
+                        user_id=None,
+                        message=str(e),
+                    )
+                )
+
+        await self.user_repo.db.commit()
+
+        created_count = sum(1 for r in results if r.status == "created")
+        failed_count = len(results) - created_count
+        return user_schema.UserBulkCreateResponse(
+            created_count=created_count,
+            failed_count=failed_count,
+            results=results,
+        )
+
     async def update_own_password(self, *, user: user_model.Users, password_in: user_schema.PasswordUpdate) -> bool:
         """ユーザー本人がパスワードを更新します。"""
         if not SecurityManager.verify_password(password_in.current_password, user.password_hash):
@@ -113,3 +153,7 @@ class UserService:
     async def get_all_users(self, *, include_roles_mask: Optional[str] = None) -> List[user_model.Users]:
         """全ユーザーのリストを取得します。"""
         return await self.user_repo.list_all(include_roles_mask=include_roles_mask)
+
+    async def get_student_users(self) -> List[user_model.Users]:
+        """学生ユーザー一覧を取得します。"""
+        return await self.user_repo.list_students()
