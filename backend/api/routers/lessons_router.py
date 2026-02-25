@@ -140,6 +140,27 @@ async def register_lesson_content(
         raise HTTPException(status_code=400, detail=f"Server Error during registration: {str(e)}")
 
 
+@lessons_router.put("/lessons/{lesson_id}", response_model=lessons_schema.Lesson, summary="レッスン情報更新")
+async def update_lesson(
+    lesson_id: int,
+    lesson_in: lessons_schema.LessonUpdate,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+):
+    """レッスン情報（lesson_number, display_order, title など）を更新します。"""
+    lesson = await lesson_repo.get_lesson_by_id(lesson_id=lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="該当するレッスンが見つかりません")
+
+    updated = await lesson_repo.update_lesson(
+        lesson=lesson,
+        lesson_in=lesson_in,
+        updated_by_user_id=current_user.id,
+    )
+    await lesson_repo.db.commit()
+    return updated
+
+
 @lessons_router.get("/lesson-item/{lesson_item_id}", response_model=lessons_schema.LessonItem, summary="レッスン項目情報取得")
 async def get_lesson_item_by_id(
     lesson_item_id: int,

@@ -443,7 +443,7 @@ function CoursePage() {
 	);
 
 	const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false);
-	const [lessonTitle, setLessonTitle] = useState("線形代数学_第1週");
+	const [lessonTitle, setLessonTitle] = useState("");
 	const [lessonNumber, setLessonNumber] = useState("1");
 	const [displayOrder, setDisplayOrder] = useState("1");
 	const [files, setFiles] = useState<
@@ -559,7 +559,8 @@ function CoursePage() {
 
 			if (response.status === 201 || response.data) {
 				setIsAddContentDialogOpen(false);
-				setLessonTitle("線形代数学_第1週");
+				setLessonTitle("");
+
 				setLessonNumber("1");
 				setDisplayOrder("1");
 				setFiles([]);
@@ -600,7 +601,7 @@ function CoursePage() {
 
 	const handleDialogClose = () => {
 		setIsAddContentDialogOpen(false);
-		setLessonTitle("線形代数学_第1週");
+		setLessonTitle("");
 		setLessonNumber("1");
 		setDisplayOrder("1");
 		setFiles([]);

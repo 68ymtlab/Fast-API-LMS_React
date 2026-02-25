@@ -73,188 +73,153 @@ const sidebarGroups: SidebarGroups[] = [
 	},
 ];
 
-// パンくずリストコンポーネント
-const TeacherBreadcrumb = memo(() => {
+// 教師用パンくずリスト（ヘッダー内インライン表示用）
+export const TeacherBreadcrumb = memo(() => {
 	const pathname = usePathname();
 	const router = useRouter();
 
-	// ホームページの場合は表示しない
-	if (pathname === "/t/home") return null;
-
 	const paths = pathname.split("/").filter(Boolean);
 
+	// /t/home の場合は何も表示しない
+	if (pathname === "/t/home") return null;
+
 	return (
-		<div className="bg-white border-b border-gray-200 shadow-sm">
-			<div className="container mx-auto px-8 py-3 max-w-7xl">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-4">
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => router.back()}
-							className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
-						>
-							<ArrowLeft className="size-4" />
-							戻る
-						</Button>
+		<nav className="flex items-center text-xs text-gray-400 gap-0.5">
+			{/* 戻るボタン */}
+			<Button
+				variant="ghost"
+				size="icon"
+				onClick={() => router.back()}
+				className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 h-7 w-7 mr-1"
+				aria-label="前のページに戻る"
+			>
+				<ArrowLeft className="size-3.5" />
+			</Button>
 
-						{/* パンくずリスト */}
-						<nav className="flex items-center text-sm text-gray-500">
-							<button
-								onClick={() => router.push("/t/home")}
-								className="flex items-center gap-1 hover:text-gray-700 transition-colors"
-							>
-								<Home className="size-4" />
-								ホーム
-							</button>
+			{/* ホーム */}
+			<button
+				onClick={() => router.push("/t/home")}
+				className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+			>
+				<Home className="size-3.5" />
+				<span className="hidden sm:inline">ホーム</span>
+			</button>
 
-							{paths.length > 2 && (
-								<>
-									<ChevronRight className="size-4 mx-2" />
-									{paths[1] === "subject" && (
-										<>
-											<button
-												onClick={() => router.push(`/t/subject/${paths[2]}`)}
-												className="flex items-center gap-1 hover:text-gray-700 transition-colors text-gray-800 font-medium"
-											>
-												<Book className="size-4" />
-												科目
-											</button>
+			{/* /t/subject/[subject_id] */}
+			{paths[1] === "subject" && paths[2] && (
+				<>
+					<ChevronRight className="size-3.5 mx-0.5" />
+					<button
+						onClick={() => router.push(`/t/subject/${paths[2]}`)}
+						className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+					>
+						<Book className="size-3.5" />
+						<span className="hidden sm:inline">科目</span>
+					</button>
+				</>
+			)}
 
-											{/* 深い階層の処理 */}
-											{paths.length > 3 && (
-												<>
-													<ChevronRight className="size-4 mx-2" />
-													{paths[3] === "course" && (
-														<button
-															onClick={() =>
-																router.push(`/t/course/${paths[4]}`)
-															}
-															className="flex items-center gap-1 hover:text-gray-700 transition-colors text-gray-800 font-medium"
-														>
-															<FileText className="size-4" />
-															コース
-														</button>
-													)}
-												</>
-											)}
-										</>
-									)}
+			{/* /t/course/[course_id]/... */}
+			{paths[1] === "course" && paths[2] && (
+				<>
+					<ChevronRight className="size-3.5 mx-0.5" />
+					<button
+						onClick={() => router.push(`/t/course/${paths[2]}`)}
+						className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+					>
+						<FileText className="size-3.5" />
+						<span className="hidden sm:inline">コース</span>
+					</button>
 
-									{paths[1] === "course" && (
-										<>
-											{/* 科目を表示 */}
-											<button
-												onClick={() => router.push("/t/subject/1")}
-												className="flex items-center gap-1 hover:text-gray-700 transition-colors"
-											>
-												<Book className="size-4" />
-												科目
-											</button>
-											<ChevronRight className="size-4 mx-2" />
-
-											<button
-												onClick={() => router.push(`/t/course/${paths[2]}`)}
-												className="flex items-center gap-1 hover:text-gray-700 transition-colors text-gray-800 font-medium"
-											>
-												<FileText className="size-4" />
-												コース
-											</button>
-
-											{/* コースの深い階層 */}
-											{paths.length > 3 && (
-												<>
-													<ChevronRight className="size-4 mx-2" />
-													{paths[3] === "week" && paths[5] === "edit" && (
-														<span className="flex items-center gap-1 text-gray-800 font-medium">
-															<Settings className="size-4" />
-															編集
-														</span>
-													)}
-													{paths[3] === "week" && paths[5] !== "edit" && (
-														<button
-															onClick={() =>
-																router.push(
-																	`/t/course/${paths[2]}/week/${paths[4]}`,
-																)
-															}
-															className="flex items-center gap-1 hover:text-gray-700 transition-colors text-gray-800 font-medium"
-														>
-															<FileText className="size-4" />週
-														</button>
-													)}
-													{paths[3] === "edit" && (
-														<span className="flex items-center gap-1 text-gray-800 font-medium">
-															<Settings className="size-4" />
-															編集
-														</span>
-													)}
-													{paths[3] === "preview" && (
-														<span className="flex items-center gap-1 text-gray-800 font-medium">
-															<FileText className="size-4" />
-															プレビュー
-														</span>
-													)}
-													{paths[3] === "enrollments" && (
-														<span className="flex items-center gap-1 text-gray-800 font-medium">
-															<Users className="size-4" />
-															履修者登録
-														</span>
-													)}
-												</>
-											)}
-										</>
-									)}
-
-									{paths[1] === "settings" && (
-										<button
-											onClick={() => router.push("/t/settings")}
-											className="flex items-center gap-1 hover:text-gray-700 transition-colors text-gray-800 font-medium"
-										>
-											<Settings className="size-4" />
-											設定
-										</button>
-									)}
-									{paths[1] === "exercises" && (
-										<span className="flex items-center gap-1 text-gray-800 font-medium">
-											<ClipboardList className="size-4" />
-											演習問題管理
-										</span>
-									)}
-									{paths[1] === "users" && (
-										<span className="flex items-center gap-1 text-gray-800 font-medium">
-											<Users className="size-4" />
-											ユーザー登録
-										</span>
-									)}
-								</>
+					{paths.length > 3 && (
+						<>
+							<ChevronRight className="size-3.5 mx-0.5" />
+							{paths[3] === "week" && paths[5] === "edit" && (
+								<span className="flex items-center gap-1 text-gray-600 font-medium">
+									<Settings className="size-3.5" />
+									編集
+								</span>
 							)}
-						</nav>
-					</div>
+							{paths[3] === "week" && paths[5] !== "edit" && paths[4] && (
+								<button
+									onClick={() =>
+										router.push(`/t/course/${paths[2]}/week/${paths[4]}`)
+									}
+									className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+								>
+									<FileText className="size-3.5" />
+									<span className="hidden sm:inline">週</span>
+								</button>
+							)}
+							{paths[3] === "edit" && (
+								<span className="flex items-center gap-1 text-gray-600 font-medium">
+									<Settings className="size-3.5" />
+									編集
+								</span>
+							)}
+							{paths[3] === "preview" && (
+								<span className="flex items-center gap-1 text-gray-600 font-medium">
+									<FileText className="size-3.5" />
+									プレビュー
+								</span>
+							)}
+							{paths[3] === "enrollments" && (
+								<span className="flex items-center gap-1 text-gray-600 font-medium">
+									<Users className="size-3.5" />
+									履修者登録
+								</span>
+							)}
+						</>
+					)}
+				</>
+			)}
 
-					{/* 右側の情報 */}
-					<div className="flex items-center gap-4 text-sm text-gray-600">
-						<div className="flex items-center gap-2">
-							<Users className="size-4" />
-							<span>教師</span>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
+			{/* /t/settings */}
+			{paths[1] === "settings" && (
+				<>
+					<ChevronRight className="size-3.5 mx-0.5" />
+					<button
+						onClick={() => router.push("/t/settings")}
+						className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+					>
+						<Settings className="size-3.5" />
+						<span className="hidden sm:inline">設定</span>
+					</button>
+				</>
+			)}
+
+			{/* /t/exercises */}
+			{paths[1] === "exercises" && (
+				<>
+					<ChevronRight className="size-3.5 mx-0.5" />
+					<span className="flex items-center gap-1 text-gray-600 font-medium">
+						<ClipboardList className="size-3.5" />
+						演習問題管理
+					</span>
+				</>
+			)}
+
+			{/* /t/users */}
+			{paths[1] === "users" && (
+				<>
+					<ChevronRight className="size-3.5 mx-0.5" />
+					<span className="flex items-center gap-1 text-gray-600 font-medium">
+						<Users className="size-3.5" />
+						ユーザー登録
+					</span>
+				</>
+			)}
+		</nav>
 	);
 });
 
 const TeacherLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
-			<div className="flex h-screen pt-16">
+			<div className="flex h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} />
-				<SidebarInset>
-					<div className="flex flex-col w-full">
-						<TeacherBreadcrumb />
-						<main className="flex-1 w-full overflow-auto">{children}</main>
-					</div>
+				<SidebarInset className="bg-gray-100">
+					<main className="flex-1 w-full">{children}</main>
 				</SidebarInset>
 			</div>
 		);
@@ -264,8 +229,8 @@ const TeacherLayoutInner = memo(
 const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
 	console.log("[TeacherLayout] Layout rendered");
 	return (
-		<SidebarProvider defaultOpen={false}>
-			<div className="flex flex-col min-h-screen w-full">
+		<SidebarProvider defaultOpen={true}>
+			<div className="flex flex-col min-h-screen w-full bg-gray-100">
 				<TeacherHeader />
 				<TeacherLayoutInner>{children}</TeacherLayoutInner>
 			</div>

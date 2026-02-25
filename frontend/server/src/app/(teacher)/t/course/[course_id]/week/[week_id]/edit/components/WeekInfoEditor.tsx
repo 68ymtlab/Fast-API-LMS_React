@@ -42,8 +42,15 @@ const formSchema = z.object({
 		.string()
 		.min(1, "コンテンツ名を入力してください")
 		.max(100, "コンテンツ名は100文字以内で入力してください"),
-	weekNum: z.number().min(1, "回数を入力してください"),
-	order: z.number().min(1, "並び順を入力してください"),
+	order: z.coerce.number().min(1, "並び順を入力してください"),
+	lessonTitle: z
+		.string()
+		.min(1, "レッスン名を入力してください")
+		.max(100, "レッスン名は100文字以内で入力してください"),
+	lessonNumber: z
+		.coerce.number()
+		.int()
+		.min(1, "回数は1以上の整数で入力してください"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -60,6 +67,16 @@ interface WeekInfo {
 	item_data_details?: Record<string, unknown> | null;
 }
 
+interface ParentLesson {
+	id: number;
+	title: string;
+	lesson_number: number;
+	display_order: number;
+	course_id: number;
+	description?: string | null;
+	is_active: boolean;
+}
+
 interface WeekInfoEditorProps {
 	courseId: string;
 	weekId: string;
@@ -74,19 +91,28 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null);
+	const [parentLesson, setParentLesson] = useState<ParentLesson | null>(null);
 
 	const form = useForm<FormData>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
 			weekName: "",
-			weekNum: 1,
 			order: 1,
+			lessonTitle: "",
+			lessonNumber: 1,
 		},
 	});
 
 	useEffect(() => {
 		fetchWeekInfo();
 	}, [weekId]);
+
+	useEffect(() => {
+		if (parentLesson) {
+			form.setValue("lessonTitle", parentLesson.title ?? "");
+			form.setValue("lessonNumber", parentLesson.lesson_number ?? 1);
+		}
+	}, [parentLesson, form]);
 
 	const fetchWeekInfo = async () => {
 		try {
@@ -95,9 +121,21 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 			const data = response.data;
 			setWeekInfo(data);
 
+			// 親レッスンのlesson_numberを取得する
+			if (data.lesson_id && courseId) {
+				try {
+					const lessonsRes = await axios.get(`/courses/${courseId}/lessons`);
+					const lessons: ParentLesson[] = lessonsRes.data;
+					const parent = lessons.find((l) => l.id === data.lesson_id) ?? null;
+					setParentLesson(parent);
+				} catch (e) {
+					console.error("親レッスン情報の取得に失敗しました:", e);
+					setParentLesson(null);
+				}
+			}
+
 			form.reset({
 				weekName: data.title ?? "",
-				weekNum: data.display_order ?? 1,
 				order: data.display_order ?? 1,
 			});
 		} catch (error) {
@@ -115,6 +153,23 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 
 		try {
 			if (!weekInfo) return;
+
+			if (!parentLesson) {
+				setErrorMessage(
+					"親レッスン情報の取得に失敗したため、更新できません。画面を再読み込みしてから再度お試しください。",
+				);
+				return;
+			}
+
+			const lessonUpdateData = {
+				course_id: parentLesson.course_id ?? Number(courseId),
+				title: data.lessonTitle,
+				lesson_number: data.lessonNumber,
+				description: parentLesson.description ?? null,
+				display_order: parentLesson.display_order,
+				is_active: parentLesson.is_active ?? true,
+			};
+
 			const updateData = {
 				lesson_id: weekInfo.lesson_id,
 				title: data.weekName,
@@ -127,6 +182,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 				item_data_details: weekInfo.item_data_details ?? null,
 			};
 
+			await axios.put(`/lessons/${parentLesson.id}`, lessonUpdateData);
 			await axios.put(`/lesson-item/${weekId}`, updateData);
 			setSuccess(true);
 			setShowSuccessDialog(true);
@@ -202,7 +258,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 				<TabsContent value="info" className="mt-6">
 					<Card>
 						<CardHeader>
-							<CardTitle className="text-xl">コンテンツ情報の編集</CardTitle>
+							<CardTitle className="text-xl">レッスン情報の編集</CardTitle>
 						</CardHeader>
 						<CardContent>
 							{errorMessage && (
@@ -226,6 +282,36 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 									onSubmit={form.handleSubmit(onSubmit)}
 									className="space-y-6"
 								>
+									{/* レッスン名 */}
+									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+										<div className="md:col-span-1">
+											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
+												<h3 className="font-semibold text-center">
+													レッスン名
+												</h3>
+											</div>
+										</div>
+										<div className="md:col-span-3">
+											<FormField
+												control={form.control}
+												name="lessonTitle"
+												render={({ field }) => (
+													<FormItem>
+														<FormControl>
+															<Input
+																placeholder="例）数列の基礎"
+																{...field}
+																disabled={loading || !canUpdate || !parentLesson}
+																className="text-base"
+															/>
+														</FormControl>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+										</div>
+									</div>
+
 									{/* コンテンツ名 */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
@@ -256,37 +342,37 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 										</div>
 									</div>
 
-									{/* 回数 */}
+									{/* 回数（レッスンの lesson_number を編集） */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
 											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
-												<h3 className="font-semibold text-center">回</h3>
+												<h3 className="font-semibold text-center">回数</h3>
 											</div>
 										</div>
 										<div className="md:col-span-3">
-											<div className="flex items-center gap-2">
-												<span>第</span>
-												<FormField
-													control={form.control}
-													name="weekNum"
-													render={({ field }) => (
-														<FormItem>
-															<FormControl>
-																<Input
-																	type="number"
-																	min="1"
-																	placeholder="1"
-																	{...field}
-																	disabled={loading || !canUpdate}
-																	className="w-24"
-																/>
-															</FormControl>
-															<FormMessage />
-														</FormItem>
-													)}
-												/>
-												<span>回</span>
-											</div>
+											<FormField
+												control={form.control}
+												name="lessonNumber"
+												render={({ field }) => (
+													<FormItem>
+														<FormControl>
+															<Input
+																type="number"
+																min="1"
+																{...field}
+																disabled={loading || !canUpdate || !parentLesson}
+																className="w-24"
+															/>
+														</FormControl>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+											{parentLesson && (
+												<p className="text-xs text-gray-400 mt-1">
+													現在の表示例: 第{parentLesson.lesson_number}回
+												</p>
+											)}
 										</div>
 									</div>
 
