@@ -5,25 +5,17 @@ import {
 	BarChart2,
 	Book,
 	BookOpen,
-	Calendar,
-	Clock,
 	Crown,
 	FileText,
 	List,
 	Loader2,
-	LogIn,
 	Medal,
 	Play,
 	Star,
-	Target,
-	Trash2,
 	Trophy,
-	User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-// import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-// import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
+import { useEffect, useState } from "react";
 import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,8 +26,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
 	Tooltip,
 	TooltipContent,
@@ -54,10 +44,9 @@ interface Course {
 	period?: string;
 }
 
-interface Goal {
-	id: number;
-	content: string;
-	is_achieved: boolean;
+interface HighPointer {
+	student_id: string;
+	point: number;
 }
 
 interface Subject {
@@ -69,23 +58,13 @@ interface Subject {
 	totalLessons: number;
 }
 
-interface HighPointer {
-	student_id: string;
-	point: number;
-}
-
 const StudentHome = () => {
 	const router = useRouter();
-	const [username, setUsername] = useState("");
 	const [point, setPoint] = useState("0");
-	const [loginNum, setLoginNum] = useState(0);
 	const [progress, setProgress] = useState(0);
 	const [point_list_dialog, setPointListDialog] = useState(false);
 	const [ranking_dialog, setRankingDialog] = useState(false);
 	const [open_dialog, setOpenDialog] = useState(true);
-	const [newGoal, setNewGoal] = useState("");
-	const [goals, setGoals] = useState<Goal[]>([]);
-	const [completeGoals, setCompleteGoals] = useState<Goal[]>([]);
 	const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
 	const [userRank, setUserRank] = useState<number>(0);
 	const [loadingButtons, setLoadingButtons] = useState<{
@@ -93,31 +72,26 @@ const StudentHome = () => {
 	}>({});
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [user_stats_dialog, setUserStatsDialog] = useState(false);
+	const [username, setUsername] = useState("");
 
 	const pointItems = [
 		{
 			id: 1,
 			title: "ログイン",
 			points: 1,
-			icon: <LogIn className="w-5 h-5 text-secondary" />,
+			icon: <BookOpen className="w-5 h-5 text-secondary" />,
 		},
 		{
 			id: 2,
-			title: "目標を設定",
-			points: 3,
-			icon: <Target className="w-5 h-5 text-secondary" />,
-		},
-		{
-			id: 3,
 			title: "演習問題を解く",
 			points: 10,
 			icon: <BookOpen className="w-5 h-5 text-secondary" />,
 		},
 		{
-			id: 4,
+			id: 3,
 			title: "累計10日ログイン",
 			points: 10,
-			icon: <Calendar className="w-5 h-5 text-secondary" />,
+			icon: <BookOpen className="w-5 h-5 text-secondary" />,
 		},
 	];
 
@@ -134,24 +108,6 @@ const StudentHome = () => {
 			}, 500);
 		}
 	};
-
-	const fetchProgress = useCallback(async () => {
-		try {
-			const coursesResponse = await apiClient.get("/courses/me/enrolled");
-			const courseIds = coursesResponse.data.map(
-				(course: Course) => course.id ?? course.course_id,
-			);
-
-			// get_progress エンドポイントは現状実装されていないため、スキップ
-			// または、進捗率を計算する方法を別途実装する必要がある
-
-			// コース数に基づいて仮の進捗率を設定（現状は0）
-			setProgress(0);
-		} catch (error) {
-			console.error("進捗の取得に失敗しました:", error);
-			setProgress(0);
-		}
-	}, []);
 
 	useEffect(() => {
 		apiClient
@@ -176,24 +132,6 @@ const StudentHome = () => {
 				console.error("コースの取得に失敗しました:", error);
 			});
 
-		// goals API はバックエンド移行中のため一時停止
-		// apiClient
-		// 	.get("/goals")
-		// 	.then((res) => {
-		// 		if (res.status === 200) {
-		// 			const goalsData: Goal[] = res.data;
-		// 			const uncompletedGoals = goalsData.filter((goal) => !goal.is_achieved);
-		// 			const completedGoals = goalsData.filter((goal) => goal.is_achieved);
-		// 			setGoals(uncompletedGoals);
-		// 			setCompleteGoals(completedGoals);
-		// 		}
-		// 	})
-		// 	.catch((error) => {
-		// 		console.error("目標の取得に失敗しました:", error);
-		// 	});
-		setGoals([]);
-		setCompleteGoals([]);
-
 		apiClient
 			.get("/progress/points")
 			.then((res) => {
@@ -209,42 +147,18 @@ const StudentHome = () => {
 			.get("/users/me")
 			.then((res) => {
 				if (res.status === 200) {
-					setUsername(res.data.username ?? res.data.display_name ?? res.data.email ?? "");
+					setUsername(
+						res.data.username ?? res.data.display_name ?? res.data.email ?? "",
+					);
 				}
 			})
 			.catch((error) => {
 				console.error("ユーザー名の取得に失敗しました:", error);
 			});
 
-		// ログイン日数の取得
-		apiClient
-			.get("/progress/logindays")
-			.then((res) => {
-				if (res.status === 200) {
-					setLoginNum(res.data);
-				}
-			})
-			.catch((error) => {
-				console.error("ログイン日数の取得に失敗しました:", error);
-			});
-
-		// apiClient
-		//   .get("/announcements_list")
-		//   .then((res) => {
-		//     const currentTime = new Date();
-		//     const unread = res.data.some((announcement: Announcement) => {
-		//       const startTime = new Date(announcement.start_date_time);
-		//       const endTime = new Date(announcement.end_date_time);
-		//       return announcement.is_active && !announcement.is_read && currentTime >= startTime && currentTime <= endTime;
-		//     });
-		//     setHasUnread(unread);
-		//   })
-		//   .catch((error) => {
-		//     console.error("お知らせの取得に失敗しました:", error);
-		//   });
-
-		fetchProgress();
-	}, [fetchProgress]);
+		// get_progress エンドポイントは現状実装されていないため、0固定
+		setProgress(0);
+	}, []);
 
 	// username取得後にランキング取得
 	useEffect(() => {
@@ -264,344 +178,14 @@ const StudentHome = () => {
 			});
 	}, [username]);
 
-		// アクセスログの取得は現状実装されていないため、コメントアウト
-		// apiClient
-		// 	.get("/api/access_log")
-		// 	.then((res) => {
-		// 		const hasAccessed = res.data;
-		// 		setOpenDialog(!(hasAccessed === true || hasAccessed === "true"));
-		// 	})
-		// 	.catch((error) => {
-		// 		console.error("アクセスログの取得に失敗しました:", error);
-		// 		setOpenDialog(true); // Show on error
-		// 	});
-
-	const handleAddGoal = () => {
-		if (newGoal.trim() === "") {
-			return;
-		}
-		// goals API はバックエンド移行中のため一時停止
-		setNewGoal("");
-	};
-
-	const handleToggleCompleted = (goalId: number, currentAchieved: boolean) => {
-		// goals API はバックエンド移行中のため一時停止
-		const allGoals = [...goals, ...completeGoals];
-		const updatedGoals = allGoals.map((goal) => {
-			if (goal.id === goalId) {
-				return { ...goal, is_achieved: !currentAchieved };
-			}
-			return goal;
-		});
-		const uncompletedGoals = updatedGoals.filter((goal) => !goal.is_achieved);
-		const completedGoals = updatedGoals.filter((goal) => goal.is_achieved);
-		setGoals(uncompletedGoals);
-		setCompleteGoals(completedGoals);
-	};
-
-	const handleDeleteGoal = (goalId: number) => {
-		// goals API はバックエンド移行中のため一時停止
-		const updatedGoals = goals.filter((goal) => goal.id !== goalId);
-		const updatedCompleteGoals = completeGoals.filter((goal) => goal.id !== goalId);
-		setGoals(updatedGoals);
-		setCompleteGoals(updatedCompleteGoals);
-	};
-
 	return (
 		<>
 			<TcAccessTime page="student_home" />
 			<main>
-				<div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-20">
+				<div className="flex flex-col items-start justify-start min-h-screen bg-gray-100 pt-8">
 					<div className="container mx-auto px-8 py-8 max-w-7xl">
-						<div className="flex gap-8 w-full">
-							<div className="flex-1">
-								<div className="bg-white rounded-lg shadow-md p-6 flex flex-col justify-between h-full">
-									<div className="flex items-center gap-8 pl-4">
-										<div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ">
-											<User className="w-12 h-12 text-secondary" />
-										</div>
-										<p className="text-3xl font-bold text-gray-800">
-											{username}
-										</p>
-										<div className="flex items-center gap-6 ml-8">
-											<div className="flex items-center gap-2 min-w-[80px]">
-												<Clock className="w-7 h-7 text-secondary flex-shrink-0" />
-												<span className="text-xl font-bold text-gray-800">
-													{loginNum}日
-												</span>
-											</div>
-											<div className="flex items-center gap-2 min-w-[80px] ml-4">
-												<Star className="w-7 h-7 text-secondary flex-shrink-0" />
-												<span className="text-xl font-bold text-gray-800">
-													{point}pt
-												</span>
-											</div>
-										</div>
-									</div>
-									<div className="flex items-center justify-between">
-										<div className="flex items-center ml-4">
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														{/* <ThemeSwitcher /> */}
-													</TooltipTrigger>
-													<TooltipContent>
-														<p>テーマ切り替え</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										</div>
-										<div className="flex items-center gap-4 mr-20">
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-															onClick={() => setPointListDialog(true)}
-														>
-															<List className="w-7 h-7 text-secondary" />
-														</Button>
-													</TooltipTrigger>
-													<TooltipContent>
-														<p>ポイントリスト</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-															onClick={() => setRankingDialog(true)}
-														>
-															<Medal className="w-7 h-7 text-secondary" />
-														</Button>
-													</TooltipTrigger>
-													<TooltipContent>
-														<p>ポイントランキング</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-															onClick={() => setUserStatsDialog(true)}
-														>
-															<BarChart2 className="w-7 h-7 text-secondary" />
-														</Button>
-													</TooltipTrigger>
-													<TooltipContent>
-														<p>学習進捗</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-											{/* <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="relative h-10 w-10 hover:bg-secondary/10 hover:text-primary transition-all duration-200 cursor-pointer"
-                              onClick={() => setShowAnnouncements(true)}
-                            >
-                              <Bell className="w-7 h-7 text-secondary" />
-                              {hasUnread && (
-                                <span className="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>お知らせ</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider> */}
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<div className="flex-1">
-								<div className="bg-white rounded-lg shadow-md p-6 h-[230px]">
-									<Tabs defaultValue="goals" className="w-full">
-										<TabsList className="w-full flex mb-4 bg-gray-100 rounded-lg p-1">
-											<TabsTrigger
-												value="goals"
-												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-											>
-												設定した目標
-											</TabsTrigger>
-											<TabsTrigger
-												value="completed"
-												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-											>
-												達成した目標
-											</TabsTrigger>
-											<TabsTrigger
-												value="add"
-												className="flex-1 data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:font-bold rounded-md transition-colors"
-											>
-												目標を設定
-											</TabsTrigger>
-										</TabsList>
-										<TabsContent value="goals">
-											<div className="space-y-2 h-32 overflow-y-auto pr-2">
-												{goals && goals.length > 0 ? (
-													goals.map((goal) => (
-														<div
-															key={goal.id}
-															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
-														>
-															<div className="flex items-center gap-3">
-																<div className="p-2 bg-secondary/10 rounded-full">
-																	<Target className="w-4 h-4 text-secondary" />
-																</div>
-																<span className="font-medium text-gray-800">
-																	{goal.content}
-																</span>
-															</div>
-															<div className="flex items-center gap-2">
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="icon"
-																				className="text-gray-400 hover:text-secondary hover:bg-secondary/10 h-8 w-8 transition-colors duration-200"
-																				onClick={() =>
-																					handleToggleCompleted(
-																						goal.id,
-																						goal.is_achieved,
-																					)
-																				}
-																			>
-																				<Trophy className="w-4 h-4" />
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>
-																			<p>目標達成へ</p>
-																		</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="icon"
-																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-																				onClick={() =>
-																					handleDeleteGoal(goal.id)
-																				}
-																			>
-																				<Trash2 className="w-4 h-4" />
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>
-																			<p>目標を削除</p>
-																		</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-															</div>
-														</div>
-													))
-												) : (
-													<div className="flex flex-col items-center justify-center h-full">
-														<div className="flex flex-col items-center gap-2">
-															<Target className="w-10 h-10 text-secondary/30" />
-															<p className="text-gray-500">
-																目標が設定されていません
-															</p>
-														</div>
-													</div>
-												)}
-											</div>
-										</TabsContent>
-										<TabsContent value="completed">
-											<div className="space-y-2 h-32 overflow-y-auto pr-2">
-												{completeGoals && completeGoals.length > 0 ? (
-													completeGoals.map((goal) => (
-														<div
-															key={goal.id}
-															className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg border border-secondary/10 hover:bg-secondary/10 transition-all duration-200"
-														>
-															<div className="flex items-center gap-3">
-																<div className="p-2 bg-secondary/10 rounded-full">
-																	<Trophy className="w-4 h-4 text-secondary" />
-																</div>
-																<span className="font-medium text-gray-800">
-																	{goal.content}
-																</span>
-															</div>
-															<div className="flex items-center gap-2">
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="icon"
-																				className="text-gray-400 hover:text-red-500 hover:bg-red-50 h-8 w-8 transition-colors duration-200"
-																				onClick={() =>
-																					handleDeleteGoal(goal.id)
-																				}
-																			>
-																				<Trash2 className="w-4 h-4" />
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>
-																			<p>目標を削除</p>
-																		</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-															</div>
-														</div>
-													))
-												) : (
-													<div className="flex flex-col items-center justify-center h-full">
-														<div className="flex flex-col items-center gap-2">
-															<Trophy className="w-10 h-10 text-secondary/30" />
-															<p className="text-gray-500">
-																達成した目標はありません
-															</p>
-														</div>
-													</div>
-												)}
-											</div>
-										</TabsContent>
-										<TabsContent value="add">
-											<div className="py-4">
-												<Input
-													placeholder="目標を入力してください"
-													value={newGoal}
-													onChange={(e) => setNewGoal(e.target.value)}
-													className="w-full"
-												/>
-												<div className="flex justify-end gap-2 mt-4">
-													<Button
-														variant="outline"
-														onClick={() => {
-															setNewGoal("");
-														}}
-													>
-														キャンセル
-													</Button>
-													<Button onClick={handleAddGoal}>設定する</Button>
-												</div>
-											</div>
-										</TabsContent>
-									</Tabs>
-								</div>
-							</div>
-						</div>
-
-						<div className="mt-8">
+						{/* 学習科目一覧（メインコンテンツ） */}
+						<div>
 							<h2 className="text-2xl font-bold mb-6">学習科目一覧</h2>
 							<div className="grid grid-cols-2 gap-6">
 								{subjects.map((subject) => (
@@ -621,24 +205,6 @@ const StudentHome = () => {
 												</div>
 											</div>
 										</CardHeader>
-										{/*
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600 text-lg">完了レッスン</span>
-                          <span className="font-medium text-lg">
-                            {subject.completedLessons}/{subject.totalLessons}
-                          </span>
-                        </div>
-                        <div className="w-full h-3 bg-gray-200 rounded-full mt-2">
-                          <div
-                            className="h-full rounded-full bg-secondary"
-                            style={{ width: `${(subject.completedLessons / subject.totalLessons) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                    */}
 										<CardFooter className="flex gap-3">
 											<Button
 												className="flex-1 h-11 text-base font-semibold"
@@ -686,6 +252,7 @@ const StudentHome = () => {
 				</div>
 			</main>
 
+			{/* ポイントリストダイアログ */}
 			<Dialog open={point_list_dialog} onOpenChange={setPointListDialog}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -706,18 +273,12 @@ const StudentHome = () => {
 											{item.icon}
 										</div>
 										<div className="flex flex-col">
-											<span className="font-medium text-gray-800">
-												{item.title}
-											</span>
-											<span className="text-xs text-gray-500">
-												獲得可能なポイント
-											</span>
+											<span className="font-medium text-gray-800">{item.title}</span>
+											<span className="text-xs text-gray-500">獲得可能なポイント</span>
 										</div>
 									</div>
 									<div className="flex items-center gap-1">
-										<span className="text-lg font-bold text-secondary">
-											+{item.points}
-										</span>
+										<span className="text-lg font-bold text-secondary">+{item.points}</span>
 										<span className="text-sm text-secondary">pt</span>
 									</div>
 								</div>
@@ -727,14 +288,10 @@ const StudentHome = () => {
 							<div className="flex items-center justify-between p-3 bg-secondary/5 rounded-lg">
 								<div className="flex items-center gap-2">
 									<Trophy className="w-5 h-5 text-secondary" />
-									<span className="font-medium text-gray-800">
-										現在のポイント
-									</span>
+									<span className="font-medium text-gray-800">現在のポイント</span>
 								</div>
 								<div className="flex items-center gap-1">
-									<span className="text-lg font-bold text-secondary">
-										{point}
-									</span>
+									<span className="text-lg font-bold text-secondary">{point}</span>
 									<span className="text-sm text-secondary">pt</span>
 								</div>
 							</div>
@@ -748,6 +305,7 @@ const StudentHome = () => {
 				</DialogContent>
 			</Dialog>
 
+			{/* ランキングダイアログ */}
 			<Dialog open={ranking_dialog} onOpenChange={setRankingDialog}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -763,12 +321,8 @@ const StudentHome = () => {
 									<Crown className="w-6 h-6 text-secondary" />
 								</div>
 								<div className="flex flex-col">
-									<div className="text-lg font-medium text-gray-600">
-										あなたの順位
-									</div>
-									<div className="text-3xl font-bold text-secondary">
-										#{userRank}
-									</div>
+									<div className="text-lg font-medium text-gray-600">あなたの順位</div>
+									<div className="text-3xl font-bold text-secondary">#{userRank}</div>
 								</div>
 							</div>
 							<div className="flex items-center gap-3">
@@ -776,71 +330,9 @@ const StudentHome = () => {
 									<Star className="w-6 h-6 text-secondary" />
 								</div>
 								<div className="flex flex-col">
-									<div className="text-lg font-medium text-gray-600">
-										獲得ポイント
-									</div>
-									<div className="text-3xl font-bold text-secondary">
-										{point}pt
-									</div>
+									<div className="text-lg font-medium text-gray-600">獲得ポイント</div>
+									<div className="text-3xl font-bold text-secondary">{point}pt</div>
 								</div>
-							</div>
-						</div>
-
-						<div className="flex flex-col items-center gap-4">
-							<div className="text-lg font-medium text-gray-600" />
-						</div>
-						<div className="w-[300px] flex flex-col items-center gap-1 justify-center mx-auto">
-							<div className="w-2/5 flex items-center justify-between p-2 bg-yellow-100 rounded-lg">
-								<div className="flex items-center gap-2">
-									<Crown className="w-4 h-4 text-yellow-600" />
-									<span className="font-medium text-yellow-800">S</span>
-								</div>
-								<span className="text-xs text-yellow-800">500pt以上</span>
-							</div>
-							<div className="w-3/5 flex items-center justify-between p-2 bg-purple-100 rounded-lg">
-								<div className="flex items-center gap-2">
-									<Crown className="w-4 h-4 text-purple-600" />
-									<span className="font-medium text-purple-800">A</span>
-								</div>
-								<span className="text-xs text-purple-800">200pt以上</span>
-							</div>
-							<div className="w-4/5 flex items-center justify-between p-2 bg-blue-100 rounded-lg">
-								<div className="flex items-center gap-2">
-									<Crown className="w-4 h-4 text-blue-600" />
-									<span className="font-medium text-blue-800">B</span>
-								</div>
-								<span className="text-xs text-blue-800">100pt以上</span>
-							</div>
-							<div className="w-11/12 flex items-center justify-between p-2 bg-green-100 rounded-lg">
-								<div className="flex items-center gap-2">
-									<Crown className="w-4 h-4 text-green-600" />
-									<span className="font-medium text-green-800">C</span>
-								</div>
-								<span className="text-xs text-green-800">50pt以上</span>
-							</div>
-							<div className="w-full flex items-center justify-between p-2 bg-secondary/10 rounded-lg">
-								<div className="flex items-center gap-2">
-									<Star className="w-4 h-4 text-secondary" />
-									<span className="font-medium text-gray-800">D</span>
-								</div>
-								<span className="text-xs text-gray-800">20pt以下</span>
-							</div>
-						</div>
-						<div className="w-full p-3 bg-secondary/5 rounded-lg">
-							<div className="text-center text-sm text-gray-600">
-								あなたは
-								<span className="font-bold text-secondary mx-1">
-									{Number(point) >= 500
-										? "S"
-										: Number(point) >= 200
-											? "A"
-											: Number(point) >= 100
-												? "B"
-												: Number(point) >= 50
-													? "C"
-													: "D"}
-								</span>
-								ランクです
 							</div>
 						</div>
 					</div>
@@ -852,6 +344,7 @@ const StudentHome = () => {
 				</DialogContent>
 			</Dialog>
 
+			{/* 学習進捗ダイアログ */}
 			<Dialog open={user_stats_dialog} onOpenChange={setUserStatsDialog}>
 				<DialogContent className="sm:max-w-[425px]">
 					<DialogHeader>
@@ -863,29 +356,16 @@ const StudentHome = () => {
 					<div className="space-y-6 py-4">
 						<div className="flex flex-col items-center gap-2 p-4 bg-secondary/5 rounded-lg">
 							<div className="flex items-center gap-2">
-								<BarChart2 className="w-5 h-5 text-secondary" />
-								<span className="font-medium text-gray-600">ログイン日数</span>
-							</div>
-							<span className="text-2xl font-bold text-secondary">
-								{loginNum}日
-							</span>
-						</div>
-						<div className="p-4 bg-secondary/5 rounded-lg">
-							<div className="flex items-center gap-2 mb-3">
 								<BookOpen className="w-5 h-5 text-secondary" />
 								<span className="font-medium text-gray-600">学習進捗率</span>
 							</div>
-							<div className="w-full h-4 bg-gray-200 rounded-full">
+							<div className="w-full h-4 bg-gray-200 rounded-full mt-2">
 								<div
 									className="h-full rounded-full bg-secondary"
 									style={{ width: `${progress}%` }}
 								/>
 							</div>
-						</div>
-						<div className="text-right mt-1">
-							<span className="text-sm font-medium text-secondary">
-								{progress}%
-							</span>
+							<span className="text-sm font-medium text-secondary">{progress}%</span>
 						</div>
 					</div>
 					<DialogFooter>
@@ -895,6 +375,55 @@ const StudentHome = () => {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* ポイントリスト・ランキング・学習進捗ボタン（将来的にヘッダーへ移動予定） */}
+			<div className="fixed bottom-6 right-6 flex gap-2">
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								className="h-10 w-10 bg-white shadow-md hover:shadow-lg"
+								onClick={() => setPointListDialog(true)}
+							>
+								<List className="w-5 h-5 text-secondary" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent><p>ポイントリスト</p></TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								className="h-10 w-10 bg-white shadow-md hover:shadow-lg"
+								onClick={() => setRankingDialog(true)}
+							>
+								<Medal className="w-5 h-5 text-secondary" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent><p>ポイントランキング</p></TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								className="h-10 w-10 bg-white shadow-md hover:shadow-lg"
+								onClick={() => setUserStatsDialog(true)}
+							>
+								<BarChart2 className="w-5 h-5 text-secondary" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent><p>学習進捗</p></TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			</div>
 
 			<OnboardingDialog
 				open_dialog={open_dialog}

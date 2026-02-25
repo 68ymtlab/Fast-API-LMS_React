@@ -131,12 +131,12 @@ const LessonPage = () => {
 	}
 
 	return (
-		<>
+		<div className="min-h-screen bg-white">
 			<TcAccessTime 
 				page="student_lesson_page" 
 				details={JSON.stringify({ course_id, lesson_item_id, current_page: page, total_pages: totalPages })}
 			/>
-			<div className="w-full flex justify-center mb-6">
+			<div className="w-full flex justify-center mb-6 pt-4">
 				{totalPages > 0 && (
 					<Tabs
 						value={page}
@@ -188,7 +188,7 @@ const LessonPage = () => {
 					</Button>
 				)}
 			</div>
-		</>
+		</div>
 	);
 };
 

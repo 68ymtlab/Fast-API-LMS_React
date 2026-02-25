@@ -57,15 +57,9 @@ export const AppSidebar: FC<Props> = memo((props) => {
 
 	return (
 		<Sidebar>
-			<SidebarHeader className="flex items-center justify-center">
-				<h1 className="text-xl font-bold mt-2">学習支援システム</h1>
-			</SidebarHeader>
-			<SidebarContent>
+			<SidebarContent className="pt-4 gap-0">
 				{sidebarGroups.map((group, groupIndex) => (
-					<SidebarGroup key={group.groupLabel || `group-${groupIndex}`}>
-						{group.groupLabel && (
-							<SidebarGroupLabel>{group.groupLabel}</SidebarGroupLabel>
-						)}
+					<SidebarGroup key={group.groupLabel || `group-${groupIndex}`} className="pt-0 pb-0">
 						<SidebarGroupContent>
 							<SidebarMenu>
 								{group.groupItems.map((item) => (
