@@ -48,9 +48,55 @@ const customSchema = {
 	...defaultSchema,
 	attributes: {
 		...defaultSchema.attributes,
-		"*": [...(defaultSchema.attributes?.["*"] || []), "className"],
+		// グローバルにclassName, style, alignを許可
+		"*": [
+			...(defaultSchema.attributes?.["*"] || []),
+			"className",
+			"style",
+			"align",
+		],
+		// テーブル関連要素でwidth/height属性を許可
+		table: [
+			...(defaultSchema.attributes?.table || []),
+			"width",
+			"height",
+			"border",
+			"cellspacing",
+			"cellpadding",
+		],
+		td: [
+			...(defaultSchema.attributes?.td || []),
+			"width",
+			"height",
+			"colspan",
+			"rowspan",
+			"valign",
+		],
+		th: [
+			...(defaultSchema.attributes?.th || []),
+			"width",
+			"height",
+			"colspan",
+			"rowspan",
+			"valign",
+		],
+		tr: [
+			...(defaultSchema.attributes?.tr || []),
+			"height",
+		],
+		// img要素でwidth/height/style属性を明示的に許可
+		img: [
+			...(defaultSchema.attributes?.img || []),
+			"width",
+			"height",
+			"style",
+		],
 	},
+	// style属性の中身をプロパティレベルでフィルタしない
+	// （デフォルトではrehype-sanitizeがstyle内のCSSプロパティを削除する場合がある）
+	clobberPrefix: defaultSchema.clobberPrefix,
 };
+
 
 export const MathJax: FC<MathJaxProps> = (props) => {
 	const { text } = props;
@@ -119,20 +165,52 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 
 	// Markdown/HTML内の画像URLが Next 側 (/api/...) を向いて404になるため、APIサーバへ向け直す
 	const normalizeImageUrls = (content: string): string => {
-		if (!config.apiBaseUrl) return content;
-
 		let normalized = content;
+
+		// ステップ1: Markdown画像記法 ![alt](/api/images/XX) のURLをAPIサーバーへ書き換え
+		if (config.apiBaseUrl) {
+			normalized = normalized.replace(
+				/!\[([^\]]*)\]\((\/api\/images\/\d+)\)/g,
+				(_, alt, src) => `![${alt}](${config.apiBaseUrl}${src})`,
+			);
+			// HTML <img>タグのsrcも同様に書き換え
+			normalized = normalized.replace(
+				/<img([^>]*?)src=["'](\/api\/images\/\d+)["']([^>]*)>/gi,
+				(_, before, src, after) =>
+					`<img${before}src="${config.apiBaseUrl}${src}"${after}>`,
+			);
+		}
+
+		// ステップ2: HTML要素内（<td>/<div>など）にあるMarkdown画像記法を<img>タグへ変換する
+		// Markdownパーサーは<td>などHTMLブロック内のMarkdown記法を処理しないため、
+		// 事前に<img>タグへ変換しておく必要がある
+		// 例: ![w2_02.png](http://api/images/49) → <img src="http://api/images/49" alt="w2_02.png" />
+		normalized = normalized.replace(
+			/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g,
+			(_, alt, src) => {
+				// サイズ指定パターン: "説明文 =200x100" を解析
+				const sizeMatch = alt.match(/^(.*)\s*=(\d+)x(\d*)\s*$/);
+				if (sizeMatch) {
+					const cleanAlt = sizeMatch[1].trim();
+					const widthAttr = sizeMatch[2] ? ` width="${sizeMatch[2]}"` : "";
+					const heightAttr = sizeMatch[3] ? ` height="${sizeMatch[3]}"` : "";
+					const styleAttr = sizeMatch[2] || sizeMatch[3]
+						? ` style="width:${sizeMatch[2] ? `${sizeMatch[2]}px` : "auto"};height:${sizeMatch[3] ? `${sizeMatch[3]}px` : "auto"};"`
+						: "";
+					return `<img src="${src}" alt="${cleanAlt}"${widthAttr}${heightAttr}${styleAttr} />`;
+				}
+				return `<img src="${src}" alt="${alt}" />`;
+			},
+		);
+		// ローカルパス（/api/images/XX 形式、APIベースURL未設定時）も同様に変換
 		normalized = normalized.replace(
 			/!\[([^\]]*)\]\((\/api\/images\/\d+)\)/g,
-			(_, alt, src) => `![${alt}](${config.apiBaseUrl}${src})`,
+			(_, alt, src) => `<img src="${src}" alt="${alt}" />`,
 		);
-		normalized = normalized.replace(
-			/<img([^>]*?)src=["'](\/api\/images\/\d+)["']([^>]*)>/gi,
-			(_, before, src, after) =>
-				`<img${before}src="${config.apiBaseUrl}${src}"${after}>`,
-		);
+
 		return normalized;
 	};
+
 	const normalizedText = normalizeImageUrls(filteredText);
 
 	return (
@@ -140,6 +218,32 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}
+				components={{
+					// Markdown画像のaltテキストに =幅x高さ を指定してサイズ調整できるようにする
+					// 例: ![説明文 =200x](url) → width=200px
+					// 例: ![説明文 =200x100](url) → width=200px, height=100px
+					img: ({ src, alt, ...rest }: { src?: string; alt?: string; [key: string]: unknown }) => {
+						const sizeMatch = alt?.match(/^(.*)\s*=(\d+)x(\d*)\s*$/);
+						if (sizeMatch) {
+							const cleanAlt = sizeMatch[1].trim();
+							const width = sizeMatch[2] ? `${sizeMatch[2]}px` : undefined;
+							const height = sizeMatch[3] ? `${sizeMatch[3]}px` : undefined;
+							return (
+								// eslint-disable-next-line @next/next/no-img-element
+								<img
+									src={src}
+									alt={cleanAlt}
+									width={width}
+									height={height}
+									style={{ width, height }}
+									{...rest}
+								/>
+							);
+						}
+						// eslint-disable-next-line @next/next/no-img-element
+						return <img src={src} alt={alt || ""} {...rest} />;
+					},
+				}}
 			>
 				{normalizedText}
 			</ReactMarkdown>

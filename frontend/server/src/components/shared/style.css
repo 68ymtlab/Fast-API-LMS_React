@@ -4,6 +4,31 @@
 	line-height: 2;
 }
 
+/* 教科書内の画像: width/height 属性・style属性で指定したサイズを優先する */
+.textbook img {
+	height: auto;
+	vertical-align: middle;
+}
+/* width属性が指定されている場合はその値を使う（max-width等で上書きしない） */
+.textbook img[width],
+.textbook img[style] {
+	width: revert;
+	max-width: none;
+}
+/* height属性が指定されている場合 */
+.textbook img[height] {
+	height: revert;
+}
+
+/* 教師の編集プレビュー（textbookクラスなし）でも同様に適用 */
+.min-h-\[180px\] img[width],
+.min-h-\[180px\] img[style] {
+	width: revert;
+	max-width: none;
+}
+
+
+
 /* 演習問題へのリンク */
 .box {
 	background: #c4d9ff;
