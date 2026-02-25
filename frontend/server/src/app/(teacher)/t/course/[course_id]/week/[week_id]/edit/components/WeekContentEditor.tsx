@@ -84,11 +84,58 @@ function WeekContentEditor({ courseId: _courseId, weekId }: WeekContentEditorPro
 		setContent(newContent);
 	};
 
+	// HTML構造を考慮したブロック分割関数
+	// table/div等のHTMLブロック要素の内部では空行があっても分割しない
 	const splitContentBlocks = (rawContent: string): string[] => {
 		const normalized = rawContent.replace(/\r\n/g, "\n").trim();
 		if (!normalized) return [""];
-		return normalized.split(/\n{2,}/);
+
+		// ネスト深度を追跡するHTMLタグ（これらの要素の中は分割しない）
+		const BLOCK_TAGS = [
+			"table", "thead", "tbody", "tfoot", "tr", "td", "th",
+			"div", "ul", "ol", "li", "figure", "blockquote", "pre",
+			"section", "article", "details",
+		];
+		const openTagPattern = new RegExp(
+			`<(${BLOCK_TAGS.join("|")})(\\s[^>]*)?>`,
+			"gi",
+		);
+		const closeTagPattern = new RegExp(
+			`</(${BLOCK_TAGS.join("|")})>`,
+			"gi",
+		);
+
+		const blocks: string[] = [];
+		let current = "";
+		let depth = 0;
+
+		for (const line of normalized.split("\n")) {
+			// この行でのHTML深度変化を計算
+			const opens = (line.match(openTagPattern) ?? []).length;
+			const closes = (line.match(closeTagPattern) ?? []).length;
+			depth += opens - closes;
+			if (depth < 0) depth = 0;
+
+			if (line.trim() === "" && depth === 0) {
+				// HTMLブロック外の空行 → ブロック境界
+				if (current.trim()) {
+					blocks.push(current.trim());
+					current = "";
+				}
+			} else {
+				// HTMLブロック内の空行、またはコンテンツ行 → 現在のブロックに追加
+				if (current !== "") current += "\n";
+				current += line;
+			}
+		}
+
+		if (current.trim()) {
+			blocks.push(current.trim());
+		}
+
+		return blocks.length ? blocks : [""];
 	};
+
 
 	const blocks = splitContentBlocks(content);
 

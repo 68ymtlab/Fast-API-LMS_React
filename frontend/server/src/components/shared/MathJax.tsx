@@ -167,6 +167,9 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 	const normalizeImageUrls = (content: string): string => {
 		let normalized = content;
 
+		console.log("[MathJax] apiBaseUrl:", config.apiBaseUrl);
+		console.log("[MathJax] Input content snippet:", content.substring(0, 200));
+
 		// ステップ1: Markdown画像記法 ![alt](/api/images/XX) のURLをAPIサーバーへ書き換え
 		if (config.apiBaseUrl) {
 			normalized = normalized.replace(
@@ -181,14 +184,12 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 			);
 		}
 
-		// ステップ2: HTML要素内（<td>/<div>など）にあるMarkdown画像記法を<img>タグへ変換する
+		// ステップ2: Markdown画像記法（http/https URL）を<img>タグへ変換する
 		// Markdownパーサーは<td>などHTMLブロック内のMarkdown記法を処理しないため、
-		// 事前に<img>タグへ変換しておく必要がある
-		// 例: ![w2_02.png](http://api/images/49) → <img src="http://api/images/49" alt="w2_02.png" />
+		// 事前に<img>タグへ変換しておく
 		normalized = normalized.replace(
 			/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g,
 			(_, alt, src) => {
-				// サイズ指定パターン: "説明文 =200x100" を解析
 				const sizeMatch = alt.match(/^(.*)\s*=(\d+)x(\d*)\s*$/);
 				if (sizeMatch) {
 					const cleanAlt = sizeMatch[1].trim();
@@ -202,14 +203,19 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 				return `<img src="${src}" alt="${alt}" />`;
 			},
 		);
-		// ローカルパス（/api/images/XX 形式、APIベースURL未設定時）も同様に変換
+
+		// ステップ3: apiBaseURLが未設定の場合も含め、残った /api/images/XX 形式を<img>タグへ変換
+		// （/api/images/XX はNext.jsルートではなくバックエンドAPIなので、そのままでも動く環境もあるが念のため）
 		normalized = normalized.replace(
 			/!\[([^\]]*)\]\((\/api\/images\/\d+)\)/g,
 			(_, alt, src) => `<img src="${src}" alt="${alt}" />`,
 		);
 
+		console.log("[MathJax] Normalized snippet:", normalized.substring(0, 200));
+
 		return normalized;
 	};
+
 
 	const normalizedText = normalizeImageUrls(filteredText);
 

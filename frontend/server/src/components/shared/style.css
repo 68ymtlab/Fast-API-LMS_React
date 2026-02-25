@@ -19,12 +19,16 @@
 .textbook img[height] {
 	height: revert;
 }
-
-/* 教師の編集プレビュー（textbookクラスなし）でも同様に適用 */
-.min-h-\[180px\] img[width],
-.min-h-\[180px\] img[style] {
+/* テーブルのtd内の画像はセル幅に合わせる */
+.textbook td img {
+	max-width: 100%;
+	width: 100%;
+	height: auto;
+}
+/* td内でwidth属性が明示指定されている場合はそちらを優先 */
+.textbook td img[width] {
 	width: revert;
-	max-width: none;
+	max-width: 100%;
 }
 
 
