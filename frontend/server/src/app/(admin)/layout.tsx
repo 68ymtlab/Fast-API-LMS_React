@@ -2,6 +2,7 @@
 
 import {
 	Book,
+	ClipboardList,
 	FileType,
 	Home,
 	LogIn,
@@ -17,23 +18,13 @@ import type { SidebarGroups } from "@/types/sidebarGroups";
 
 const sidebarGroups: SidebarGroups[] = [
 	{
-		groupLabel: "メインメニュー",
+		groupLabel: "管理者メニュー",
 		groupItems: [
 			{
-				title: "ホーム",
+				title: "管理者ホーム",
 				url: "/admin/home",
 				icon: Home,
 			},
-			{
-				title: "コース",
-				url: "/admin/courses",
-				icon: Book,
-			},
-		],
-	},
-	{
-		groupLabel: "ログ管理",
-		groupItems: [
 			{
 				title: "ログイン履歴",
 				url: "/admin/login-history",
@@ -47,22 +38,37 @@ const sidebarGroups: SidebarGroups[] = [
 		],
 	},
 	{
-		groupLabel: "ユーザー設定",
+		groupLabel: "授業管理（教師同等）",
 		groupItems: [
 			{
-				title: "プロフィール",
-				url: "/admin/profile",
-				icon: Users,
+				title: "科目",
+				url: "/t/home",
+				icon: Book,
 			},
 			{
+				title: "演習問題管理",
+				url: "/t/exercises",
+				icon: ClipboardList,
+			},
+			{
+				title: "ユーザー登録",
+				url: "/t/users/add",
+				icon: Users,
+			},
+		],
+	},
+	{
+		groupLabel: "アカウント",
+		groupItems: [
+			{
 				title: "アカウント設定",
-				url: "/admin/account-settings",
+				url: "/t/settings",
 				icon: Settings,
 			},
 		],
 	},
 	{
-		groupLabel: undefined,
+		groupLabel: "サポート",
 		groupItems: [
 			{
 				title: "ヘルプ",
@@ -77,9 +83,9 @@ const sidebarGroups: SidebarGroups[] = [
 const AdminLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
-			<div className="flex h-screen pt-16">
-				<AppSidebar sidebarGroups={sidebarGroups} />
-				<SidebarInset>
+			<div className="flex h-screen">
+				<AppSidebar sidebarGroups={sidebarGroups} showGroupLabels />
+				<SidebarInset className="bg-gray-100">
 					<main className="flex-1 w-full">{children}</main>
 				</SidebarInset>
 			</div>
@@ -90,7 +96,7 @@ const AdminLayoutInner = memo(
 const AdminLayout = memo(({ children }: { children: ReactNode }) => {
 	return (
 		<SidebarProvider defaultOpen={false}>
-			<div className="flex flex-col min-h-screen w-full">
+			<div className="flex flex-col min-h-screen w-full bg-gray-100">
 				<AdminHeader />
 				<AdminLayoutInner>{children}</AdminLayoutInner>
 			</div>

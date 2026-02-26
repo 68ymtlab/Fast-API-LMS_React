@@ -98,6 +98,12 @@ async def get_teacher_courses_by_subject(
     include_inactive: bool = Query(False, description="非アクティブなコースを含めるかどうか")
 ):
     """ログイン中の教師が、指定した科目（subject_id）の中で閲覧可能なコースの一覧を取得します。"""
+    if current_user.role_id == 1:
+        return await course_service.get_all_courses_by_subject_for_admin(
+            subject_id=subject_id,
+            include_inactive=include_inactive,
+        )
+
     return await course_service.get_courses_for_teacher(
         user_id=current_user.id, subject_id=subject_id, include_inactive=include_inactive
     )

@@ -5,7 +5,7 @@
 レッスンに関連するAPIエンドポイントを定義します。
 """
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import re
 import yaml
@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.db.session import get_db
-from api.core.security import get_current_active_user, require_teacher_or_higher
-from api.models import users_model, questions_model, exercises_model
+from api.core.security import get_current_active_user, require_teacher_or_higher, require_admin
+from api.models import users_model, questions_model, exercises_model, courses_model
 from api.repositories.lessons_repo import LessonRepository
 from api.repositories.contents_repo import ContentRepository
 from api.repositories.users_repo import UserRepository
@@ -1270,3 +1270,76 @@ async def list_course_exercise_sessions_for_teacher(
         )
 
     return response_items
+
+
+@lessons_router.get(
+    "/admin/exercise-sessions",
+    response_model=List[lessons_schema.AdminExerciseSessionLog],
+    summary="（管理者向け）演習セッションログ一覧取得",
+    dependencies=[Depends(require_admin)],
+)
+async def list_exercise_sessions_for_admin(
+    limit: int = Query(200, ge=1, le=1000, description="取得件数の上限"),
+    course_id: Optional[int] = Query(None, description="コースIDで絞り込み"),
+    user_id: Optional[int] = Query(None, description="ユーザーIDで絞り込み"),
+    db: AsyncSession = Depends(get_db),
+):
+    """（管理者向け）全コース対象の演習セッションログを新しい順に取得します。"""
+    stmt = (
+        select(
+            exercises_model.ExerciseSessions,
+            exercises_model.ExerciseSets,
+            courses_model.Courses,
+            users_model.Users,
+            users_model.Students,
+        )
+        .join(
+            exercises_model.ExerciseSets,
+            exercises_model.ExerciseSessions.exercise_set_id == exercises_model.ExerciseSets.id,
+        )
+        .join(
+            courses_model.Courses,
+            exercises_model.ExerciseSets.course_id == courses_model.Courses.id,
+        )
+        .join(users_model.Users, exercises_model.ExerciseSessions.user_id == users_model.Users.id)
+        .outerjoin(users_model.Students, users_model.Students.user_id == users_model.Users.id)
+        .order_by(exercises_model.ExerciseSessions.started_at.desc())
+        .limit(limit)
+    )
+
+    if course_id is not None:
+        stmt = stmt.where(courses_model.Courses.id == course_id)
+    if user_id is not None:
+        stmt = stmt.where(users_model.Users.id == user_id)
+
+    rows = (await db.execute(stmt)).all()
+
+    response: List[lessons_schema.AdminExerciseSessionLog] = []
+    for session, exercise_set, course, user, student in rows:
+        score_value = None
+        if session.score is not None:
+            try:
+                score_value = float(session.score)
+            except (TypeError, ValueError):
+                score_value = None
+
+        response.append(
+            lessons_schema.AdminExerciseSessionLog(
+                session_id=session.id,
+                user_id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                email=user.email,
+                grade=getattr(student, "grade", None) if student is not None else None,
+                department=getattr(student, "department", None) if student is not None else None,
+                course_id=course.id,
+                course_name=course.course_name,
+                exercise_set_id=exercise_set.id,
+                exercise_set_title=exercise_set.title,
+                score=score_value,
+                started_at=session.started_at,
+                completed_at=session.completed_at,
+            )
+        )
+
+    return response

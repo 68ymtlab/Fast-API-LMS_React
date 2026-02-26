@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 
 from api.db.session import get_db
@@ -289,3 +290,48 @@ async def get_user_by_id(user_id: int, service: UserService = Depends(get_user_s
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+@users_router.get(
+    "/admin/access-histories",
+    response_model=List[user_schema.AdminAccessHistoryResponse],
+    summary="アクセス履歴一覧取得（管理者向け）",
+    dependencies=[Depends(require_admin)],
+)
+async def list_access_histories_for_admin(
+    limit: int = Query(200, ge=1, le=1000, description="取得件数の上限"),
+    user_id: Optional[int] = Query(None, description="ユーザーIDで絞り込み"),
+    page: Optional[str] = Query(None, description="ページ名（部分一致）で絞り込み"),
+    db: AsyncSession = Depends(get_db),
+):
+    """（管理者向け）アクセス履歴を新しい順に取得します。"""
+    stmt = (
+        select(user_model.AccessHistories, user_model.Users)
+        .join(user_model.Users, user_model.AccessHistories.user_id == user_model.Users.id)
+        .order_by(user_model.AccessHistories.created_at.desc())
+        .limit(limit)
+    )
+
+    if user_id is not None:
+        stmt = stmt.where(user_model.AccessHistories.user_id == user_id)
+    if page:
+        stmt = stmt.where(user_model.AccessHistories.page.ilike(f"%{page.strip()}%"))
+
+    rows = (await db.execute(stmt)).all()
+
+    return [
+        {
+            "id": access.id,
+            "user_id": access.user_id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "email": user.email,
+            "role_id": user.role_id,
+            "access_date": access.access_date,
+            "page": access.page,
+            "time": access.time,
+            "details": access.details,
+            "created_at": access.created_at,
+        }
+        for access, user in rows
+    ]

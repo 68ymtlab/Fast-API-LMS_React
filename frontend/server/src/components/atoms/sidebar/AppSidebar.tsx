@@ -15,7 +15,6 @@ import {
 	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
-	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuButton,
@@ -27,6 +26,7 @@ import type { SidebarGroups } from "@/types/sidebarGroups";
 
 type Props = {
 	sidebarGroups: SidebarGroups[];
+	showGroupLabels?: boolean;
 };
 
 type UserProfile = {
@@ -35,8 +35,16 @@ type UserProfile = {
 };
 
 export const AppSidebar: FC<Props> = memo((props) => {
-	const { sidebarGroups } = props;
+	const { sidebarGroups, showGroupLabels = false } = props;
 	const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+	const bottomGroupLabels = new Set(["アカウント", "サポート"]);
+	const contentGroups = sidebarGroups.filter(
+		(group) => !bottomGroupLabels.has(group.groupLabel ?? ""),
+	);
+	const footerGroups = sidebarGroups.filter((group) =>
+		bottomGroupLabels.has(group.groupLabel ?? ""),
+	);
 
 	useEffect(() => {
 		const fetchUser = async () => {
@@ -55,40 +63,51 @@ export const AppSidebar: FC<Props> = memo((props) => {
 		await signOut({ callbackUrl: "/login" });
 	};
 
+	const renderGroup = (group: SidebarGroups, groupIndex: number) => (
+		<SidebarGroup
+			key={`${group.groupLabel ?? "group"}-${groupIndex}`}
+			className={groupIndex === 0 ? "pt-0 pb-0" : "pt-0 pb-0 mt-3"}
+		>
+			{showGroupLabels && group.groupLabel ? (
+				<div className="px-2 pb-1 text-xs text-muted-foreground">{group.groupLabel}</div>
+			) : null}
+			<SidebarGroupContent>
+				<SidebarMenu>
+					{group.groupItems.map((item) => (
+						<SidebarMenuItem key={item.title}>
+							<SidebarMenuButton asChild>
+								{item.externalUrl ? (
+									<a
+										href={item.externalUrl}
+										target={item.newTab ? "_blank" : "_self"}
+										rel={item.newTab ? "noopener noreferrer" : undefined}
+									>
+										<item.icon />
+										<span>{item.title}</span>
+									</a>
+								) : (
+									<Link href={item.url || "#"}>
+										<item.icon />
+										<span>{item.title}</span>
+									</Link>
+								)}
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					))}
+				</SidebarMenu>
+			</SidebarGroupContent>
+		</SidebarGroup>
+	);
+
 	return (
 		<Sidebar>
 			<SidebarContent className="pt-4 gap-0">
-				{sidebarGroups.map((group, groupIndex) => (
-					<SidebarGroup key={group.groupLabel || `group-${groupIndex}`} className="pt-0 pb-0">
-						<SidebarGroupContent>
-							<SidebarMenu>
-								{group.groupItems.map((item) => (
-									<SidebarMenuItem key={item.title}>
-										<SidebarMenuButton asChild>
-											{item.externalUrl ? (
-												<a
-													href={item.externalUrl}
-													target={item.newTab ? "_blank" : "_self"}
-													rel={item.newTab ? "noopener noreferrer" : undefined}
-												>
-													<item.icon />
-													<span>{item.title}</span>
-												</a>
-											) : (
-												<Link href={item.url || "#"}>
-													<item.icon />
-													<span>{item.title}</span>
-												</Link>
-											)}
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-								))}
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
-				))}
+				{contentGroups.map((group, groupIndex) => renderGroup(group, groupIndex))}
 			</SidebarContent>
 			<SidebarFooter>
+				{footerGroups.map((group, groupIndex) =>
+					renderGroup(group, contentGroups.length + groupIndex),
+				)}
 				<SidebarMenu>
 					<SidebarMenuItem>
 						<DropdownMenu>

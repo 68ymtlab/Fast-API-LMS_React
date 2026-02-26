@@ -1,26 +1,42 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { type FC, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 
 export const AdminHeader: FC = memo(() => {
 	const { toggleSidebar } = useSidebar();
+	const router = useRouter();
 
 	return (
-		<header className="fixed flex justify-between px-8 w-screen h-16 bg-primary text-primary-foreground items-center drop-shadow-2xl border-b border-gray-300 shadow-md z-30">
-			<Button
-				variant="ghost"
-				size="icon"
-				onClick={() => toggleSidebar()}
-				className="text-primary-foreground hover:bg-primary/80"
-				aria-label="サイドバーの開閉"
+		<header className="fixed flex w-screen h-12 pt-2 bg-transparent z-30 transition-colors duration-200">
+			<div
+				className="shrink-0 flex items-center gap-2 px-4"
+				style={{ width: "var(--sidebar-width, 16rem)" }}
 			>
-				<Menu className="size-6" />
-			</Button>
-			<div className="flex gap-3">
-				<h1 className="font-bold text-2xl">学習支援システム</h1>
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={() => toggleSidebar()}
+					className="text-gray-500 hover:bg-gray-200/70 h-9 w-9"
+					aria-label="サイドバーの開閉"
+				>
+					<Menu className="size-6" />
+				</Button>
+				<button
+					onClick={() => router.push("/admin/home")}
+					className="text-base text-gray-400 hover:text-gray-600 transition-colors cursor-pointer font-medium truncate"
+				>
+					学習支援システム
+				</button>
+			</div>
+
+			<div className="flex-1 flex items-center justify-end px-4 min-w-0">
+				<span className="text-xs font-medium text-gray-500 max-w-[120px] truncate">
+					管理者画面
+				</span>
 			</div>
 		</header>
 	);

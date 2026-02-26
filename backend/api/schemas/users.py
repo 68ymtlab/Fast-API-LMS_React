@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, Any, Dict, List
 
@@ -173,3 +173,18 @@ class AccessHistoryResponse(BaseModel):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminAccessHistoryResponse(BaseModel):
+    """管理者向けアクセス履歴レスポンス"""
+    id: int
+    user_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: EmailStr
+    role_id: int
+    access_date: date
+    page: str
+    time: int
+    details: Optional[str] = None
+    created_at: datetime

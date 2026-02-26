@@ -326,3 +326,21 @@ class StudentExerciseSessions(BaseModel):
     student: ExerciseSessionStudentInfo
     sessions: List[ExerciseSessionSummary] = []
 
+
+class AdminExerciseSessionLog(BaseModel):
+    """管理者向け演習セッションログ"""
+    session_id: int
+    user_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: str
+    grade: Optional[int] = None
+    department: Optional[str] = None
+    course_id: int
+    course_name: str
+    exercise_set_id: int
+    exercise_set_title: str
+    score: Optional[float] = None
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
