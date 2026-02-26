@@ -1,8 +1,7 @@
 "use client";
 
 import { AlertCircle, BookOpen, Edit, PlayCircle } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
 	Card,
@@ -18,10 +17,8 @@ import WeekContentEditor from "./components/WeekContentEditor";
 import WeekInfoEditor from "./components/WeekInfoEditor";
 
 function EditWeekPage() {
-	const router = useRouter();
 	const params = useParams();
-	const [loading, setLoading] = useState(false);
-	const [errorMessage, setErrorMessage] = useState("");
+	const errorMessage = "";
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-7xl">

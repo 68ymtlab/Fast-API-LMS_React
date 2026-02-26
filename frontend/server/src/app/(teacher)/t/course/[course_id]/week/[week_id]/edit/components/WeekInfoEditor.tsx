@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
+import WeekImageEditor from "./WeekImageEditor";
 
 const formSchema = z.object({
 	weekName: z
@@ -436,16 +437,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 				</TabsContent>
 
 				<TabsContent value="image" className="mt-6">
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-xl">画像管理</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<p className="text-gray-500 text-center py-8">
-								この画面の画像管理は新APIへ移行中です。教科書本文の画像参照はそのまま利用できます。
-							</p>
-						</CardContent>
-					</Card>
+					<WeekImageEditor />
 				</TabsContent>
 
 				<TabsContent value="keyword" className="mt-6">

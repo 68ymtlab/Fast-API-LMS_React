@@ -216,10 +216,10 @@ export const TeacherBreadcrumb = memo(() => {
 const TeacherLayoutInner = memo(
 	({ children }: { children: ReactNode }) => {
 		return (
-			<div className="flex h-screen">
+			<div className="flex min-h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} />
-				<SidebarInset className="bg-gray-100">
-					<main className="flex-1 w-full">{children}</main>
+				<SidebarInset className="bg-gray-100 min-h-screen">
+					<main className="flex-1 w-full bg-gray-100 min-h-screen pt-14">{children}</main>
 				</SidebarInset>
 			</div>
 		);
