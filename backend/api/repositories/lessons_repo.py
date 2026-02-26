@@ -5,7 +5,7 @@
 データベースへのCRUD操作を担うリポジトリを定義します。
 """
 from typing import List, Optional
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload, noload
 
 from api.repositories.base import BaseRepository
@@ -225,3 +225,46 @@ class LessonRepository(BaseRepository):
             return None
         stmt_page = select(lessons_model.LessonPages).where(lessons_model.LessonPages.id == lesson_item.item_resource_id)
         return (await self.db.execute(stmt_page)).scalar_one_or_none()
+
+    async def list_textbook_markers_by_page_and_user(self, *, lesson_page_id: int, user_id: int) -> List[lessons_model.TextbookMarkers]:
+        """指定ページ・指定ユーザーの教科書マーカー一覧を取得します。"""
+        stmt = (
+            select(lessons_model.TextbookMarkers)
+            .where(lessons_model.TextbookMarkers.lesson_page_id == lesson_page_id)
+            .where(lessons_model.TextbookMarkers.user_id == user_id)
+            .order_by(lessons_model.TextbookMarkers.created_at.asc())
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def create_textbook_marker(
+        self,
+        *,
+        lesson_page_id: int,
+        marker_in: lessons_schema.TextbookMarkerCreate,
+        user_id: int,
+    ) -> lessons_model.TextbookMarkers:
+        """教科書マーカーを作成します。"""
+        db_obj = lessons_model.TextbookMarkers(
+            user_id=user_id,
+            lesson_page_id=lesson_page_id,
+            exact_text=marker_in.exact_text,
+            text_prefix=marker_in.text_prefix,
+            text_suffix=marker_in.text_suffix,
+            color=marker_in.color,
+            note=marker_in.note,
+        )
+        self.db.add(db_obj)
+        await self.db.flush()
+        await self.db.refresh(db_obj)
+        return db_obj
+
+    async def delete_textbook_marker_by_id_and_user(self, *, marker_id: int, user_id: int) -> bool:
+        """指定ユーザーが所有する教科書マーカーを削除します。"""
+        stmt = (
+            delete(lessons_model.TextbookMarkers)
+            .where(lessons_model.TextbookMarkers.id == marker_id)
+            .where(lessons_model.TextbookMarkers.user_id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        return (result.rowcount or 0) > 0

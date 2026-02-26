@@ -306,6 +306,77 @@ async def update_lesson_page_content(
     }
 
 
+@lessons_router.get(
+    "/lesson-pages/{lesson_page_id}/markers",
+    response_model=List[lessons_schema.TextbookMarkerResponse],
+    summary="教科書ページのマーカー一覧取得",
+)
+async def list_textbook_markers(
+    lesson_page_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    lesson_service: LessonService = Depends(get_lesson_service),
+):
+    """ログインユーザーの教科書マーカー一覧を取得します。"""
+    page = await lesson_repo.get_lesson_page_by_id(page_id=lesson_page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail="該当する教科書ページが見つかりません")
+
+    return await lesson_service.list_textbook_markers_by_page_and_user(
+        lesson_page_id=lesson_page_id,
+        user_id=current_user.id,
+    )
+
+
+@lessons_router.post(
+    "/lesson-pages/{lesson_page_id}/markers",
+    response_model=lessons_schema.TextbookMarkerResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="教科書ページにマーカー追加",
+)
+async def create_textbook_marker(
+    lesson_page_id: int,
+    marker_in: lessons_schema.TextbookMarkerCreate,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    lesson_service: LessonService = Depends(get_lesson_service),
+):
+    """ログインユーザーの教科書マーカーを追加します。"""
+    page = await lesson_repo.get_lesson_page_by_id(page_id=lesson_page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail="該当する教科書ページが見つかりません")
+
+    marker = await lesson_service.create_textbook_marker(
+        lesson_page_id=lesson_page_id,
+        marker_in=marker_in,
+        user_id=current_user.id,
+    )
+    await lesson_repo.db.commit()
+    return marker
+
+
+@lessons_router.delete(
+    "/textbook-markers/{marker_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="教科書マーカー削除",
+)
+async def delete_textbook_marker(
+    marker_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    lesson_service: LessonService = Depends(get_lesson_service),
+):
+    """ログインユーザーの教科書マーカーを削除します。"""
+    deleted = await lesson_service.delete_textbook_marker_by_id_and_user(
+        marker_id=marker_id,
+        user_id=current_user.id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="該当するマーカーが見つかりません")
+    await lesson_repo.db.commit()
+    return
+
+
 @lessons_router.get("/questions", response_model=List[lessons_schema.CourseQuestion], summary="演習問題一覧取得")
 async def list_questions(
     current_user: users_model.Users = Depends(get_current_active_user),

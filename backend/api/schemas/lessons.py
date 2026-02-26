@@ -132,6 +132,35 @@ class LessonPageContentUpdate(BaseModel):
     content: str = Field(..., description="更新する本文")
 
 
+class TextbookMarkerBase(BaseModel):
+    """教科書マーカーの基本スキーマ"""
+    lesson_page_id: int = Field(..., description="対象の教科書ページID")
+    exact_text: str = Field(..., min_length=1, description="選択したテキスト")
+    text_prefix: str = Field(..., description="選択テキスト直前の文脈")
+    text_suffix: str = Field(..., description="選択テキスト直後の文脈")
+    color: str = Field("yellow", description="マーカー色")
+    note: Optional[str] = Field(None, description="メモ")
+
+
+class TextbookMarkerCreate(BaseModel):
+    """教科書マーカー作成入力"""
+    exact_text: str = Field(..., min_length=1, description="選択したテキスト")
+    text_prefix: str = Field("", description="選択テキスト直前の文脈")
+    text_suffix: str = Field("", description="選択テキスト直後の文脈")
+    color: str = Field("yellow", description="マーカー色")
+    note: Optional[str] = Field(None, description="メモ")
+
+
+class TextbookMarkerResponse(TextbookMarkerBase):
+    """教科書マーカー返却スキーマ"""
+    id: int = Field(..., description="マーカーID")
+    user_id: int = Field(..., description="作成ユーザーID")
+    created_at: datetime = Field(..., description="作成日時")
+    updated_at: datetime = Field(..., description="更新日時")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CourseQuestion(BaseModel):
     """コース用問題一覧の返却スキーマ"""
     id: int

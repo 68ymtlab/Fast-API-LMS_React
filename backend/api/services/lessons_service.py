@@ -51,3 +51,25 @@ class LessonService:
         互換性のため空リストを返します。
         """
         return []
+
+    async def list_textbook_markers_by_page_and_user(self, *, lesson_page_id: int, user_id: int):
+        """指定ページ・指定ユーザーの教科書マーカー一覧を取得します。"""
+        return await self.lesson_repo.list_textbook_markers_by_page_and_user(
+            lesson_page_id=lesson_page_id,
+            user_id=user_id,
+        )
+
+    async def create_textbook_marker(self, *, lesson_page_id: int, marker_in, user_id: int):
+        """教科書マーカーを作成します。"""
+        return await self.lesson_repo.create_textbook_marker(
+            lesson_page_id=lesson_page_id,
+            marker_in=marker_in,
+            user_id=user_id,
+        )
+
+    async def delete_textbook_marker_by_id_and_user(self, *, marker_id: int, user_id: int) -> bool:
+        """指定ユーザーが所有する教科書マーカーを削除します。"""
+        return await self.lesson_repo.delete_textbook_marker_by_id_and_user(
+            marker_id=marker_id,
+            user_id=user_id,
+        )
