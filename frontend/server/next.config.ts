@@ -3,6 +3,8 @@ import debug from "./src/lib/utils/debug"; // @/libs/utils/debug でも可
 
 const nextConfig: NextConfig = {
 	/* config options here */
+	// 本番ビルド用: スタンドアロン出力（Dockerマルチステージビルドで使用）
+	output: "standalone",
 	eslint: {
 		ignoreDuringBuilds: true,
 	},

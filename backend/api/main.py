@@ -43,15 +43,13 @@ def get_docs_user(credentials: HTTPBasicCredentials = Depends(docs_security)):
     return True
 
 # --- CORS Middleware ---
-origins = [
-    "http://localhost:8080",
-    "http://localhost:8000",
-    "http://localhost:3000",
-    "http://localhost",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:3000"
-]
+# ALLOWED_ORIGINS: カンマ区切りで列挙。未設定時は開発用デフォルトを使用
+import os
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:8080,http://localhost:8000,http://localhost:3000,http://localhost,http://127.0.0.1:8080,http://127.0.0.1:8000,http://127.0.0.1:3000"
+)
+origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,

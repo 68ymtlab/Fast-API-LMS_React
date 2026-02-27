@@ -16,5 +16,6 @@ RUN if [ -f pyproject.toml ]; then poetry install; fi
 
 COPY . .
 
-# エントリーポイントを設定（シェル形式で直接記述）
-CMD ["sh", "-c", "echo \"Running database seeds...\" && poetry run python scripts/seed_users.py && poetry run python scripts/add_subject.py && poetry run python scripts/add_course.py && echo \"Starting application...\" && poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"]
+# エントリーポイント（本番: --reload なし、--workers 4）
+# シード処理は docker-compose.prod.yml の init コンテナで実行
+CMD ["poetry", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

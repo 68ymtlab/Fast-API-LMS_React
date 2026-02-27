@@ -17,7 +17,8 @@ class Settings(BaseSettings):
   REFRESH_TOKEN_EXPIRE_MINUTES: int = 30*24*60
   
   # CookieのSecure属性設定
-  COOKIE_SECURE: bool = False
+  # 本番(HTTPS)では True。HTTP 運用時は .env で False を明示すること
+  COOKIE_SECURE: bool = True
 
   # Basic認証（Docs）用のユーザー名
   DOCS_USERNAME: str = "admin_docs"
