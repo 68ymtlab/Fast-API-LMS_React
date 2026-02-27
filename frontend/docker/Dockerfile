@@ -1,11 +1,19 @@
 # ---- 依存関係インストール ----
-FROM node:24-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV http_proxy=${http_proxy}
+ENV https_proxy=${https_proxy}
 COPY server/package*.json ./
-RUN npm ci
+RUN npm ci --no-audit
 
 # ---- ビルド ----
-FROM node:24-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY server/ .
@@ -16,7 +24,7 @@ ARG NEXTAUTH_URL
 RUN npm run build
 
 # ---- 実行 ----
-FROM node:24-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Next.js スタンドアロン出力を使用

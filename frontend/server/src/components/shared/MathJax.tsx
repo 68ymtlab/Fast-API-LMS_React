@@ -228,7 +228,7 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 					// Markdown画像のaltテキストに =幅x高さ を指定してサイズ調整できるようにする
 					// 例: ![説明文 =200x](url) → width=200px
 					// 例: ![説明文 =200x100](url) → width=200px, height=100px
-					img: ({ src, alt, ...rest }: { src?: string; alt?: string; [key: string]: unknown }) => {
+					img: ({ src, alt, ...rest }) => {
 						const sizeMatch = alt?.match(/^(.*)\s*=(\d+)x(\d*)\s*$/);
 						if (sizeMatch) {
 							const cleanAlt = sizeMatch[1].trim();

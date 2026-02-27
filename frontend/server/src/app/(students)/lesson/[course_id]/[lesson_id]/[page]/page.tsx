@@ -7,7 +7,7 @@ import {
 	useEffect,
 	useRef,
 	useState,
-	type MouseEvent,
+	type MouseEvent as ReactMouseEvent,
 } from "react";
 import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 import TcAccessTime from "@/components/tc_access_time";
@@ -346,7 +346,7 @@ function nextNodeInDocumentOrder(node: Node, offset: number): Node | null {
 	if (node.nodeType === Node.TEXT_NODE) {
 		const parent = node.parentNode;
 		if (!parent) return null;
-		const idx = Array.from(parent.childNodes).indexOf(node);
+		const idx = Array.from(parent.childNodes).indexOf(node as ChildNode);
 		const next = parent.childNodes[idx + 1];
 		if (next) return next;
 		return nextNodeInDocumentOrder(parent, idx + 1);
@@ -356,7 +356,7 @@ function nextNodeInDocumentOrder(node: Node, offset: number): Node | null {
 	if (child) return child;
 	const parent = el.parentNode;
 	if (!parent) return null;
-	const idx = Array.from(parent.childNodes).indexOf(el);
+	const idx = Array.from(parent.childNodes).indexOf(el as ChildNode);
 	return nextNodeInDocumentOrder(parent, idx + 1);
 }
 
@@ -540,7 +540,7 @@ const LessonPage = () => {
 	// ----------------------------------------------------------------
 	// テキスト選択でポップアップ表示（マウスカーソル付近に出す）
 	// ----------------------------------------------------------------
-	const handleMouseUp = useCallback((e: MouseEvent<HTMLDivElement>) => {
+	const handleMouseUp = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
 		if (!markerMode) {
 			// モードオフ時は何もしない
 			return;
@@ -623,7 +623,7 @@ const LessonPage = () => {
 	}, [markerMode]);
 
 	useEffect(() => {
-		const onDown = (e: MouseEvent) => {
+		const onDown = (e: globalThis.MouseEvent) => {
 			const targetNode = e.target as Node;
 			const inContainer = !!containerRef.current?.contains(targetNode);
 			const inPopup = !!popupRef.current?.contains(targetNode);
@@ -730,7 +730,7 @@ const LessonPage = () => {
 	// ハイライト部分をクリックして削除（トグル）
 	// ----------------------------------------------------------------
 	const handleContainerClick = useCallback(
-		(e: MouseEvent<HTMLDivElement>) => {
+			(e: ReactMouseEvent<HTMLDivElement>) => {
 			if (!markerMode) return;
 			const target = e.target as HTMLElement | null;
 			if (!target) return;

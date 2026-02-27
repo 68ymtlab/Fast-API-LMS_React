@@ -54,4 +54,4 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 
 echo ""
 echo "=== デプロイ完了 ==="
-echo "アクセス URL: http://\$(hostname -I | awk '{print \$1}'):8080"
+echo "アクセス URL: http://\$(hostname -I | awk '{print \$1}'):4000"

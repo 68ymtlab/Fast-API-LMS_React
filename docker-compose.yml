@@ -11,6 +11,12 @@ services:
   backend:
     build:
       context: ./backend
+      network: host
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
     container_name: react-fastapi-demo
     depends_on:
       db:
@@ -31,6 +37,12 @@ services:
     build:
       context: ./frontend
       dockerfile: docker/Dockerfile
+      network: host
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
     environment:
       - CHOKIDAR_USEPOLLING=true
     ports:

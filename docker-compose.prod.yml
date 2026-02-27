@@ -13,14 +13,13 @@ services:
   backend:
     restart: unless-stopped
     # 本番ではソースバインドマウントを削除
-    volumes:
-      - uploads-data:/app/uploads
+    volumes: !reset [uploads-data:/app/uploads]
     environment:
       - UPLOAD_ROOT=/app/uploads
     # ホストへのポート公開を削除（nginx 経由のみアクセス）
-    ports: []
+    ports: !reset []
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://localhost:8000/ || exit 1"]
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1',8000),5); s.close()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -32,18 +31,19 @@ services:
     # ホットリロード関連の環境変数を削除
     environment:
       - CHOKIDAR_USEPOLLING=
+      - HOSTNAME=0.0.0.0
     env_file:
       - ./frontend/server/.env
     # 本番ではソースバインドマウントを削除・command を削除
-    volumes: []
-    command: []
+    volumes: !reset []
+    command: !reset null
     tty: false
     stdin_open: false
     privileged: false
     # ポート公開を削除（nginx 経由のみ）
-    ports: []
+    ports: !reset []
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf http://localhost:3000/ || exit 1"]
+      test: ["CMD", "node", "-e", "const net=require('net'); const t=setTimeout(()=>process.exit(1),5000); const s=net.connect(3000,'127.0.0.1',()=>{clearTimeout(t); s.end(); process.exit(0)}); s.on('error',()=>{clearTimeout(t); process.exit(1)});"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -54,17 +54,27 @@ services:
         - NEXT_PUBLIC_API_BASE_URL
         - NEXT_PUBLIC_APP_BASE_URL
         - NEXTAUTH_URL
+        - HTTP_PROXY=${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        - HTTPS_PROXY=${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        - http_proxy=${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        - https_proxy=${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
 
   # ---- DB (本番) ----
   db:
     restart: unless-stopped
     # ホストへのポート公開を廃止（内部ネットワークのみ）
-    ports: []
+    ports: !reset []
 
   # ---- init (シード処理: 起動後1回のみ) ----
   init:
     build:
       context: ./backend
+      network: host
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
     restart: "no"
     depends_on:
       db:
@@ -77,8 +87,6 @@ services:
       - |
         echo "Running database seeds..."
         poetry run python scripts/seed_users.py
-        poetry run python scripts/add_subject.py
-        poetry run python scripts/add_course.py
         echo "Seeding complete."
 
   # ---- Nginx (リバースプロキシ) ----
@@ -91,7 +99,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "8080:80"
+      - "4000:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 

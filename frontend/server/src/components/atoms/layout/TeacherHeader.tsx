@@ -4,8 +4,8 @@ import { Menu } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { type FC, memo } from "react";
 import { Button } from "@/components/ui/button";
+import { TeacherBreadcrumb } from "@/components/atoms/layout/TeacherBreadcrumb";
 import { useSidebar } from "@/components/ui/sidebar";
-import { TeacherBreadcrumb } from "@/app/(teacher)/layout";
 
 export const TeacherHeader: FC = memo(() => {
 	const { toggleSidebar } = useSidebar();
