@@ -696,6 +696,7 @@ function FlowPreviewPage() {
 							)}
 						</div>
 					</div>
+				</div>
 			</main>
 		</>
 	);
