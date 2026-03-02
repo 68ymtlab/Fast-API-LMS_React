@@ -430,26 +430,26 @@ const AdminCoursesPage = () => {
 			setCreateSubjectError("到達目標のJSON形式が正しくありません");
 			return;
 		}
+
+		// 先にリクエストで使う値を決定しておく（後続の確認にも利用）
+		const academicYear =
+			Number.parseInt(createSubjectForm.academic_year, 10) ||
+			new Date().getFullYear();
+		const semesterId =
+			Number.parseInt(createSubjectForm.semester_id, 10) ||
+			semesters[0]?.id;
+		const subjectCategoryId =
+			Number.parseInt(createSubjectForm.subject_category_id, 10) ||
+			subjectCategories[0]?.id;
+		const credits =
+			Number.parseInt(createSubjectForm.credits, 10) || 1;
+		if (!semesterId || !subjectCategoryId) {
+			setCreateSubjectError("学期マスタまたは科目区分マスタが取得できていません。");
+			return;
+		}
+
 		setCreateSubjectSaving(true);
 		try {
-			// 科目名以外は、未入力でも自動で妥当なデフォルト値を補完する
-			const academicYear =
-				Number.parseInt(createSubjectForm.academic_year, 10) ||
-				new Date().getFullYear();
-			const semesterId =
-				Number.parseInt(createSubjectForm.semester_id, 10) ||
-				semesters[0]?.id;
-			const subjectCategoryId =
-				Number.parseInt(createSubjectForm.subject_category_id, 10) ||
-				subjectCategories[0]?.id;
-			const credits =
-				Number.parseInt(createSubjectForm.credits, 10) || 1;
-			if (!semesterId || !subjectCategoryId) {
-				setCreateSubjectError("学期マスタまたは科目区分マスタが取得できていません。");
-				setCreateSubjectSaving(false);
-				return;
-			}
-
 			const body = {
 				subject: {
 					subject_name: createSubjectForm.subject_name,
@@ -472,6 +472,29 @@ const AdminCoursesPage = () => {
 			setCreateSubjectDialogOpen(false);
 			await fetchSubjects();
 		} catch (_error) {
+			// API レスポンス上は失敗でも、DB には登録されているケースがあるため、
+			// 一度一覧を再取得して「同じ科目が作成されていないか」を確認する
+			try {
+				const res = await axios.get<Subject[]>("/subjects", {
+					withCredentials: true,
+				});
+				setSubjects(res.data);
+				const exists = res.data.some(
+					(s) =>
+						s.subject_name === createSubjectForm.subject_name &&
+						s.academic_year === academicYear &&
+						s.semester_id === semesterId,
+				);
+				if (exists) {
+					// 実際には作成されているので成功扱いにする
+					setCreateSubjectDialogOpen(false);
+					setCreateSubjectError(null);
+					return;
+				}
+			} catch {
+				// 一覧取得にも失敗した場合は、もともとのエラー表示をそのまま行う
+			}
+
 			setCreateSubjectError("科目の作成に失敗しました");
 		} finally {
 			setCreateSubjectSaving(false);
