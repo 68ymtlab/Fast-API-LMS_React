@@ -9,7 +9,7 @@ import ChoiceQuestion from '@/components/flow/ChoiceQuestion';
 import DescriptiveTextQuestion from '@/components/flow/DescriptiveTextQuestion';
 import MultipleTextQuestion from '@/components/flow/MultipleTextQuestion';
 import SingleTextQuestion from '@/components/flow/SingleTextQuestion';
-import { MathJax } from '@/components/shared/MathJax';
+import { MathJax, MathJaxSetup } from '@/components/shared/MathJax';
 import TcAccessTime from '@/components/tc_access_time';
 import { Button } from '@/components/ui/button';
 import axios from '@/lib/axios';
@@ -410,7 +410,7 @@ function FlowPreviewPage() {
 	}
 
 	return (
-		<>
+		<MathJaxSetup>
 			<TcAccessTime page="teacher_weekflows_preview_session" />
 			<main>
 				<div className="container mx-auto py-8">
@@ -681,7 +681,7 @@ function FlowPreviewPage() {
 					</div>
 				</div>
 			</main>
-		</>
+		</MathJaxSetup>
 	);
 }
 

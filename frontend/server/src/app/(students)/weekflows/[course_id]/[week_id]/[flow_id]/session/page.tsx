@@ -449,22 +449,26 @@ function FlowSessionPage() {
 
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="text-lg">読み込み中...</div>
-			</div>
+			<MathJaxSetup>
+				<div className="flex items-center justify-center min-h-screen">
+					<div className="text-lg">読み込み中...</div>
+				</div>
+			</MathJaxSetup>
 		);
 	}
 
 	if (error) {
 		return (
-			<div className="flex items-center justify-center min-h-screen">
-				<div className="text-red-600">{error}</div>
-			</div>
+			<MathJaxSetup>
+				<div className="flex items-center justify-center min-h-screen">
+					<div className="text-red-600">{error}</div>
+				</div>
+			</MathJaxSetup>
 		);
 	}
 
 	return (
-		<>
+		<MathJaxSetup>
 			<TcAccessTime page="student_weekflows_session" />
 			<main>
 				<div className="container mx-auto py-8">
@@ -760,7 +764,7 @@ function FlowSessionPage() {
 					</div>
 				</div>
 			</main>
-		</>
+		</MathJaxSetup>
 	);
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PageIntroduction from "./01_PageIntroduction";
 import InitialPasswordChange from "./02_InitialPasswordChange";
 import SystemOverview from "./03_SystemOverview";
@@ -56,6 +56,12 @@ const onboardingDialog = ({
 	return (
 		<Dialog open={open_dialog} onOpenChange={setOpenDialog}>
 			<DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
+				<DialogHeader>
+					{/* アクセシビリティ用のタイトル（画面上では非表示） */}
+					<DialogTitle className="sr-only">
+						オンボーディング: {steps[step]?.title ?? ""}
+					</DialogTitle>
+				</DialogHeader>
 				{/* ステップインジケーター */}
 				<div className="flex items-center justify-between mb-8 relative">
 					{steps.map((s, index) => (

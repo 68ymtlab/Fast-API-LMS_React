@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MathJax } from "@/components/shared/MathJax";
+import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 import TcAccessTime from "@/components/tc_access_time";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -152,7 +152,7 @@ function ProfilePage() {
 	};
 
 	return (
-		<>
+		<MathJaxSetup>
 			<TcAccessTime page="student_profile" />
 			<div className="container mx-auto py-8 px-4 max-w-6xl">
 				<Card>
@@ -436,7 +436,7 @@ function ProfilePage() {
 					</CardContent>
 				</Card>
 			</div>
-		</>
+		</MathJaxSetup>
 	);
 }
 

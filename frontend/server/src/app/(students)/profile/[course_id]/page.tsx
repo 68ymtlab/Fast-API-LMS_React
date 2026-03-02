@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
-import { MathJax } from "@/components/shared/MathJax";
+import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 import TcAccessTime from "@/components/tc_access_time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ const ProfilePage = () => {
 	};
 
 	return (
-		<>
+		<MathJaxSetup>
 			<TcAccessTime page="student_profile_detail" />
 			<div className="min-h-screen bg-white p-4">
 				<div className="max-w-4xl mx-auto">
@@ -310,7 +310,7 @@ const ProfilePage = () => {
 					)}
 				</div>
 			</div>
-		</>
+		</MathJaxSetup>
 	);
 };
 

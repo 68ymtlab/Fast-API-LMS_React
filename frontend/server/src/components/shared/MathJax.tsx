@@ -55,35 +55,11 @@ const customSchema = {
 			"style",
 			"align",
 		],
-		// テーブル関連要素でwidth/height属性を許可
-		table: [
-			...(defaultSchema.attributes?.table || []),
-			"width",
-			"height",
-			"border",
-			"cellspacing",
-			"cellpadding",
-		],
-		td: [
-			...(defaultSchema.attributes?.td || []),
-			"width",
-			"height",
-			"colspan",
-			"rowspan",
-			"valign",
-		],
-		th: [
-			...(defaultSchema.attributes?.th || []),
-			"width",
-			"height",
-			"colspan",
-			"rowspan",
-			"valign",
-		],
-		tr: [
-			...(defaultSchema.attributes?.tr || []),
-			"height",
-		],
+		// テーブル関連要素: React へ不要な vAlign などが渡らないよう、許可属性を明示的に指定
+		table: ["width", "height", "border", "cellspacing", "cellpadding"],
+		td: ["width", "height", "colspan", "rowspan", "align"],
+		th: ["width", "height", "colspan", "rowspan", "align"],
+		tr: ["height"],
 		// img要素でwidth/height/style属性を明示的に許可
 		img: [
 			...(defaultSchema.attributes?.img || []),

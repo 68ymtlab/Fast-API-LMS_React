@@ -23,6 +23,7 @@ interface Course {
 	course_description?: string;
 	year: string;
 	semester: string;
+	subject_category_name?: string | null;
 }
 
 // バックエンドのLessonスキーマに合わせて修正
@@ -391,15 +392,57 @@ const CoursePage = () => {
 				});
 		};
 
-		const getCourseInfo = () => {
-			axios
-				.get(`/courses/${course_id}`)
-				.then((response) => {
-					setCourse(response.data);
-				})
-				.catch((error) => {
-					console.error("コース情報の取得に失敗しました:", error);
+		const getCourseInfo = async () => {
+			try {
+				const response = await axios.get(`/courses/${course_id}`, {
+					withCredentials: true,
 				});
+				const baseCourse = response.data as any;
+
+				// デフォルトは null（＝バッジ非表示）。マスタから取れれば上書き。
+				let subjectCategoryName: string | null = null;
+				const subjectId: number | undefined =
+					baseCourse.subject?.id ?? baseCourse.subject_id;
+
+				if (subjectId) {
+					try {
+						// シラバスから科目区分IDを取得
+						const syllabusRes = await axios.get(
+							`/subjects/${subjectId}/syllabus`,
+							{ withCredentials: true },
+						);
+						const subjectCategoryId: number | undefined =
+							syllabusRes.data?.subject_category_id;
+
+						if (subjectCategoryId) {
+							// マスタ一覧から名称を解決
+							const catRes = await axios.get("/subject-categories", {
+								withCredentials: true,
+							});
+							const categories = catRes.data as Array<{
+								id: number;
+								name: string;
+							}>;
+							const hit = categories.find((c) => c.id === subjectCategoryId);
+							if (hit) {
+								subjectCategoryName = hit.name;
+							}
+						}
+					} catch (e: any) {
+						// 404 (シラバスなし) やマスタ未設定などは、そのまま非表示（null）のままにする
+						if (e?.response?.status !== 404) {
+							console.warn("科目区分名の取得に失敗しました:", e);
+						}
+					}
+				}
+
+				setCourse({
+					...(baseCourse as Course),
+					subject_category_name: subjectCategoryName,
+				});
+			} catch (error) {
+				console.error("コース情報の取得に失敗しました:", error);
+			}
 		};
 
 		const getLessonsApi = () => { // getWeeksApi -> getLessonsApi
@@ -544,12 +587,18 @@ const CoursePage = () => {
 										<h1 className="text-3xl font-bold text-primary">
 											{course.subject_name}
 										</h1>
-										<span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
-											必修
-										</span>
 									</div>
-									<h2 className="text-xl text-gray-600 mb-4">
-										{course.course_name} / {course.period}
+									<h2 className="text-xl text-gray-600 mb-4 flex items-center gap-2">
+										<span className="flex items-center gap-2">
+											<span>{course.course_name}</span>
+											{course.subject_category_name && (
+												<span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+													{course.subject_category_name}
+												</span>
+											)}
+										</span>
+										<span className="text-gray-400">/</span>
+										<span>{course.period}</span>
 									</h2>
 									{course.course_description && (
 										<blockquote className="text-gray-600 mt-4 p-4 bg-gray-50 rounded-lg border-l-4 border-primary">
