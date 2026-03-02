@@ -31,6 +31,7 @@ services:
       - ./backend:/src/backend
       - /src/backend/.venv
       - uploads-data:/app/uploads
+    command: poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Frontend
   frontend:

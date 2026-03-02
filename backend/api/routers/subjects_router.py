@@ -39,6 +39,20 @@ async def list_subjects(
     """登録されている科目の詳細情報一覧を取得します。"""
     return await service.get_list()
 
+@subjects_router.get("/semesters", response_model=List[subject_schema.SemesterSimple], summary="学期一覧取得")
+async def list_semesters(
+    service: SubjectService = Depends(get_subject_service)
+):
+    """学期マスタの一覧を取得します。"""
+    return await service.get_semesters()
+
+@subjects_router.get("/subject-categories", response_model=List[subject_schema.SubjectCategorySimple], summary="授業科目区分一覧取得")
+async def list_subject_categories(
+    service: SubjectService = Depends(get_subject_service)
+):
+    """授業科目区分マスタの一覧を取得します。"""
+    return await service.get_subject_categories()
+
 @subjects_router.post("/subjects", response_model=subject_schema.Subject, status_code=status.HTTP_201_CREATED, summary="科目およびシラバス登録", dependencies=[Depends(require_teacher_or_higher)])
 async def create_subject(
     subject_in: subject_schema.SubjectWithSyllabusCreate,

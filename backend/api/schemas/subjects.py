@@ -90,3 +90,16 @@ class SubjectSyllabusUpdate(SubjectSyllabusBase):
 class SubjectWithSyllabusCreate(BaseModel):
     subject: SubjectCreate
     syllabus: SubjectSyllabusCreate
+
+# Master data schemas
+class SemesterSimple(BaseModel):
+    id: int
+    name: str
+    sort_order: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class SubjectCategorySimple(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)

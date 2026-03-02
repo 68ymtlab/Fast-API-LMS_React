@@ -81,3 +81,13 @@ class SubjectRepository(BaseRepository):
             for key, value in update_data.items():
                 setattr(exist, key, value)
             await self.db.flush()
+
+    async def list_semesters(self) -> List[subject_model.Semesters]:
+        stmt = select(subject_model.Semesters).order_by(subject_model.Semesters.sort_order)
+        res: Result = await self.db.execute(stmt)
+        return res.scalars().all()
+
+    async def list_subject_categories(self) -> List[subject_model.SubjectCategories]:
+        stmt = select(subject_model.SubjectCategories).order_by(subject_model.SubjectCategories.id)
+        res: Result = await self.db.execute(stmt)
+        return res.scalars().all()

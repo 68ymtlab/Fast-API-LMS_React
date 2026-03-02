@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,12 +19,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
 
 type Semester = {
 	id: number;
 	name: string;
 	sort_order: number | null;
+};
+
+type SubjectCategory = {
+	id: number;
+	name: string;
+	description: string | null;
 };
 
 type Subject = {
@@ -66,6 +73,9 @@ const AdminCoursesPage = () => {
 	const [courseLoading, setCourseLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const [semesters, setSemesters] = useState<Semester[]>([]);
+	const [subjectCategories, setSubjectCategories] = useState<SubjectCategory[]>([]);
+
 	const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
 	const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
 	const [subjectForm, setSubjectForm] = useState({
@@ -75,6 +85,23 @@ const AdminCoursesPage = () => {
 		is_active: true,
 	});
 	const [subjectSaving, setSubjectSaving] = useState(false);
+
+	const [createSubjectDialogOpen, setCreateSubjectDialogOpen] = useState(false);
+	const [createSubjectForm, setCreateSubjectForm] = useState({
+		subject_name: "",
+		academic_year: String(new Date().getFullYear()),
+		semester_id: "",
+		subject_category_id: "",
+		credits: "",
+		code: "",
+		learning_goal: "",
+		summary: "",
+		prerequisites: "",
+		behavioral_objectives: "{}",
+		achievement_targets: "{}",
+	});
+	const [createSubjectSaving, setCreateSubjectSaving] = useState(false);
+	const [createSubjectError, setCreateSubjectError] = useState<string | null>(null);
 
 	const [courseDialogOpen, setCourseDialogOpen] = useState(false);
 	const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -111,6 +138,19 @@ const AdminCoursesPage = () => {
 		}
 	};
 
+	const fetchMasterData = async () => {
+		try {
+			const [semRes, catRes] = await Promise.all([
+				axios.get<Semester[]>("/semesters", { withCredentials: true }),
+				axios.get<SubjectCategory[]>("/subject-categories", { withCredentials: true }),
+			]);
+			setSemesters(semRes.data);
+			setSubjectCategories(catRes.data);
+		} catch (_error) {
+			// マスタデータ取得失敗は致命的でないため無視
+		}
+	};
+
 	const fetchCoursesBySubject = async (subjectId: number) => {
 		setCourseLoading(true);
 		setError(null);
@@ -131,6 +171,7 @@ const AdminCoursesPage = () => {
 
 	useEffect(() => {
 		fetchSubjects();
+		fetchMasterData();
 	}, []);
 
 	useEffect(() => {
@@ -138,6 +179,65 @@ const AdminCoursesPage = () => {
 			fetchCoursesBySubject(selectedSubjectId);
 		}
 	}, [selectedSubjectId]);
+
+	const openCreateSubject = () => {
+		setCreateSubjectForm({
+			subject_name: "",
+			academic_year: String(new Date().getFullYear()),
+			semester_id: semesters.length > 0 ? String(semesters[0].id) : "",
+			subject_category_id: subjectCategories.length > 0 ? String(subjectCategories[0].id) : "",
+			credits: "",
+			code: "",
+			learning_goal: "",
+			summary: "",
+			prerequisites: "",
+			behavioral_objectives: "{}",
+			achievement_targets: "{}",
+		});
+		setCreateSubjectError(null);
+		setCreateSubjectDialogOpen(true);
+	};
+
+	const saveCreateSubject = async () => {
+		setCreateSubjectError(null);
+		let behavioralObj: object;
+		let achievementObj: object;
+		try {
+			behavioralObj = JSON.parse(createSubjectForm.behavioral_objectives);
+			achievementObj = JSON.parse(createSubjectForm.achievement_targets);
+		} catch {
+			setCreateSubjectError("到達目標のJSON形式が正しくありません");
+			return;
+		}
+		setCreateSubjectSaving(true);
+		try {
+			const body = {
+				subject: {
+					subject_name: createSubjectForm.subject_name,
+					academic_year: Number.parseInt(createSubjectForm.academic_year, 10),
+					semester_id: Number.parseInt(createSubjectForm.semester_id, 10),
+					is_active: true,
+				},
+				syllabus: {
+					subject_category_id: Number.parseInt(createSubjectForm.subject_category_id, 10),
+					credits: Number.parseInt(createSubjectForm.credits, 10),
+					code: createSubjectForm.code,
+					learning_goal: createSubjectForm.learning_goal,
+					summary: createSubjectForm.summary,
+					prerequisites: createSubjectForm.prerequisites,
+					behavioral_objectives: behavioralObj,
+					achievement_targets: achievementObj,
+				},
+			};
+			await axios.post("/subjects", body, { withCredentials: true });
+			setCreateSubjectDialogOpen(false);
+			await fetchSubjects();
+		} catch (_error) {
+			setCreateSubjectError("科目の作成に失敗しました");
+		} finally {
+			setCreateSubjectSaving(false);
+		}
+	};
 
 	const openSubjectEdit = (subject: Subject) => {
 		setEditingSubject(subject);
@@ -234,8 +334,16 @@ const AdminCoursesPage = () => {
 			<div className="grid gap-6 lg:grid-cols-3">
 				<Card className="lg:col-span-1">
 					<CardHeader>
-						<CardTitle>科目一覧</CardTitle>
-						<CardDescription>科目を選択してコースを表示</CardDescription>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle>科目一覧</CardTitle>
+								<CardDescription>科目を選択してコースを表示</CardDescription>
+							</div>
+							<Button size="sm" onClick={openCreateSubject}>
+								<Plus className="h-4 w-4 mr-1" />
+								科目追加
+							</Button>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-2">
 						{loading ? (
@@ -324,6 +432,144 @@ const AdminCoursesPage = () => {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* 科目新規作成ダイアログ */}
+			<Dialog open={createSubjectDialogOpen} onOpenChange={setCreateSubjectDialogOpen}>
+				<DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>科目新規作成</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">科目情報</p>
+						<div className="space-y-2">
+							<Label htmlFor="c_subject_name">科目名 <span className="text-red-500">*</span></Label>
+							<Input
+								id="c_subject_name"
+								value={createSubjectForm.subject_name}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, subject_name: e.target.value }))}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-2">
+								<Label htmlFor="c_academic_year">開講年 <span className="text-red-500">*</span></Label>
+								<Input
+									id="c_academic_year"
+									type="number"
+									value={createSubjectForm.academic_year}
+									onChange={(e) => setCreateSubjectForm((p) => ({ ...p, academic_year: e.target.value }))}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="c_semester_id">学期 <span className="text-red-500">*</span></Label>
+								<select
+									id="c_semester_id"
+									value={createSubjectForm.semester_id}
+									onChange={(e) => setCreateSubjectForm((p) => ({ ...p, semester_id: e.target.value }))}
+									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+								>
+									<option value="">選択してください</option>
+									{semesters.map((s) => (
+										<option key={s.id} value={s.id}>{s.name}</option>
+									))}
+								</select>
+							</div>
+						</div>
+						<hr />
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">シラバス情報</p>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-2">
+								<Label htmlFor="c_category">授業科目区分 <span className="text-red-500">*</span></Label>
+								<select
+									id="c_category"
+									value={createSubjectForm.subject_category_id}
+									onChange={(e) => setCreateSubjectForm((p) => ({ ...p, subject_category_id: e.target.value }))}
+									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+								>
+									<option value="">選択してください</option>
+									{subjectCategories.map((c) => (
+										<option key={c.id} value={c.id}>{c.name}</option>
+									))}
+								</select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="c_credits">単位数 <span className="text-red-500">*</span></Label>
+								<Input
+									id="c_credits"
+									type="number"
+									min="1"
+									value={createSubjectForm.credits}
+									onChange={(e) => setCreateSubjectForm((p) => ({ ...p, credits: e.target.value }))}
+								/>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_code">科目コード <span className="text-red-500">*</span></Label>
+							<Input
+								id="c_code"
+								value={createSubjectForm.code}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, code: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_learning_goal">学習・教育目標 <span className="text-red-500">*</span></Label>
+							<Textarea
+								id="c_learning_goal"
+								rows={2}
+								value={createSubjectForm.learning_goal}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, learning_goal: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_summary">授業の概要 <span className="text-red-500">*</span></Label>
+							<Textarea
+								id="c_summary"
+								rows={2}
+								value={createSubjectForm.summary}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, summary: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_prerequisites">履修に必要な予備知識 <span className="text-red-500">*</span></Label>
+							<Textarea
+								id="c_prerequisites"
+								rows={2}
+								value={createSubjectForm.prerequisites}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, prerequisites: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_behavioral">理想的な達成レベル (JSON) <span className="text-red-500">*</span></Label>
+							<Textarea
+								id="c_behavioral"
+								rows={2}
+								className="font-mono text-sm"
+								value={createSubjectForm.behavioral_objectives}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, behavioral_objectives: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="c_achievement">標準的な達成レベル (JSON) <span className="text-red-500">*</span></Label>
+							<Textarea
+								id="c_achievement"
+								rows={2}
+								value={createSubjectForm.achievement_targets}
+								onChange={(e) => setCreateSubjectForm((p) => ({ ...p, achievement_targets: e.target.value }))}
+							/>
+						</div>
+						{createSubjectError ? (
+							<p className="text-sm text-red-500">{createSubjectError}</p>
+						) : null}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setCreateSubjectDialogOpen(false)}>
+							キャンセル
+						</Button>
+						<Button onClick={saveCreateSubject} disabled={createSubjectSaving}>
+							{createSubjectSaving ? "作成中..." : "作成"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
 				<DialogContent>

@@ -9,6 +9,7 @@ import {
 	Settings,
 	ShieldQuestion,
 	Users,
+	LayoutList,
 } from "lucide-react";
 import { memo, type ReactNode } from "react";
 import { AdminHeader } from "@/components/atoms/layout/AdminHeader";
@@ -24,6 +25,11 @@ const sidebarGroups: SidebarGroups[] = [
 				title: "管理者ホーム",
 				url: "/admin/home",
 				icon: Home,
+			},
+			{
+				title: "科目・コース管理",
+				url: "/admin/courses",
+				icon: LayoutList,
 			},
 			{
 				title: "ログイン履歴",
