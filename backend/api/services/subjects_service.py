@@ -30,10 +30,11 @@ class SubjectService:
             syllabus_in=subject_with_syllabus.syllabus, 
             user_id=user_id
         )
-        
-        await self.subject_repo.db.flush()
+
+        # トランザクションを確定して、他のリクエストからも参照できるようにする
+        await self.subject_repo.db.commit()
         await self.subject_repo.db.refresh(new_subject)
-        
+
         return new_subject
 
     async def update_subject(self, subject_id: int, subject_in: subject_schema.SubjectUpdate, user_id: int) -> None:
@@ -54,4 +55,7 @@ class SubjectService:
 
     async def create_semester(self, semester_in: subject_schema.SemesterCreate) -> subject_model.Semesters:
         """学期マスタを新規作成します。"""
-        return await self.subject_repo.create_semester(semester_in=semester_in)
+        semester = await self.subject_repo.create_semester(semester_in=semester_in)
+        await self.subject_repo.db.commit()
+        await self.subject_repo.db.refresh(semester)
+        return semester
