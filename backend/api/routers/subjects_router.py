@@ -63,12 +63,63 @@ async def create_semester(
     _ = current_user
     return await service.create_semester(semester_in=semester_in)
 
+
+@subjects_router.delete(
+    "/semesters/{semester_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="学期削除",
+    dependencies=[Depends(require_teacher_or_higher)],
+)
+async def delete_semester(
+    semester_id: int,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(get_current_active_user),
+):
+    """（教師以上の権限）指定した学期マスタを削除します。"""
+    _ = current_user
+    await service.delete_semester(semester_id=semester_id)
+    return
+
 @subjects_router.get("/subject-categories", response_model=List[subject_schema.SubjectCategorySimple], summary="授業科目区分一覧取得")
 async def list_subject_categories(
     service: SubjectService = Depends(get_subject_service)
 ):
     """授業科目区分マスタの一覧を取得します。"""
     return await service.get_subject_categories()
+
+
+@subjects_router.post(
+    "/subject-categories",
+    response_model=subject_schema.SubjectCategorySimple,
+    status_code=status.HTTP_201_CREATED,
+    summary="授業科目区分登録",
+    dependencies=[Depends(require_teacher_or_higher)],
+)
+async def create_subject_category(
+    category_in: subject_schema.SubjectCategoryCreate,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(get_current_active_user),
+):
+    """（教師以上の権限）新しい授業科目区分マスタを登録します。"""
+    _ = current_user
+    return await service.create_subject_category(category_in=category_in)
+
+
+@subjects_router.delete(
+    "/subject-categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="授業科目区分削除",
+    dependencies=[Depends(require_teacher_or_higher)],
+)
+async def delete_subject_category(
+    category_id: int,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(get_current_active_user),
+):
+    """（教師以上の権限）指定した授業科目区分マスタを削除します。"""
+    _ = current_user
+    await service.delete_subject_category(category_id=category_id)
+    return
 
 @subjects_router.post("/subjects", response_model=subject_schema.Subject, status_code=status.HTTP_201_CREATED, summary="科目およびシラバス登録", dependencies=[Depends(require_teacher_or_higher)])
 async def create_subject(
@@ -102,6 +153,32 @@ async def update_subject(
     if subject is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     await service.update_subject(subject_id=subject_id, subject_in=subject_in, user_id=current_user.id)
+    return
+
+@subjects_router.get("/subjects/{subject_id}/syllabus", response_model=subject_schema.SubjectSyllabus, summary="シラバス情報取得")
+async def get_subject_syllabus(
+    subject_id: int,
+    service: SubjectService = Depends(get_subject_service),
+):
+    """指定した科目のシラバス情報を取得します。"""
+    syllabus = await service.get_syllabus(subject_id)
+    if syllabus is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Syllabus not found")
+    return syllabus
+
+
+@subjects_router.put("/subjects/{subject_id}/syllabus", status_code=status.HTTP_204_NO_CONTENT, summary="シラバス情報更新", dependencies=[Depends(require_teacher_or_higher)])
+async def update_subject_syllabus(
+    subject_id: int,
+    syllabus_in: subject_schema.SubjectSyllabusUpdate,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(get_current_active_user),
+):
+    """（教師以上の権限）指定した科目のシラバス情報を更新します。"""
+    subject = await service.get_by_id(subject_id)
+    if subject is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
+    await service.update_syllabus(subject_id=subject_id, syllabus_in=syllabus_in, user_id=current_user.id)
     return
 
 @subjects_router.delete("/subjects/{subject_id}", status_code=status.HTTP_204_NO_CONTENT, summary="科目削除", dependencies=[Depends(require_teacher_or_higher)])

@@ -44,6 +44,7 @@ class SubjectService:
     async def delete_subject(self, subject_id: int, user_id: int) -> None:
         """科目を論理削除します（非アクティブ化）。"""
         await self.subject_repo.delete(subject_id=subject_id, updated_by_user_id=user_id)
+        await self.subject_repo.db.commit()
 
     async def get_semesters(self) -> List[subject_model.Semesters]:
         """学期マスタの一覧を取得します。"""
@@ -59,3 +60,29 @@ class SubjectService:
         await self.subject_repo.db.commit()
         await self.subject_repo.db.refresh(semester)
         return semester
+
+    async def create_subject_category(self, category_in: subject_schema.SubjectCategoryCreate) -> subject_model.SubjectCategories:
+        """授業科目区分マスタを新規作成します。"""
+        category = await self.subject_repo.create_subject_category(category_in=category_in)
+        await self.subject_repo.db.commit()
+        await self.subject_repo.db.refresh(category)
+        return category
+
+    async def get_syllabus(self, subject_id: int) -> Optional[subject_model.SubjectSyllabuses]:
+        """指定した科目のシラバス情報を取得します。"""
+        return await self.subject_repo.get_syllabus(subject_id=subject_id)
+
+    async def update_syllabus(self, subject_id: int, syllabus_in: subject_schema.SubjectSyllabusUpdate, user_id: int) -> None:
+        """科目のシラバス情報を更新します。"""
+        await self.subject_repo.upsert_syllabus(subject_id=subject_id, syllabus_in=syllabus_in, user_id=user_id)
+        await self.subject_repo.db.commit()
+
+    async def delete_semester(self, semester_id: int) -> None:
+        """学期マスタを削除します。"""
+        await self.subject_repo.delete_semester(semester_id=semester_id)
+        await self.subject_repo.db.commit()
+
+    async def delete_subject_category(self, category_id: int) -> None:
+        """授業科目区分マスタを削除します。"""
+        await self.subject_repo.delete_subject_category(category_id=category_id)
+        await self.subject_repo.db.commit()

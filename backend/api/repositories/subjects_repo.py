@@ -65,7 +65,7 @@ class SubjectRepository(BaseRepository):
         )
         await self.db.execute(stmt)
 
-    async def upsert_syllabus(self, *, subject_id: int, syllabus_in: subject_schema.SubjectSyllabusCreate, user_id: int):
+    async def upsert_syllabus(self, *, subject_id: int, syllabus_in, user_id: int):
         exist = await self.db.get(subject_model.SubjectSyllabuses, subject_id)
         if exist is None:
             syl = subject_model.SubjectSyllabuses(
@@ -81,6 +81,9 @@ class SubjectRepository(BaseRepository):
             for key, value in update_data.items():
                 setattr(exist, key, value)
             await self.db.flush()
+
+    async def get_syllabus(self, *, subject_id: int) -> Optional[subject_model.SubjectSyllabuses]:
+        return await self.db.get(subject_model.SubjectSyllabuses, subject_id)
 
     async def list_semesters(self) -> List[subject_model.Semesters]:
         stmt = select(subject_model.Semesters).order_by(subject_model.Semesters.sort_order)
@@ -101,3 +104,23 @@ class SubjectRepository(BaseRepository):
         await self.db.flush()
         await self.db.refresh(db_obj)
         return db_obj
+
+    async def create_subject_category(self, *, category_in: subject_schema.SubjectCategoryCreate) -> subject_model.SubjectCategories:
+        db_obj = subject_model.SubjectCategories(
+            name=category_in.name,
+            description=category_in.description,
+        )
+        self.db.add(db_obj)
+        await self.db.flush()
+        await self.db.refresh(db_obj)
+        return db_obj
+
+    async def delete_semester(self, *, semester_id: int) -> None:
+        semester = await self.db.get(subject_model.Semesters, semester_id)
+        if semester is not None:
+            await self.db.delete(semester)
+
+    async def delete_subject_category(self, *, category_id: int) -> None:
+        category = await self.db.get(subject_model.SubjectCategories, category_id)
+        if category is not None:
+            await self.db.delete(category)

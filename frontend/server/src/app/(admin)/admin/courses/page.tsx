@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,19 @@ type SubjectCategory = {
 	description: string | null;
 };
 
+type SubjectSyllabus = {
+	subject_id: number;
+	subject_category_id: number;
+	credits: number;
+	code: string;
+	keywords: Record<string, unknown> | null;
+	learning_goal: string | null;
+	summary: string | null;
+	prerequisites: string | null;
+	behavioral_objectives: Record<string, unknown> | null;
+	achievement_targets: Record<string, unknown> | null;
+};
+
 type Subject = {
 	id: number;
 	subject_name: string;
@@ -57,12 +70,21 @@ type Course = {
 const toInputDateTime = (raw: string) => {
 	if (!raw) return "";
 	const date = new Date(raw);
-	const year = date.getFullYear();
-	const month = `${date.getMonth() + 1}`.padStart(2, "0");
-	const day = `${date.getDate()}`.padStart(2, "0");
-	const hour = `${date.getHours()}`.padStart(2, "0");
-	const minute = `${date.getMinutes()}`.padStart(2, "0");
+	const year = date.getUTCFullYear();
+	const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+	const day = `${date.getUTCDate()}`.padStart(2, "0");
+	const hour = `${date.getUTCHours()}`.padStart(2, "0");
+	const minute = `${date.getUTCMinutes()}`.padStart(2, "0");
 	return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
+const formatDate = (raw: string) => {
+	if (!raw) return "";
+	const date = new Date(raw);
+	const year = date.getUTCFullYear();
+	const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+	const day = `${date.getUTCDate()}`.padStart(2, "0");
+	return `${year}/${month}/${day}`;
 };
 
 const AdminCoursesPage = () => {
@@ -85,11 +107,34 @@ const AdminCoursesPage = () => {
 		is_active: true,
 	});
 	const [subjectSaving, setSubjectSaving] = useState(false);
+	const [syllabusForm, setSyllabusForm] = useState({
+		subject_category_id: "",
+		credits: "",
+		code: "",
+		learning_goal: "",
+		summary: "",
+		prerequisites: "",
+		behavioral_objectives: "",
+		achievement_targets: "",
+	});
+	const [syllabusLoading, setSyllabusLoading] = useState(false);
+	const [syllabusError, setSyllabusError] = useState<string | null>(null);
 
+	const [semesterManageDialogOpen, setSemesterManageDialogOpen] = useState(false);
 	const [newSemesterName, setNewSemesterName] = useState("");
 	const [newSemesterSortOrder, setNewSemesterSortOrder] = useState("");
 	const [semesterSaving, setSemesterSaving] = useState(false);
 	const [semesterError, setSemesterError] = useState<string | null>(null);
+	const [selectedSemesterForManage, setSelectedSemesterForManage] = useState<string>("");
+
+	const [categoryManageDialogOpen, setCategoryManageDialogOpen] = useState(false);
+	const [newCategoryName, setNewCategoryName] = useState("");
+	const [newCategoryDescription, setNewCategoryDescription] = useState("");
+	const [categorySaving, setCategorySaving] = useState(false);
+	const [categoryError, setCategoryError] = useState<string | null>(null);
+	const [defaultCategoriesSaving, setDefaultCategoriesSaving] = useState(false);
+	const [defaultCategoriesError, setDefaultCategoriesError] = useState<string | null>(null);
+	const [selectedCategoryForManage, setSelectedCategoryForManage] = useState<string>("");
 
 	const [createSubjectDialogOpen, setCreateSubjectDialogOpen] = useState(false);
 	const [createSubjectForm, setCreateSubjectForm] = useState({
@@ -185,6 +230,37 @@ const AdminCoursesPage = () => {
 		}
 	}, [selectedSubjectId]);
 
+	const loadSyllabus = async (subjectId: number) => {
+		setSyllabusError(null);
+		setSyllabusLoading(true);
+		try {
+			const res = await axios.get<SubjectSyllabus>(
+				`/subjects/${subjectId}/syllabus`,
+				{ withCredentials: true },
+			);
+			setSyllabusForm({
+				subject_category_id: res.data.subject_category_id
+					? String(res.data.subject_category_id)
+					: "",
+				credits: res.data.credits ? String(res.data.credits) : "",
+				code: res.data.code ?? "",
+				learning_goal: res.data.learning_goal ?? "",
+				summary: res.data.summary ?? "",
+				prerequisites: res.data.prerequisites ?? "",
+				behavioral_objectives: res.data.behavioral_objectives
+					? JSON.stringify(res.data.behavioral_objectives, null, 2)
+					: "{}",
+				achievement_targets: res.data.achievement_targets
+					? JSON.stringify(res.data.achievement_targets, null, 2)
+					: "{}",
+			});
+		} catch (_error) {
+			setSyllabusError("シラバス情報の取得に失敗しました");
+		} finally {
+			setSyllabusLoading(false);
+		}
+	};
+
 	const handleCreateSemester = async () => {
 		if (!newSemesterName.trim()) {
 			setSemesterError("学期名を入力してください");
@@ -213,6 +289,114 @@ const AdminCoursesPage = () => {
 			setSemesterError("学期の作成に失敗しました");
 		} finally {
 			setSemesterSaving(false);
+		}
+	};
+
+	const handleCreateCategory = async () => {
+		if (!newCategoryName.trim()) {
+			setCategoryError("科目区分名を入力してください");
+			return;
+		}
+		setCategoryError(null);
+		setCategorySaving(true);
+		try {
+			const body = {
+				name: newCategoryName.trim(),
+				description: newCategoryDescription || null,
+			};
+			const res = await axios.post<SubjectCategory>("/subject-categories", body, {
+				withCredentials: true,
+			});
+			await fetchMasterData();
+			setCreateSubjectForm((p) => ({
+				...p,
+				subject_category_id: String(res.data.id),
+			}));
+			setNewCategoryName("");
+			setNewCategoryDescription("");
+		} catch (_error) {
+			setCategoryError("科目区分の作成に失敗しました");
+		} finally {
+			setCategorySaving(false);
+		}
+	};
+
+	const handleCreateRequiredAndElectiveCategories = async () => {
+		setDefaultCategoriesError(null);
+		setDefaultCategoriesSaving(true);
+		try {
+			const existingNames = new Set(subjectCategories.map((c) => c.name));
+			const toCreate: { name: string; description: string }[] = [];
+
+			if (!existingNames.has("必修")) {
+				toCreate.push({ name: "必修", description: "必修科目" });
+			}
+			if (!existingNames.has("選択")) {
+				toCreate.push({ name: "選択", description: "選択科目" });
+			}
+
+			for (const body of toCreate) {
+				// 既に存在するものはスキップされるので、必要なものだけ作成
+				// eslint-disable-next-line no-await-in-loop
+				await axios.post<SubjectCategory>("/subject-categories", body, {
+					withCredentials: true,
+				});
+			}
+
+			await fetchMasterData();
+		} catch (_error) {
+			setDefaultCategoriesError("必修/選択区分の作成に失敗しました");
+		} finally {
+			setDefaultCategoriesSaving(false);
+		}
+	};
+
+	const handleDeleteSelectedSemester = async () => {
+		if (!selectedSemesterForManage) {
+			setSemesterError("削除する学期を選択してください");
+			return;
+		}
+		if (!window.confirm("選択中の学期を削除しますか？")) {
+			return;
+		}
+		setSemesterError(null);
+		setSemesterSaving(true);
+		try {
+			await axios.delete(`/semesters/${selectedSemesterForManage}`, {
+				withCredentials: true,
+			});
+			await fetchMasterData();
+			setSelectedSemesterForManage("");
+		} catch (_error) {
+			setSemesterError("学期の削除に失敗しました（使用中の可能性があります）");
+		} finally {
+			setSemesterSaving(false);
+		}
+	};
+
+	const handleDeleteSelectedCategory = async () => {
+		if (!selectedCategoryForManage) {
+			setCategoryError("削除する科目区分を選択してください");
+			return;
+		}
+		if (!window.confirm("選択中の科目区分を削除しますか？")) {
+			return;
+		}
+		setCategoryError(null);
+		setCategorySaving(true);
+		try {
+			await axios.delete(
+				`/subject-categories/${selectedCategoryForManage}`,
+				{
+					withCredentials: true,
+				},
+			);
+			await fetchMasterData();
+			setSelectedCategoryForManage("");
+		} catch (_error) {
+			setCategoryError("科目区分の削除に失敗しました（使用中の可能性があります）");
+		} finally {
+			setCategorySaving(false);
 		}
 	};
 
@@ -302,11 +486,39 @@ const AdminCoursesPage = () => {
 			semester_id: String(subject.semester_id),
 			is_active: subject.is_active,
 		});
+		setSyllabusForm({
+			subject_category_id: "",
+			credits: "",
+			code: "",
+			learning_goal: "",
+			summary: "",
+			prerequisites: "",
+			behavioral_objectives: "{}",
+			achievement_targets: "{}",
+		});
+		setSyllabusError(null);
 		setSubjectDialogOpen(true);
+		loadSyllabus(subject.id);
 	};
 
 	const saveSubject = async () => {
 		if (!editingSubject) return;
+
+		// シラバスの JSON 項目を検証
+		let behavioralObj: object | undefined;
+		let achievementObj: object | undefined;
+		try {
+			behavioralObj = syllabusForm.behavioral_objectives
+				? JSON.parse(syllabusForm.behavioral_objectives)
+				: undefined;
+			achievementObj = syllabusForm.achievement_targets
+				? JSON.parse(syllabusForm.achievement_targets)
+				: undefined;
+		} catch {
+			setSyllabusError("到達目標のJSON形式が正しくありません");
+			return;
+		}
+
 		setSubjectSaving(true);
 		try {
 			await axios.put(
@@ -319,13 +531,31 @@ const AdminCoursesPage = () => {
 				},
 				{ withCredentials: true },
 			);
+			await axios.put(
+				`/subjects/${editingSubject.id}/syllabus`,
+				{
+					subject_category_id: syllabusForm.subject_category_id
+						? Number.parseInt(syllabusForm.subject_category_id, 10)
+						: undefined,
+					credits: syllabusForm.credits
+						? Number.parseInt(syllabusForm.credits, 10)
+						: undefined,
+					code: syllabusForm.code || undefined,
+					learning_goal: syllabusForm.learning_goal || undefined,
+					summary: syllabusForm.summary || undefined,
+					prerequisites: syllabusForm.prerequisites || undefined,
+					behavioral_objectives: behavioralObj,
+					achievement_targets: achievementObj,
+				},
+				{ withCredentials: true },
+			);
 			setSubjectDialogOpen(false);
 			await fetchSubjects();
 			if (selectedSubjectId !== null) {
 				await fetchCoursesBySubject(selectedSubjectId);
 			}
 		} catch (_error) {
-			setError("科目の更新に失敗しました");
+			setError("科目またはシラバスの更新に失敗しました");
 		} finally {
 			setSubjectSaving(false);
 		}
@@ -377,11 +607,29 @@ const AdminCoursesPage = () => {
 
 	return (
 		<div className="p-6 space-y-6">
-			<div>
-				<h1 className="text-2xl font-bold">科目・コース管理</h1>
-				<p className="text-sm text-muted-foreground">
-					全科目と配下コースの表示・編集を行います。
-				</p>
+			<div className="flex items-center justify-between gap-4">
+				<div>
+					<h1 className="text-2xl font-bold">科目・コース管理</h1>
+					<p className="text-sm text-muted-foreground">
+						全科目と配下コースの表示・編集を行います。
+					</p>
+				</div>
+				<div className="flex gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setSemesterManageDialogOpen(true)}
+					>
+						学期マスタ管理
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setCategoryManageDialogOpen(true)}
+					>
+						授業科目区分管理
+					</Button>
+				</div>
 			</div>
 
 			{error ? <p className="text-sm text-red-500">{error}</p> : null}
@@ -426,13 +674,42 @@ const AdminCoursesPage = () => {
 												{subject.academic_year}年 / {subject.semester?.name}
 											</p>
 										</button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => openSubjectEdit(subject)}
-										>
-											<Pencil className="h-4 w-4" />
-										</Button>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => openSubjectEdit(subject)}
+											>
+												<Pencil className="h-4 w-4" />
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={async () => {
+													if (
+														!window.confirm(
+															"この科目を削除しますか？（コースやシラバスも利用できなくなります）",
+														)
+													) {
+														return;
+													}
+													try {
+														await axios.delete(`/subjects/${subject.id}`, {
+															withCredentials: true,
+														});
+														await fetchSubjects();
+														if (selectedSubjectId === subject.id) {
+															setSelectedSubjectId(null);
+															setCourses([]);
+														}
+													} catch (_error) {
+														setError("科目の削除に失敗しました");
+													}
+												}}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</div>
 									</div>
 								</div>
 							))
@@ -466,8 +743,8 @@ const AdminCoursesPage = () => {
 										<div>
 											<p className="font-medium">{course.course_name}</p>
 											<p className="text-xs text-muted-foreground">
-												{new Date(course.start_date_time).toLocaleDateString("ja-JP")} 〜 {" "}
-												{new Date(course.end_date_time).toLocaleDateString("ja-JP")}
+												{formatDate(course.start_date_time)} 〜{" "}
+												{formatDate(course.end_date_time)}
 											</p>
 											<p className="text-xs text-muted-foreground">
 												{course.is_active ? "公開中" : "非公開"}
@@ -527,39 +804,6 @@ const AdminCoursesPage = () => {
 										<option key={s.id} value={s.id}>{s.name}</option>
 									))}
 								</select>
-								<div className="mt-2 space-y-1">
-									<Label htmlFor="new_semester_name" className="text-xs">
-										新しい学期を追加
-									</Label>
-									<div className="flex gap-2">
-										<Input
-											id="new_semester_name"
-											placeholder="例）前期 2026"
-											value={newSemesterName}
-											onChange={(e) => setNewSemesterName(e.target.value)}
-										/>
-										<Input
-											id="new_semester_sort"
-											type="number"
-											placeholder="並び順"
-											className="w-24"
-											value={newSemesterSortOrder}
-											onChange={(e) => setNewSemesterSortOrder(e.target.value)}
-										/>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={handleCreateSemester}
-											disabled={semesterSaving}
-										>
-											{semesterSaving ? "追加中..." : "追加"}
-										</Button>
-									</div>
-									{semesterError ? (
-										<p className="text-xs text-red-500">{semesterError}</p>
-									) : null}
-								</div>
 							</div>
 						</div>
 						<hr />
@@ -722,6 +966,139 @@ const AdminCoursesPage = () => {
 							/>
 							<Label htmlFor="subject_active">有効にする</Label>
 						</div>
+						<hr />
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+							シラバス情報
+						</p>
+						{syllabusLoading ? (
+							<p className="text-xs text-muted-foreground">シラバス情報を読み込み中...</p>
+						) : null}
+						{syllabusError ? (
+							<p className="text-xs text-red-500">{syllabusError}</p>
+						) : null}
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-2">
+								<Label htmlFor="e_category">授業科目区分</Label>
+								<select
+									id="e_category"
+									value={syllabusForm.subject_category_id}
+									onChange={(e) =>
+										setSyllabusForm((prev) => ({
+											...prev,
+											subject_category_id: e.target.value,
+										}))
+									}
+									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+								>
+									<option value="">選択してください</option>
+									{subjectCategories.map((c) => (
+										<option key={c.id} value={c.id}>
+											{c.name}
+										</option>
+									))}
+								</select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="e_credits">単位数</Label>
+								<Input
+									id="e_credits"
+									type="number"
+									min="0"
+									value={syllabusForm.credits}
+									onChange={(e) =>
+										setSyllabusForm((prev) => ({
+											...prev,
+											credits: e.target.value,
+										}))
+									}
+								/>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_code">科目コード</Label>
+							<Input
+								id="e_code"
+								value={syllabusForm.code}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										code: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_learning_goal">学習・教育目標</Label>
+							<Textarea
+								id="e_learning_goal"
+								rows={2}
+								value={syllabusForm.learning_goal}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										learning_goal: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_summary">授業の概要</Label>
+							<Textarea
+								id="e_summary"
+								rows={2}
+								value={syllabusForm.summary}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										summary: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_prerequisites">履修に必要な予備知識</Label>
+							<Textarea
+								id="e_prerequisites"
+								rows={2}
+								value={syllabusForm.prerequisites}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										prerequisites: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_behavioral">理想的な達成レベル (JSON)</Label>
+							<Textarea
+								id="e_behavioral"
+								rows={2}
+								className="font-mono text-sm"
+								value={syllabusForm.behavioral_objectives}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										behavioral_objectives: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="e_achievement">標準的な達成レベル (JSON)</Label>
+							<Textarea
+								id="e_achievement"
+								rows={2}
+								className="font-mono text-sm"
+								value={syllabusForm.achievement_targets}
+								onChange={(e) =>
+									setSyllabusForm((prev) => ({
+										...prev,
+										achievement_targets: e.target.value,
+									}))
+								}
+							/>
+						</div>
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setSubjectDialogOpen(false)}>
@@ -731,6 +1108,163 @@ const AdminCoursesPage = () => {
 							{subjectSaving ? "保存中..." : "保存"}
 						</Button>
 					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* 学期マスタ管理ダイアログ */}
+			<Dialog open={semesterManageDialogOpen} onOpenChange={setSemesterManageDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>学期マスタ管理</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="m_semester_select">既存の学期</Label>
+							<select
+								id="m_semester_select"
+								value={selectedSemesterForManage}
+								onChange={(e) => setSelectedSemesterForManage(e.target.value)}
+								className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+							>
+								<option value="">選択してください</option>
+								{semesters.map((s) => (
+									<option key={s.id} value={s.id}>
+										{s.name}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="m_new_semester_name">新しい学期を追加</Label>
+							<div className="flex gap-2">
+								<Input
+									id="m_new_semester_name"
+									placeholder="例）前期 2026"
+									value={newSemesterName}
+									onChange={(e) => setNewSemesterName(e.target.value)}
+								/>
+								<Input
+									id="m_new_semester_sort"
+									type="number"
+									placeholder="並び順"
+									className="w-24"
+									value={newSemesterSortOrder}
+									onChange={(e) => setNewSemesterSortOrder(e.target.value)}
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={handleCreateSemester}
+									disabled={semesterSaving}
+								>
+									{semesterSaving ? "追加中..." : "追加"}
+								</Button>
+							</div>
+						</div>
+						{semesterError ? (
+							<p className="text-xs text-red-500">{semesterError}</p>
+						) : null}
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={handleDeleteSelectedSemester}
+								disabled={semesterSaving}
+							>
+								<Trash2 className="mr-1 h-3 w-3" />
+								選択中の学期を削除
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* 授業科目区分マスタ管理ダイアログ */}
+			<Dialog open={categoryManageDialogOpen} onOpenChange={setCategoryManageDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>授業科目区分マスタ管理</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="m_category_select">既存の科目区分</Label>
+							<select
+								id="m_category_select"
+								value={selectedCategoryForManage}
+								onChange={(e) => setSelectedCategoryForManage(e.target.value)}
+								className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+							>
+								<option value="">選択してください</option>
+								{subjectCategories.map((c) => (
+									<option key={c.id} value={c.id}>
+										{c.name}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="m_new_category_name">新しい科目区分を追加</Label>
+							<div className="flex flex-col gap-2 md:flex-row">
+								<Input
+									id="m_new_category_name"
+									placeholder="例）専門必修"
+									value={newCategoryName}
+									onChange={(e) => setNewCategoryName(e.target.value)}
+								/>
+								<Input
+									id="m_new_category_desc"
+									placeholder="説明（任意）"
+									value={newCategoryDescription}
+									onChange={(e) => setNewCategoryDescription(e.target.value)}
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={handleCreateCategory}
+									disabled={categorySaving}
+								>
+									{categorySaving ? "追加中..." : "追加"}
+								</Button>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<p className="text-xs text-muted-foreground">
+								よく使う区分をまとめて登録（必修 / 選択）
+							</p>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={handleCreateRequiredAndElectiveCategories}
+								disabled={defaultCategoriesSaving}
+							>
+								{defaultCategoriesSaving
+									? "必修/選択 追加中..."
+									: "必修・選択を自動追加"}
+							</Button>
+						</div>
+						{categoryError ? (
+							<p className="text-xs text-red-500">{categoryError}</p>
+						) : null}
+						{defaultCategoriesError ? (
+							<p className="text-xs text-red-500">{defaultCategoriesError}</p>
+						) : null}
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={handleDeleteSelectedCategory}
+								disabled={categorySaving}
+							>
+								<Trash2 className="mr-1 h-3 w-3" />
+								選択中の区分を削除
+							</Button>
+						</div>
+					</div>
 				</DialogContent>
 			</Dialog>
 

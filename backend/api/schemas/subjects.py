@@ -87,6 +87,11 @@ class SubjectSyllabusCreate(SubjectSyllabusBase):
 class SubjectSyllabusUpdate(SubjectSyllabusBase):
     pass
 
+
+class SubjectSyllabus(SubjectSyllabusBase):
+    subject_id: int = Field(..., description="科目ID")
+    model_config = ConfigDict(from_attributes=True)
+
 class SubjectWithSyllabusCreate(BaseModel):
     subject: SubjectCreate
     syllabus: SubjectSyllabusCreate
@@ -114,3 +119,13 @@ class SubjectCategorySimple(BaseModel):
     name: str
     description: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubjectCategoryCreate(BaseModel):
+    name: str = Field(..., description="授業科目区分名")
+    description: Optional[str] = Field(None, description="説明")
+
+
+class SubjectCategoryUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="授業科目区分名")
+    description: Optional[str] = Field(None, description="説明")
