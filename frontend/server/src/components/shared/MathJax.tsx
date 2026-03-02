@@ -196,7 +196,7 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 	const normalizedText = normalizeImageUrls(filteredText);
 
 	return (
-		<BetterMathJax>
+		<BetterMathJax dynamic hideUntilTypeset="first">
 			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
 				rehypePlugins={[rehypeRaw, [rehypeSanitize, customSchema]]}
