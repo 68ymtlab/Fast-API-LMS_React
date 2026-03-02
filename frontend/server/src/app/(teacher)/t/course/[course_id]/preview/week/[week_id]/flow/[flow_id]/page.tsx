@@ -1,8 +1,7 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ArrowLeft, ChevronLeft, ChevronRight, Move } from 'lucide-react';
-import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import ChoiceQuestion from '@/components/flow/ChoiceQuestion';
@@ -402,11 +401,19 @@ function FlowPreviewPage() {
 	}, [currentPage, flowSession?.flow_session_id]);
 
 	if (loading && !pageData) {
-		return <div className="flex items-center justify-center min-h-screen"><div className="text-lg">読み込み中...</div></div>;
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+				<div className="text-lg text-slate-700">読み込み中...</div>
+			</div>
+		);
 	}
 
 	if (error) {
-		return <div className="flex items-center justify-center min-h-screen"><div className="text-red-600">{error}</div></div>;
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+				<div className="text-red-600">{error}</div>
+			</div>
+		);
 	}
 
 	return (
@@ -415,271 +422,280 @@ function FlowPreviewPage() {
 			<main>
 				<div className="container mx-auto py-8">
 					<div className="mb-6">
-						<Link
-							href={`/t/course/${course_id}/preview/week/${week_id}/1`}
-							className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
-						>
-							<ArrowLeft className="h-4 w-4" />
-							週次プレビューに戻る
-						</Link>
-					</div>
-					<div className="mb-6">
-						<h1 className="text-2xl font-bold mb-2">{flowSession?.flow_title || '演習問題'} (プレビュー)</h1>
-						<div className="text-gray-600">問題 {currentPage} / {flowSession?.total_pages || 1}</div>
-					</div>
+						<div className="mb-6">
+							<h1 className="text-2xl font-bold mb-2">
+								{flowSession?.flow_title || "演習問題"}
+							</h1>
+							<div className="text-gray-600">
+								問題 {currentPage} / {flowSession?.total_pages || 1}
+							</div>
+						</div>
 
-					<div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-						<div
-							className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-							style={{ width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%` }}
-						/>
-					</div>
+						<div className="w-full bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
+							<div
+								className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+								style={{
+									width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%`,
+								}}
+							/>
+						</div>
 
-					<div className="flex justify-center space-x-2 mb-8 flex-wrap">
-						{Array.from({ length: flowSession?.total_pages || 1 }, (_, i) => {
-							const pageNum = i + 1;
-							const status = pageAnswerStatus[pageNum] || 'unanswered';
+						<div className="flex justify-center space-x-2 mb-8 flex-wrap">
+							{Array.from({ length: flowSession?.total_pages || 1 }, (_, i) => {
+								const pageNum = i + 1;
+								const status = pageAnswerStatus[pageNum] || "unanswered";
 
-							return (
-								<button
-									key={pageNum}
-									onClick={() => handleJumpToPage(pageNum)}
-									className={`
+								return (
+									<button
+										key={pageNum}
+										onClick={() => handleJumpToPage(pageNum)}
+										className={`
 											w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
 											${
 												pageNum === currentPage
-													? 'ring-2 ring-blue-500 ring-offset-2'
-													: ''
+													? "ring-2 ring-blue-500 ring-offset-2"
+													: ""
 											}
 											${
-												status === 'correct'
-													? 'bg-green-500 text-white hover:bg-green-600'
-													: status === 'incorrect'
-													? 'bg-red-500 text-white hover:bg-red-600'
-													: 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+												status === "correct"
+													? "bg-green-500 text-white hover:bg-green-600"
+													: status === "incorrect"
+													? "bg-red-500 text-white hover:bg-red-600"
+													: "bg-gray-200 hover:bg-gray-300 text-gray-700"
 											}
 										`}
-									title={`問題 ${pageNum} (${
-											status === 'correct'
-												? '正解'
-												: status === 'incorrect'
-												? '不正解'
-												: '未解答'
+										title={`問題 ${pageNum} (${
+											status === "correct"
+												? "正解"
+												: status === "incorrect"
+												? "不正解"
+												: "未解答"
 										})`}
-								>
-									{pageNum}
-								</button>
-							);
-						})}
-					</div>
-					<div className="flex justify-end mb-4" style={{ position: 'relative' }}>
-						<DialogPrimitive.Root open={hintOpen} onOpenChange={setHintOpen}>
-							<DialogPrimitive.Trigger asChild>
-								<button
-									style={{
-										backgroundColor: '#FFD600',
-										color: '#111',
-										fontWeight: 700,
-										fontSize: '1rem',
-										borderRadius: '9999px',
-										padding: '8px 16px',
-										boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-										display: 'flex',
-										alignItems: 'center',
-										gap: '6px',
-										border: 'none',
-										cursor: 'pointer',
-										letterSpacing: '0.01em',
-									}}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="20"
-										height="20"
-										fill="#FFD600"
-										viewBox="0 0 24 24"
-										stroke="#222"
-										strokeWidth="2"
-										className="inline-block align-middle"
-										style={{ marginRight: '4px' }}
 									>
-										<path
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											d="M12 3a7 7 0 0 0-4 12.9V18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.1A7 7 0 0 0 12 3zm-2 16h4"
-										/>
-									</svg>
-									ヒント
-								</button>
-							</DialogPrimitive.Trigger>
-							{showHintTooltip && !hintTooltipClosed && (
-								<div
-									style={{
-										position: 'absolute',
-										right: 0,
-										top: '-44px',
-										background: '#fffbe6',
-										color: '#222',
-										border: '1.5px solid #FFD600',
-										borderRadius: 8,
-										padding: '8px 14px 8px 14px',
-										fontWeight: 600,
-										fontSize: '1rem',
-										boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-										zIndex: 300,
-										whiteSpace: 'nowrap',
-										display: 'flex',
-										alignItems: 'center',
-										gap: '8px',
-									}}
-								>
-									<span>⏱️ ヒントがありますよ！</span>
+										{pageNum}
+									</button>
+								);
+							})}
+						</div>
+
+						<div className="flex justify-end mb-4 relative">
+							<DialogPrimitive.Root open={hintOpen} onOpenChange={setHintOpen}>
+								<DialogPrimitive.Trigger asChild>
 									<button
-										onClick={() => {
-											setHintTooltipClosed(true);
-											setShowHintTooltip(false);
-										}}
 										style={{
-											background: 'none',
-											border: 'none',
-											cursor: 'pointer',
-											padding: 0,
-											marginLeft: 4,
-											display: 'flex',
-											alignItems: 'center',
+											backgroundColor: "#FFD600",
+											color: "#111",
+											fontWeight: 700,
+											fontSize: "1rem",
+											borderRadius: "9999px",
+											padding: "8px 16px",
+											boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+											display: "flex",
+											alignItems: "center",
+											gap: "6px",
+											border: "none",
+											cursor: "pointer",
+											letterSpacing: "0.01em",
 										}}
-										aria-label="ヒント通知を閉じる"
 									>
 										<svg
-											width="18"
-											height="18"
-											fill="none"
+											xmlns="http://www.w3.org/2000/svg"
+											width="20"
+											height="20"
+											fill="#FFD600"
 											viewBox="0 0 24 24"
-											stroke="#888"
+											stroke="#222"
 											strokeWidth="2"
+											className="inline-block align-middle"
+											style={{ marginRight: "4px" }}
 										>
 											<path
 												strokeLinecap="round"
 												strokeLinejoin="round"
-												d="M6 18L18 6M6 6l12 12"
+												d="M12 3a7 7 0 0 0-4 12.9V18a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.1A7 7 0 0 0 12 3zm-2 16h4"
 											/>
 										</svg>
+										ヒント
 									</button>
-								</div>
-							)}
-							<DialogPrimitive.Portal>
-								{hintOpen && (
-									<DialogPrimitive.Content
-										ref={hintRef}
+								</DialogPrimitive.Trigger>
+								{showHintTooltip && !hintTooltipClosed && (
+									<div
 										style={{
-											position: 'fixed',
-											left: hintPosition.x || 'calc(100vw - 520px)',
-											top: hintPosition.y || 'calc(100vh - 22rem)',
-											width: '480px',
-											minHeight: '220px',
-											maxHeight: '80vh',
-											zIndex: 200,
-											overflow: 'auto',
-											padding: '0',
-											borderRadius: '20px',
-											boxShadow:
-												'0 8px 32px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08)',
-											background: '#fff',
-											border: '3px solid #FFD600',
-											cursor: isDragging ? 'grabbing' : 'grab',
+											position: "absolute",
+											right: 0,
+											top: "-44px",
+											background: "#fffbe6",
+											color: "#222",
+											border: "1.5px solid #FFD600",
+											borderRadius: 8,
+											padding: "8px 14px 8px 14px",
+											fontWeight: 600,
+											fontSize: "1rem",
+											boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+											zIndex: 300,
+											whiteSpace: "nowrap",
+											display: "flex",
+											alignItems: "center",
+											gap: "8px",
 										}}
-										className="custom-scrollbar"
 									>
-										<div
-											style={{
-												position: 'relative',
-												padding: '24px',
-												fontSize: '1rem',
-												color: '#222',
-												lineHeight: 1.7,
-												cursor: 'default',
+										<span>⏱️ ヒントがありますよ！</span>
+										<button
+											onClick={() => {
+												setHintTooltipClosed(true);
+												setShowHintTooltip(false);
 											}}
-											onMouseDown={handleMouseDown}
+											style={{
+												background: "none",
+												border: "none",
+												cursor: "pointer",
+												padding: 0,
+												marginLeft: 4,
+												display: "flex",
+												alignItems: "center",
+											}}
+											aria-label="ヒント通知を閉じる"
+										>
+											<svg
+												width="18"
+												height="18"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="#888"
+												strokeWidth="2"
+											>
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													d="M6 18L18 6M6 6l12 12"
+												/>
+											</svg>
+										</button>
+									</div>
+								)}
+								<DialogPrimitive.Portal>
+									{hintOpen && (
+										<DialogPrimitive.Content
+											ref={hintRef}
+											style={{
+												position: "fixed",
+												left: hintPosition.x || "calc(100vw - 520px)",
+												top: hintPosition.y || "calc(100vh - 22rem)",
+												width: "480px",
+												minHeight: "220px",
+												maxHeight: "80vh",
+												zIndex: 200,
+												overflow: "auto",
+												padding: "0",
+												borderRadius: "20px",
+												boxShadow:
+													"0 8px 32px rgba(0,0,0,0.12), 0 1.5px 6px rgba(0,0,0,0.08)",
+												background: "#fff",
+												border: "3px solid #FFD600",
+												cursor: isDragging ? "grabbing" : "grab",
+											}}
+											className="custom-scrollbar"
 										>
 											<div
 												style={{
-													fontWeight: 700,
-													fontSize: '1.08rem',
-													marginBottom: '10px',
-													letterSpacing: '0.01em',
-													color: '#222',
-													display: 'flex',
-													alignItems: 'center',
-													gap: '8px',
+													position: "relative",
+													padding: "24px",
+													fontSize: "1rem",
+													color: "#222",
+													lineHeight: 1.7,
+													cursor: "default",
 												}}
+												onMouseDown={handleMouseDown}
 											>
-												<Move className="w-4 h-4" style={{ cursor: 'grab' }} />
-												ヒント
-											</div>
-											<DialogPrimitive.Close
-												style={{
-													position: 'absolute',
-													top: 12,
-													right: 12,
-													background: '#f5f5f5',
-													border: 'none',
-													borderRadius: '50%',
-													width: 28,
-													height: 28,
-													display: 'flex',
-													alignItems: 'center',
-													justifyContent: 'center',
-													cursor: 'pointer',
-													boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-												}}
-											>
-												<svg
-													width="18"
-													height="18"
-													fill="none"
-													viewBox="0 0 24 24"
-													stroke="#888"
-													strokeWidth="2"
+												<div
+													style={{
+														fontWeight: 700,
+														fontSize: "1.08rem",
+														marginBottom: "10px",
+														letterSpacing: "0.01em",
+														color: "#222",
+														display: "flex",
+														alignItems: "center",
+														gap: "8px",
+													}}
 												>
-													<path
-														strokeLinecap="round"
-														strokeLinejoin="round"
-														d="M6 18L18 6M6 6l12 12"
-													/>
-												</svg>
-											</DialogPrimitive.Close>
-											<MathJax text={hintText} />
-										</div>
-									</DialogPrimitive.Content>
-								)}
-							</DialogPrimitive.Portal>
-						</DialogPrimitive.Root>
-					</div>
+													<Move className="w-4 h-4" style={{ cursor: "grab" }} />
+													ヒント
+												</div>
+												<DialogPrimitive.Close
+													style={{
+														position: "absolute",
+														top: 12,
+														right: 12,
+														background: "#f5f5f5",
+														border: "none",
+														borderRadius: "50%",
+														width: 28,
+														height: 28,
+														display: "flex",
+														alignItems: "center",
+														justifyContent: "center",
+														cursor: "pointer",
+														boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+													}}
+												>
+													<svg
+														width="18"
+														height="18"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="#888"
+														strokeWidth="2"
+													>
+														<path
+															strokeLinecap="round"
+															strokeLinejoin="round"
+															d="M6 18L18 6M6 6l12 12"
+														/>
+													</svg>
+												</DialogPrimitive.Close>
+												<MathJax text={hintText} />
+											</div>
+										</DialogPrimitive.Content>
+									)}
+								</DialogPrimitive.Portal>
+							</DialogPrimitive.Root>
+						</div>
 
-					<div className="mb-8" onInput={resetHintTimer} onChange={resetHintTimer}>
-						{renderQuestion()}
-					</div>
+						<div className="mb-8" onInput={resetHintTimer} onChange={resetHintTimer}>
+							{renderQuestion()}
+						</div>
 
-					<div className="flex justify-between items-center">
-						<Button variant="outline" onClick={handlePreviousPage} disabled={currentPage === 1} className="flex items-center gap-2">
-							<ChevronLeft className="w-4 h-4" />
-							前の問題
-						</Button>
-
-						<div className="text-sm text-gray-600">{currentPage} / {flowSession?.total_pages || 1}</div>
-
-						{currentPage === flowSession?.total_pages ? (
-							<Button onClick={handleFinishSession} className="bg-green-600 hover:bg-green-700">
-								プレビューを終了
+						<div className="flex justify-between items-center">
+							<Button
+								variant="outline"
+								onClick={handlePreviousPage}
+								disabled={currentPage === 1}
+								className="flex items-center gap-2 rounded-full"
+							>
+								<ChevronLeft className="w-4 h-4" />
+								前の問題
 							</Button>
-						) : (
-							<Button onClick={handleNextPage} className="flex items-center gap-2">
-								次の問題
-								<ChevronRight className="w-4 h-4" />
-							</Button>
-						)}
+
+							<div className="text-sm text-gray-600">
+								{currentPage} / {flowSession?.total_pages || 1}
+							</div>
+
+							{currentPage === flowSession?.total_pages ? (
+								<Button
+									onClick={handleFinishSession}
+									className="bg-green-600 hover:bg-green-700"
+								>
+									演習を終了
+								</Button>
+							) : (
+								<Button onClick={handleNextPage} className="flex items-center gap-2">
+									次の問題
+									<ChevronRight className="w-4 h-4" />
+								</Button>
+							)}
+						</div>
 					</div>
-				</div>
 			</main>
 		</>
 	);

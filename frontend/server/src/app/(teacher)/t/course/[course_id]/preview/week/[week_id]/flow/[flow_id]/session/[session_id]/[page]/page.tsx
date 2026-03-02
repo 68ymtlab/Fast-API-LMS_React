@@ -5,11 +5,8 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	CheckCircle,
-	Eye,
 	Flag,
-	GraduationCap,
 	Lightbulb,
-	Settings,
 	XCircle,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -21,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
@@ -35,7 +31,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
 
@@ -157,16 +152,6 @@ function TeacherFlowSessionPreviewPage() {
 		}
 	};
 
-	const goBackToFlowPreview = () => {
-		router.push(
-			`/t/course/${params.course_id}/preview/week/${params.week_id}/flow/${params.flow_id}`,
-		);
-	};
-
-	const goToCourseManagement = () => {
-		router.push(`/t/course/${params.course_id}`);
-	};
-
 	const handleInputChange = (key: string, value: any) => {
 		setAnswerData((prev) => ({
 			...prev,
@@ -253,44 +238,39 @@ function TeacherFlowSessionPreviewPage() {
 	};
 
 	return (
-		<div className="container mx-auto py-8 px-4 max-w-4xl">
-			{/* プレビューモード通知 */}
-			<Alert className="mb-6 border-blue-200 bg-blue-50">
-				<Eye className="h-4 w-4 text-blue-600" />
-				<AlertDescription className="text-blue-800">
-					<div className="flex items-center gap-2">
-						<GraduationCap className="h-4 w-4" />
-						<span className="font-medium">教師プレビューモード:</span>
-						学生が演習問題を解く画面をプレビューしています
-					</div>
-				</AlertDescription>
-			</Alert>
-
-			{/* ナビゲーションバー */}
-			<Card className="mb-6">
-				<CardHeader className="pb-3">
-					<div className="flex items-center justify-between">
-						<div className="flex gap-2">
-							<Button
-								variant="outline"
-								onClick={goBackToFlowPreview}
-								className="flex items-center gap-2"
-							>
-								<ArrowLeft className="h-4 w-4" />
-								プレビューに戻る
-							</Button>
-							<Button
-								variant="secondary"
-								onClick={goToCourseManagement}
-								className="flex items-center gap-2"
-							>
-								<Settings className="h-4 w-4" />
-								コース管理
-							</Button>
+		<main>
+			<div className="container mx-auto py-8 px-4 max-w-4xl">
+				{questionData && (
+					<div className="mb-6">
+						<h1 className="text-2xl font-bold mb-2">演習問題</h1>
+						<div className="text-gray-600">
+							問題 {currentPage} / {questionData.max_page}
 						</div>
+					</div>
+				)}
 
-						{questionData && (
-							<div className="flex items-center gap-2">
+				{errorMessage && (
+					<Alert variant="destructive" className="mb-6">
+						<AlertCircle className="h-4 w-4" />
+						<AlertDescription>{errorMessage}</AlertDescription>
+					</Alert>
+				)}
+
+				{loading ? (
+					<div className="flex items-center justify-center py-16">
+						<div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary" />
+					</div>
+				) : (
+					questionData && (
+						<div className="space-y-6">
+							<div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+								<div
+									className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+									style={{ width: `${(currentPage / questionData.max_page) * 100}%` }}
+								/>
+							</div>
+
+							<div className="flex justify-center space-x-2 mb-8 flex-wrap">
 								{Array.from({ length: questionData.max_page }, (_, i) => (
 									<Button
 										key={i + 1}
@@ -302,41 +282,9 @@ function TeacherFlowSessionPreviewPage() {
 									</Button>
 								))}
 							</div>
-						)}
 
-						<Button
-							variant="destructive"
-							onClick={() => setShowFinishDialog(true)}
-							className="flex items-center gap-2"
-						>
-							<Flag className="h-4 w-4" />
-							終了
-						</Button>
-					</div>
-					<CardDescription className="text-center mt-2">
-						学生向けナビゲーションバーのプレビュー
-					</CardDescription>
-				</CardHeader>
-			</Card>
-
-			{errorMessage && (
-				<Alert variant="destructive" className="mb-6">
-					<AlertCircle className="h-4 w-4" />
-					<AlertDescription>{errorMessage}</AlertDescription>
-				</Alert>
-			)}
-
-			{loading ? (
-				<div className="flex items-center justify-center py-16">
-					<div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
-				</div>
-			) : (
-				questionData && (
-					<div className="space-y-6">
-						{/* 問題 */}
-						<Card>
-							<CardHeader>
-								<div className="flex items-center justify-between">
+							<div>
+								<div className="flex items-center justify-between mb-4">
 									<CardTitle className="text-lg">
 										問題 {questionData.question_number}
 									</CardTitle>
@@ -352,9 +300,6 @@ function TeacherFlowSessionPreviewPage() {
 										</Button>
 									)}
 								</div>
-								<CardDescription>学生が表示される問題内容</CardDescription>
-							</CardHeader>
-							<CardContent>
 								<div className="prose prose-sm max-w-none mb-6">
 									<MathJax text={questionData.question_content} />
 								</div>
@@ -379,157 +324,103 @@ function TeacherFlowSessionPreviewPage() {
 										{submitting ? "送信中..." : "解答"}
 									</Button>
 								</div>
-							</CardContent>
-						</Card>
+							</div>
 
-						{/* 解答結果 */}
-						{submissionResult && (
-							<Card>
-								<CardHeader>
-									<CardTitle className="text-lg">
-										解答結果 (プレビュー)
-									</CardTitle>
-									<CardDescription>学生に表示される解答結果</CardDescription>
-								</CardHeader>
-								<CardContent>
-									<div className="flex items-center gap-2 mb-4">
-										{submissionResult.is_correct ? (
-											<CheckCircle className="h-5 w-5 text-green-500" />
-										) : (
-											<XCircle className="h-5 w-5 text-red-500" />
-										)}
-										<Badge
-											variant={
-												submissionResult.is_correct ? "default" : "destructive"
-											}
-										>
-											{submissionResult.is_correct ? "正解" : "不正解"}
-										</Badge>
-									</div>
-
-									{submissionResult.comment && (
-										<div className="prose prose-sm max-w-none mb-4">
-											<MathJax text={submissionResult.comment} />
+							{submissionResult && (
+								<Card>
+									<CardHeader>
+										<CardTitle className="text-lg">解答結果</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="flex items-center gap-2 mb-4">
+											{submissionResult.is_correct ? (
+												<CheckCircle className="h-5 w-5 text-green-500" />
+											) : (
+												<XCircle className="h-5 w-5 text-red-500" />
+											)}
+											<Badge
+												variant={
+													submissionResult.is_correct ? "default" : "destructive"
+												}
+											>
+												{submissionResult.is_correct ? "正解" : "不正解"}
+											</Badge>
 										</div>
-									)}
 
-									{submissionResult.correct_answer &&
-										!submissionResult.is_correct && (
-											<div className="bg-gray-50 p-4 rounded-lg">
-												<h4 className="font-medium mb-2">正解:</h4>
-												<MathJax text={submissionResult.correct_answer} />
+										{submissionResult.comment && (
+											<div className="prose prose-sm max-w-none mb-4">
+												<MathJax text={submissionResult.comment} />
 											</div>
 										)}
-								</CardContent>
-							</Card>
-						)}
 
-						{/* ナビゲーション */}
-						<Card>
-							<CardHeader>
-								<CardTitle className="text-lg">
-									学生向けナビゲーション (プレビュー)
-								</CardTitle>
-								<CardDescription>
-									学生が使用するページナビゲーション
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="flex justify-between">
+										{submissionResult.correct_answer &&
+											!submissionResult.is_correct && (
+												<div className="bg-gray-50 p-4 rounded-lg">
+													<h4 className="font-medium mb-2">正解:</h4>
+													<MathJax text={submissionResult.correct_answer} />
+												</div>
+											)}
+									</CardContent>
+								</Card>
+							)}
+
+							<div className="flex justify-between items-center">
+								<Button
+									variant="outline"
+									onClick={() => navigateToPage(currentPage - 1)}
+									disabled={currentPage <= 1}
+									className="flex items-center gap-2"
+								>
+									<ArrowLeft className="h-4 w-4" />
+									前のページ
+								</Button>
+
+								{questionData.is_last_page ? (
 									<Button
-										variant="outline"
-										onClick={() => navigateToPage(currentPage - 1)}
-										disabled={currentPage <= 1}
+										onClick={() => setShowFinishDialog(true)}
+										className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+									>
+										<Flag className="h-4 w-4" />
+										演習を終了
+									</Button>
+								) : (
+									<Button
+										onClick={() => navigateToPage(currentPage + 1)}
 										className="flex items-center gap-2"
 									>
-										<ArrowLeft className="h-4 w-4" />
-										前のページ
+										次のページ
+										<ArrowRight className="h-4 w-4" />
 									</Button>
+								)}
+							</div>
+						</div>
+					)
+				)}
 
-									{questionData.is_last_page ? (
-										<Button
-											onClick={() => setShowFinishDialog(true)}
-											className="flex items-center gap-2"
-										>
-											<Flag className="h-4 w-4" />
-											演習を終了
-										</Button>
-									) : (
-										<Button
-											onClick={() => navigateToPage(currentPage + 1)}
-											className="flex items-center gap-2"
-										>
-											次のページ
-											<ArrowRight className="h-4 w-4" />
-										</Button>
-									)}
-								</div>
-							</CardContent>
-						</Card>
-
-						{/* 教師向け情報 */}
-						<Card className="bg-blue-50 border-blue-200">
-							<CardHeader>
-								<CardTitle className="text-lg text-blue-700">
-									プレビュー情報
-								</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<div className="grid md:grid-cols-2 gap-4 text-sm">
-									<div>
-										<h4 className="font-medium mb-2">問題タイプ</h4>
-										<Badge variant="outline">
-											{questionData.question_type}
-										</Badge>
-									</div>
-									<div>
-										<h4 className="font-medium mb-2">ページ情報</h4>
-										<p className="text-gray-600">
-											{currentPage} / {questionData.max_page} ページ
-										</p>
-									</div>
-									<div>
-										<h4 className="font-medium mb-2">ヒント</h4>
-										<p className="text-gray-600">
-											{questionData.hint ? "あり" : "なし"}
-										</p>
-									</div>
-									<div>
-										<h4 className="font-medium mb-2">最終ページ</h4>
-										<p className="text-gray-600">
-											{questionData.is_last_page ? "はい" : "いいえ"}
-										</p>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					</div>
-				)
-			)}
-
-			{/* 終了確認ダイアログ */}
-			<Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>プレビューセッションを終了しますか？</DialogTitle>
-						<DialogDescription>
-							演習を終了すると、完了画面のプレビューに移動します。
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setShowFinishDialog(false)}
-						>
-							キャンセル
-						</Button>
-						<Button onClick={finishSession} disabled={loading}>
-							{loading ? "終了中..." : "完了画面をプレビュー"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</div>
+				{/* 終了確認ダイアログ */}
+				<Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>プレビューセッションを終了しますか？</DialogTitle>
+							<DialogDescription>
+								演習を終了すると、完了画面のプレビューに移動します。
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setShowFinishDialog(false)}
+							>
+								キャンセル
+							</Button>
+							<Button onClick={finishSession} disabled={loading}>
+								{loading ? "終了中..." : "完了画面をプレビュー"}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</div>
+		</main>
 	);
 }
 
