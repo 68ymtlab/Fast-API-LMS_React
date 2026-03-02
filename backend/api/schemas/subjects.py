@@ -98,6 +98,17 @@ class SemesterSimple(BaseModel):
     sort_order: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
+
+class SemesterCreate(BaseModel):
+    name: str = Field(..., description="学期名")
+    sort_order: Optional[int] = Field(None, description="表示順")
+
+
+class SemesterUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="学期名")
+    sort_order: Optional[int] = Field(None, description="表示順")
+
+
 class SubjectCategorySimple(BaseModel):
     id: int
     name: str

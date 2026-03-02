@@ -86,6 +86,11 @@ const AdminCoursesPage = () => {
 	});
 	const [subjectSaving, setSubjectSaving] = useState(false);
 
+	const [newSemesterName, setNewSemesterName] = useState("");
+	const [newSemesterSortOrder, setNewSemesterSortOrder] = useState("");
+	const [semesterSaving, setSemesterSaving] = useState(false);
+	const [semesterError, setSemesterError] = useState<string | null>(null);
+
 	const [createSubjectDialogOpen, setCreateSubjectDialogOpen] = useState(false);
 	const [createSubjectForm, setCreateSubjectForm] = useState({
 		subject_name: "",
@@ -180,12 +185,44 @@ const AdminCoursesPage = () => {
 		}
 	}, [selectedSubjectId]);
 
+	const handleCreateSemester = async () => {
+		if (!newSemesterName.trim()) {
+			setSemesterError("学期名を入力してください");
+			return;
+		}
+		setSemesterError(null);
+		setSemesterSaving(true);
+		try {
+			const body = {
+				name: newSemesterName.trim(),
+				sort_order: newSemesterSortOrder
+					? Number.parseInt(newSemesterSortOrder, 10)
+					: null,
+			};
+			const res = await axios.post<Semester>("/semesters", body, {
+				withCredentials: true,
+			});
+			await fetchMasterData();
+			setCreateSubjectForm((p) => ({
+				...p,
+				semester_id: String(res.data.id),
+			}));
+			setNewSemesterName("");
+			setNewSemesterSortOrder("");
+		} catch (_error) {
+			setSemesterError("学期の作成に失敗しました");
+		} finally {
+			setSemesterSaving(false);
+		}
+	};
+
 	const openCreateSubject = () => {
 		setCreateSubjectForm({
 			subject_name: "",
 			academic_year: String(new Date().getFullYear()),
 			semester_id: semesters.length > 0 ? String(semesters[0].id) : "",
-			subject_category_id: subjectCategories.length > 0 ? String(subjectCategories[0].id) : "",
+			subject_category_id:
+				subjectCategories.length > 0 ? String(subjectCategories[0].id) : "",
 			credits: "",
 			code: "",
 			learning_goal: "",
@@ -203,28 +240,46 @@ const AdminCoursesPage = () => {
 		let behavioralObj: object;
 		let achievementObj: object;
 		try {
-			behavioralObj = JSON.parse(createSubjectForm.behavioral_objectives);
-			achievementObj = JSON.parse(createSubjectForm.achievement_targets);
+			behavioralObj = JSON.parse(createSubjectForm.behavioral_objectives || "{}");
+			achievementObj = JSON.parse(createSubjectForm.achievement_targets || "{}");
 		} catch {
 			setCreateSubjectError("到達目標のJSON形式が正しくありません");
 			return;
 		}
 		setCreateSubjectSaving(true);
 		try {
+			// 科目名以外は、未入力でも自動で妥当なデフォルト値を補完する
+			const academicYear =
+				Number.parseInt(createSubjectForm.academic_year, 10) ||
+				new Date().getFullYear();
+			const semesterId =
+				Number.parseInt(createSubjectForm.semester_id, 10) ||
+				semesters[0]?.id;
+			const subjectCategoryId =
+				Number.parseInt(createSubjectForm.subject_category_id, 10) ||
+				subjectCategories[0]?.id;
+			const credits =
+				Number.parseInt(createSubjectForm.credits, 10) || 1;
+			if (!semesterId || !subjectCategoryId) {
+				setCreateSubjectError("学期マスタまたは科目区分マスタが取得できていません。");
+				setCreateSubjectSaving(false);
+				return;
+			}
+
 			const body = {
 				subject: {
 					subject_name: createSubjectForm.subject_name,
-					academic_year: Number.parseInt(createSubjectForm.academic_year, 10),
-					semester_id: Number.parseInt(createSubjectForm.semester_id, 10),
+					academic_year: academicYear,
+					semester_id: semesterId,
 					is_active: true,
 				},
 				syllabus: {
-					subject_category_id: Number.parseInt(createSubjectForm.subject_category_id, 10),
-					credits: Number.parseInt(createSubjectForm.credits, 10),
-					code: createSubjectForm.code,
-					learning_goal: createSubjectForm.learning_goal,
-					summary: createSubjectForm.summary,
-					prerequisites: createSubjectForm.prerequisites,
+					subject_category_id: subjectCategoryId,
+					credits,
+					code: createSubjectForm.code || "UNSPECIFIED",
+					learning_goal: createSubjectForm.learning_goal || "",
+					summary: createSubjectForm.summary || "",
+					prerequisites: createSubjectForm.prerequisites || "",
 					behavioral_objectives: behavioralObj,
 					achievement_targets: achievementObj,
 				},
@@ -451,7 +506,7 @@ const AdminCoursesPage = () => {
 						</div>
 						<div className="grid grid-cols-2 gap-3">
 							<div className="space-y-2">
-								<Label htmlFor="c_academic_year">開講年 <span className="text-red-500">*</span></Label>
+								<Label htmlFor="c_academic_year">開講年</Label>
 								<Input
 									id="c_academic_year"
 									type="number"
@@ -460,7 +515,7 @@ const AdminCoursesPage = () => {
 								/>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="c_semester_id">学期 <span className="text-red-500">*</span></Label>
+								<Label htmlFor="c_semester_id">学期</Label>
 								<select
 									id="c_semester_id"
 									value={createSubjectForm.semester_id}
@@ -472,13 +527,46 @@ const AdminCoursesPage = () => {
 										<option key={s.id} value={s.id}>{s.name}</option>
 									))}
 								</select>
+								<div className="mt-2 space-y-1">
+									<Label htmlFor="new_semester_name" className="text-xs">
+										新しい学期を追加
+									</Label>
+									<div className="flex gap-2">
+										<Input
+											id="new_semester_name"
+											placeholder="例）前期 2026"
+											value={newSemesterName}
+											onChange={(e) => setNewSemesterName(e.target.value)}
+										/>
+										<Input
+											id="new_semester_sort"
+											type="number"
+											placeholder="並び順"
+											className="w-24"
+											value={newSemesterSortOrder}
+											onChange={(e) => setNewSemesterSortOrder(e.target.value)}
+										/>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={handleCreateSemester}
+											disabled={semesterSaving}
+										>
+											{semesterSaving ? "追加中..." : "追加"}
+										</Button>
+									</div>
+									{semesterError ? (
+										<p className="text-xs text-red-500">{semesterError}</p>
+									) : null}
+								</div>
 							</div>
 						</div>
 						<hr />
 						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">シラバス情報</p>
 						<div className="grid grid-cols-2 gap-3">
 							<div className="space-y-2">
-								<Label htmlFor="c_category">授業科目区分 <span className="text-red-500">*</span></Label>
+								<Label htmlFor="c_category">授業科目区分</Label>
 								<select
 									id="c_category"
 									value={createSubjectForm.subject_category_id}
@@ -492,7 +580,7 @@ const AdminCoursesPage = () => {
 								</select>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="c_credits">単位数 <span className="text-red-500">*</span></Label>
+								<Label htmlFor="c_credits">単位数</Label>
 								<Input
 									id="c_credits"
 									type="number"
@@ -503,7 +591,7 @@ const AdminCoursesPage = () => {
 							</div>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_code">科目コード <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_code">科目コード</Label>
 							<Input
 								id="c_code"
 								value={createSubjectForm.code}
@@ -511,7 +599,7 @@ const AdminCoursesPage = () => {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_learning_goal">学習・教育目標 <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_learning_goal">学習・教育目標</Label>
 							<Textarea
 								id="c_learning_goal"
 								rows={2}
@@ -520,7 +608,7 @@ const AdminCoursesPage = () => {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_summary">授業の概要 <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_summary">授業の概要</Label>
 							<Textarea
 								id="c_summary"
 								rows={2}
@@ -529,7 +617,7 @@ const AdminCoursesPage = () => {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_prerequisites">履修に必要な予備知識 <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_prerequisites">履修に必要な予備知識</Label>
 							<Textarea
 								id="c_prerequisites"
 								rows={2}
@@ -538,7 +626,7 @@ const AdminCoursesPage = () => {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_behavioral">理想的な達成レベル (JSON) <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_behavioral">理想的な達成レベル (JSON)</Label>
 							<Textarea
 								id="c_behavioral"
 								rows={2}
@@ -548,7 +636,7 @@ const AdminCoursesPage = () => {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="c_achievement">標準的な達成レベル (JSON) <span className="text-red-500">*</span></Label>
+							<Label htmlFor="c_achievement">標準的な達成レベル (JSON)</Label>
 							<Textarea
 								id="c_achievement"
 								rows={2}

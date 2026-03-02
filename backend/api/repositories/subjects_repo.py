@@ -91,3 +91,13 @@ class SubjectRepository(BaseRepository):
         stmt = select(subject_model.SubjectCategories).order_by(subject_model.SubjectCategories.id)
         res: Result = await self.db.execute(stmt)
         return res.scalars().all()
+
+    async def create_semester(self, *, semester_in: subject_schema.SemesterCreate) -> subject_model.Semesters:
+        db_obj = subject_model.Semesters(
+            name=semester_in.name,
+            sort_order=semester_in.sort_order,
+        )
+        self.db.add(db_obj)
+        await self.db.flush()
+        await self.db.refresh(db_obj)
+        return db_obj

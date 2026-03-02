@@ -51,3 +51,7 @@ class SubjectService:
     async def get_subject_categories(self) -> List[subject_model.SubjectCategories]:
         """授業科目区分マスタの一覧を取得します。"""
         return await self.subject_repo.list_subject_categories()
+
+    async def create_semester(self, semester_in: subject_schema.SemesterCreate) -> subject_model.Semesters:
+        """学期マスタを新規作成します。"""
+        return await self.subject_repo.create_semester(semester_in=semester_in)

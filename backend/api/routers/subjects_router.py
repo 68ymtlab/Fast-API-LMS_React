@@ -46,6 +46,23 @@ async def list_semesters(
     """学期マスタの一覧を取得します。"""
     return await service.get_semesters()
 
+
+@subjects_router.post(
+    "/semesters",
+    response_model=subject_schema.SemesterSimple,
+    status_code=status.HTTP_201_CREATED,
+    summary="学期登録",
+    dependencies=[Depends(require_teacher_or_higher)],
+)
+async def create_semester(
+    semester_in: subject_schema.SemesterCreate,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(get_current_active_user),
+):
+    """（教師以上の権限）新しい学期マスタを登録します。"""
+    _ = current_user
+    return await service.create_semester(semester_in=semester_in)
+
 @subjects_router.get("/subject-categories", response_model=List[subject_schema.SubjectCategorySimple], summary="授業科目区分一覧取得")
 async def list_subject_categories(
     service: SubjectService = Depends(get_subject_service)
