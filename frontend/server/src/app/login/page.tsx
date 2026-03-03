@@ -74,17 +74,17 @@ const Login: FC = memo(() => {
 	};
 
 	return (
-		<div className="flex flex-col min-h-screen bg-background">
+		<div className="flex flex-col min-h-screen bg-gray-100">
 			<DefaultHeader />
-			<main className="flex flex-grow items-center justify-center p-4">
-				<Card className="w-full max-w-md shadow-lg">
+			<main className="flex flex-grow items-center justify-center p-4 pt-16 md:pt-20">
+				<Card className="w-full max-w-md shadow-md border-gray-200">
 					<CardHeader className="text-center">
-						<CardTitle className="text-3xl font-bold tracking-tight">
+						<CardTitle className="text-2xl font-bold tracking-tight text-gray-800">
 							学習支援システム
 						</CardTitle>
 					</CardHeader>
 					<Separator />
-					<CardContent>
+					<CardContent className="pt-6">
 						{error && (
 							<div className="mb-4 p-3 bg-destructive/15 border border-destructive text-destructive rounded-md text-sm">
 								{error}
