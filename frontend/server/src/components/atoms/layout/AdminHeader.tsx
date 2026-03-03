@@ -11,7 +11,7 @@ export const AdminHeader: FC = memo(() => {
 	const router = useRouter();
 
 	return (
-		<header className="fixed flex w-screen h-12 pt-2 bg-transparent z-30 transition-colors duration-200">
+		<header className="fixed flex w-screen h-12 pt-2 bg-gray-100/95 backdrop-blur supports-[backdrop-filter]:bg-gray-100/80 z-30 border-b border-gray-200/70">
 			<div
 				className="shrink-0 flex items-center gap-2 px-4"
 				style={{ width: "var(--sidebar-width, 16rem)" }}

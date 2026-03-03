@@ -113,7 +113,7 @@ const AdminLoginHistoryPage = () => {
 	}, []);
 
 	return (
-		<div className="p-6 space-y-6">
+		<div className="min-h-[calc(100vh-3.5rem)] bg-gray-100 p-6 space-y-6">
 			<div>
 				<h1 className="text-2xl font-bold">ログイン履歴</h1>
 				<p className="text-sm text-muted-foreground">アクセス履歴ログを検索・確認できます。</p>
