@@ -8,6 +8,7 @@ import {
 	Clock3,
 	Loader2,
 	LogIn,
+	Megaphone,
 	ShieldCheck,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -381,7 +382,15 @@ const AdminHome = () => {
 				<CardHeader>
 					<CardTitle>ショートカット</CardTitle>
 				</CardHeader>
-				<CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+				<CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+					<Button
+						variant="outline"
+						className="justify-between"
+						onClick={() => router.push("/t/announcements")}
+					>
+						お知らせ管理
+						<Megaphone className="h-4 w-4" />
+					</Button>
 					<Button
 						variant="outline"
 						className="justify-between"

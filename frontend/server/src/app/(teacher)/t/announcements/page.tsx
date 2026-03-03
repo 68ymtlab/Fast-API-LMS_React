@@ -12,7 +12,6 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -99,10 +98,10 @@ const userKindOptions = [
 ];
 
 function AnnouncementManagementPage() {
-	const router = useRouter();
 	const [loading, setLoading] = useState(false);
 	const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 	const [errorMessage, setErrorMessage] = useState("");
+	const [senderName, setSenderName] = useState("system");
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [showEditDialog, setShowEditDialog] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -135,6 +134,7 @@ function AnnouncementManagementPage() {
 
 	useEffect(() => {
 		fetchAnnouncements();
+		fetchCurrentUser();
 	}, []);
 
 	const fetchAnnouncements = async () => {
@@ -147,6 +147,19 @@ function AnnouncementManagementPage() {
 			setErrorMessage("お知らせの取得に失敗しました");
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const fetchCurrentUser = async () => {
+		try {
+			const response = await axios.get("/users/me");
+			const user = response.data;
+			const name = user?.username || user?.display_name || user?.email;
+			if (name) {
+				setSenderName(name);
+			}
+		} catch (error) {
+			console.error("Error fetching current user:", error);
 		}
 	};
 
@@ -193,7 +206,7 @@ function AnnouncementManagementPage() {
 				content: data.content,
 				start_date_time: data.start_date_time,
 				end_date_time: data.end_date_time,
-				sender: "username", //// ここは実際のログインユーザー名に置き換えてください
+				sender: senderName,
 				user_kind_id: data.user_kind_id,
 				is_active: true,
 			};

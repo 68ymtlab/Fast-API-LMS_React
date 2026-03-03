@@ -6,6 +6,7 @@ import {
 	FileType,
 	Home,
 	LogIn,
+	Megaphone,
 	Settings,
 	ShieldQuestion,
 	Users,
@@ -50,6 +51,11 @@ const sidebarGroups: SidebarGroups[] = [
 				title: "科目",
 				url: "/t/home",
 				icon: Book,
+			},
+			{
+				title: "お知らせ管理",
+				url: "/t/announcements",
+				icon: Megaphone,
 			},
 			{
 				title: "演習問題管理",

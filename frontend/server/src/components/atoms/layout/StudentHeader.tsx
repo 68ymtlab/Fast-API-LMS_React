@@ -1,9 +1,15 @@
 "use client";
 
-import { Clock, Menu, Star, Target } from "lucide-react";
+import { Bell, Clock, Menu, Star, Target } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { type FC, memo, useEffect, useState } from "react";
+import { AnnouncementsDialog } from "@/components/students/AnnouncementsDialog";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
 	Tooltip,
 	TooltipContent,
@@ -21,6 +27,8 @@ export const StudentHeader: FC = memo(() => {
 	const [username, setUsername] = useState("");
 	const [point, setPoint] = useState("0");
 	const [loginNum, setLoginNum] = useState(0);
+	const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
+	const [unreadAnnouncementCount, setUnreadAnnouncementCount] = useState(0);
 
 	const isHome = pathname === "/home";
 
@@ -58,6 +66,32 @@ export const StudentHeader: FC = memo(() => {
 			})
 			.catch((error) => {
 				console.error("ログイン日数の取得に失敗しました:", error);
+			});
+
+		apiClient
+			.get("/announcements_list")
+			.then((res) => {
+				if (res.status !== 200) return;
+				const currentTime = new Date();
+				const unreadCount = (res.data as Array<{
+					start_date_time: string;
+					end_date_time: string;
+					is_active: boolean;
+					is_read: boolean;
+				}>).filter((announcement) => {
+					const startTime = new Date(announcement.start_date_time);
+					const endTime = new Date(announcement.end_date_time);
+					return (
+						announcement.is_active &&
+						currentTime >= startTime &&
+						currentTime <= endTime &&
+						!announcement.is_read
+					);
+				}).length;
+				setUnreadAnnouncementCount(unreadCount);
+			})
+			.catch((error) => {
+				console.error("お知らせの取得に失敗しました:", error);
 			});
 	}, []);
 
@@ -125,6 +159,37 @@ export const StudentHeader: FC = memo(() => {
 							</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
+
+					{/* お知らせ */}
+					<DropdownMenu
+						open={isAnnouncementsOpen}
+						onOpenChange={setIsAnnouncementsOpen}
+					>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="text-gray-500 hover:bg-gray-200/70 h-7 w-7 relative"
+								aria-label="お知らせを開く"
+							>
+								<Bell className="size-4" />
+								{unreadAnnouncementCount > 0 && (
+									<span className="absolute right-1 top-1 inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+								)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="end"
+							side="bottom"
+							sideOffset={8}
+							className="p-0"
+						>
+							<AnnouncementsDialog
+								open={isAnnouncementsOpen}
+								onUnreadChange={setUnreadAnnouncementCount}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
 
 					{/* 目標（TODO: 実装予定） */}
 					<TooltipProvider>

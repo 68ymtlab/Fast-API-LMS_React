@@ -18,6 +18,7 @@ from api.routers.courses_router import courses_router
 from api.routers.lessons_router import lessons_router
 from api.routers.progress_router import progress_router
 from api.routers.assignments_router import assignments_router
+from api.routers.announcements_router import announcements_router
 
 app = FastAPI(
     title="Fast-API-LMS_API",
@@ -66,6 +67,7 @@ app.include_router(courses_router, prefix="/api")
 app.include_router(lessons_router, prefix="/api")
 app.include_router(progress_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
+app.include_router(announcements_router, prefix="/api")
 # --- Root Endpoint ---
 @app.get("/", tags=["Root"])
 async def read_root():

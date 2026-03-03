@@ -7,6 +7,7 @@ import {
 	Home,
 	LayoutList,
 	LogIn,
+	Megaphone,
 	Settings,
 	ShieldQuestion,
 	Users,
@@ -33,6 +34,11 @@ const sidebarGroups: SidebarGroups[] = [
 	{
 		groupLabel: "授業・教材管理",
 		groupItems: [
+			{
+				title: "お知らせ管理",
+				url: "/t/announcements",
+				icon: Megaphone,
+			},
 			{
 				title: "演習問題管理",
 				url: "/t/exercises",
@@ -87,6 +93,7 @@ const adminSidebarGroups: SidebarGroups[] = [
 		groupLabel: "授業管理（教師同等）",
 		groupItems: [
 			{ title: "科目", url: "/t/home", icon: Book },
+			{ title: "お知らせ管理", url: "/t/announcements", icon: Megaphone },
 			{ title: "演習問題管理", url: "/t/exercises", icon: ClipboardList },
 			{ title: "ユーザー登録", url: "/t/users/add", icon: Users },
 		],
