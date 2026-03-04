@@ -5,6 +5,7 @@
 レッスンに関連するAPIエンドポイントを定義します。
 """
 from pathlib import Path
+import os
 from typing import List, Dict, Any, Optional
 import json
 import re
@@ -1141,13 +1142,24 @@ async def get_image_file(
         raise HTTPException(status_code=404, detail="画像が見つかりません")
 
     backend_dir = Path(__file__).resolve().parents[2]  # .../backend
-    normalized = file_path.lstrip("./\\")
-    absolute_path = Path(file_path)
-    if not absolute_path.is_absolute():
-        absolute_path = backend_dir / normalized
-    absolute_path = absolute_path.resolve()
+    upload_root = Path(os.getenv("UPLOAD_ROOT", "/app/uploads"))
 
-    if not absolute_path.exists() or not absolute_path.is_file():
+    normalized = file_path.lstrip("./\\")
+    raw_path = Path(file_path)
+    candidates: List[Path] = []
+
+    if raw_path.is_absolute():
+        candidates.append(raw_path)
+    else:
+        candidates.append((backend_dir / normalized).resolve())
+        candidates.append((upload_root / normalized).resolve())
+
+    absolute_path = next(
+        (candidate for candidate in candidates if candidate.exists() and candidate.is_file()),
+        None,
+    )
+
+    if absolute_path is None:
         raise HTTPException(status_code=404, detail="画像ファイルが見つかりません")
 
     return FileResponse(path=str(absolute_path))

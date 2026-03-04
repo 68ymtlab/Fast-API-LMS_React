@@ -6,6 +6,7 @@
 """
 import os
 import uuid
+from pathlib import Path
 from datetime import datetime
 from typing import List, Optional
 from fastapi import HTTPException, status
@@ -16,7 +17,8 @@ from api.models import contents_model, users_model
 import api.schemas.contents as contents_schema
 
 # 画像保存のベースディレクトリ
-IMAGE_UPLOAD_DIR = "./static/images"
+UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "/app/uploads"))
+IMAGE_UPLOAD_DIR = UPLOAD_ROOT / "images"
 
 class ContentService:
     """コンテンツ関連のビジネスロジックを担うサービスクラス"""
@@ -73,11 +75,11 @@ class ContentService:
         unique_id = uuid.uuid4().hex[:8]
 
         # ユーザーIDごとのサブディレクトリを作成
-        user_dir = os.path.join(IMAGE_UPLOAD_DIR, str(uploaded_by_user_id))
-        os.makedirs(user_dir, exist_ok=True)
+        user_dir = IMAGE_UPLOAD_DIR / str(uploaded_by_user_id)
+        user_dir.mkdir(parents=True, exist_ok=True)
 
         stored_file_name = f"{uploaded_by_user_id}_{timestamp}_{unique_id}.{file_extension}"
-        file_path = os.path.join(user_dir, stored_file_name)
+        file_path = user_dir / stored_file_name
 
         # ファイルを保存
         with open(file_path, "wb") as f:
@@ -85,7 +87,7 @@ class ContentService:
 
         # データベースに画像情報を登録（新スキーマ: file_path, alt_text, original_name）
         image_in = contents_schema.ImageCreate(
-            file_path=file_path,
+            file_path=str(file_path),
             alt_text=alt_text,
             original_name=original_file_name
         )

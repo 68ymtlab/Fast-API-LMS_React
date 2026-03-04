@@ -11,6 +11,7 @@ import base64
 import os
 import re
 import uuid
+from pathlib import Path
 from datetime import datetime
 import yaml
 import yamale
@@ -29,7 +30,8 @@ YAML_SCHEMA_DIR = "./api/yaml_validation_schemas"
 BLOCK_SCHEMA = os.path.join(YAML_SCHEMA_DIR, "block.yml")
 
 # 画像保存のベースディレクトリ
-IMAGE_UPLOAD_DIR = "./static/images"
+UPLOAD_ROOT = Path(os.getenv("UPLOAD_ROOT", "/app/uploads"))
+IMAGE_UPLOAD_DIR = UPLOAD_ROOT / "images"
 
 
 class LessonContentService:
@@ -225,16 +227,16 @@ class LessonContentService:
                     file_extension = image_name.split('.')[-1] if '.' in image_name else 'bin'
                     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                     unique_id = uuid.uuid4().hex[:8]
-                    user_dir = os.path.join(IMAGE_UPLOAD_DIR, str(uploaded_by_user_id))
-                    os.makedirs(user_dir, exist_ok=True)
+                    user_dir = IMAGE_UPLOAD_DIR / str(uploaded_by_user_id)
+                    user_dir.mkdir(parents=True, exist_ok=True)
                     stored_file_name = f"{uploaded_by_user_id}_{timestamp}_{unique_id}.{file_extension}"
-                    file_path = os.path.join(user_dir, stored_file_name)
+                    file_path = user_dir / stored_file_name
                     with open(file_path, "wb") as f:
                         f.write(file_data)
 
                     # DBに画像情報を登録（commit なし）
                     image_in = contents_schema.ImageCreate(
-                        file_path=file_path,
+                        file_path=str(file_path),
                         alt_text=None,
                         original_name=image_name
                     )
