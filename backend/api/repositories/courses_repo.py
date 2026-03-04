@@ -24,12 +24,17 @@ class CourseRepository(BaseRepository):
         stmt = (
             select(courses_model.Courses)
             .join(courses_model.CourseEnrollments)
+            .outerjoin(subjects_model.Subjects, courses_model.Courses.subject_id == subjects_model.Subjects.id)
             .where(courses_model.CourseEnrollments.user_id == user_id)
             .options(selectinload(courses_model.Courses.subject).selectinload(subjects_model.Subjects.semester)) # Modified
             .order_by(courses_model.Courses.id)
         )
         if not include_inactive:
             stmt = stmt.where(courses_model.Courses.is_active == True)
+        # 科目が論理削除(is_active=false)されているコースは、学習者の履修一覧には表示しない
+        stmt = stmt.where(
+            (courses_model.Courses.subject_id.is_(None)) | (subjects_model.Subjects.is_active.is_(True))
+        )
         result = await self.db.execute(stmt)
         return result.scalars().all()
 
