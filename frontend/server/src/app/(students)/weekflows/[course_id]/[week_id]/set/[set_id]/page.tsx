@@ -246,61 +246,77 @@ export default function StudentExerciseSetPage() {
 				page="student_weekflow_set" 
 				details={JSON.stringify({ course_id: courseId, week_id: weekId, set_id: setId, current_page: currentPage, current_question_id: currentQuestion?.id })}
 			/>
-			<div className="container mx-auto py-8 px-4 max-w-4xl">
-				<div className="mb-6">
-					<div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-						<Button variant="ghost" size="sm" asChild className="text-gray-500 hover:text-gray-900">
-							<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
-								<ArrowLeft className="h-4 w-4" />
-								演習問題一覧に戻る
-							</Link>
-						</Button>
-						<div className="text-sm text-gray-600">{setInfo.title}</div>
-					</div>
-					<div className="text-gray-600 mb-3">
-						問題 {currentPage} / {totalPages}
-					</div>
-					<div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-						<div
-							className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-							style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
-						/>
-					</div>
-					<div className="flex justify-center gap-2 flex-wrap">
-						{Array.from({ length: totalPages }, (_, i) => {
-							const pageNum = i + 1;
-							const status = pageAnswerStatus[pageNum] || "unanswered";
-							return (
-								<button
-									key={pageNum}
-									onClick={() => setCurrentPage(pageNum)}
-									className={`
-										w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
-										${pageNum === currentPage ? "ring-2 ring-blue-500 ring-offset-2" : ""}
-										${status === "correct"
-											? "bg-green-500 text-white hover:bg-green-600"
-											: status === "incorrect"
-												? "bg-red-500 text-white hover:bg-red-600"
-												: "bg-gray-200 hover:bg-gray-300 text-gray-700"}
-									`}
-								>
-									{pageNum}
-								</button>
-							);
-						})}
-					</div>
-					{isPastDue && (
-						<Alert variant="destructive" className="mt-4">
-							<AlertCircle className="h-4 w-4" />
-							<AlertDescription>
-								回答期限（{new Date(setInfo.due_date!).toLocaleString("ja-JP")}）を過ぎているため、解答できません。
-							</AlertDescription>
-						</Alert>
-					)}
-				</div>
+			<div className="container mx-auto py-8 px-4 max-w-5xl space-y-5">
+				<Card className="border-gray-200">
+					<CardContent className="pt-5 pb-5 space-y-3">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900">
+								<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
+									<ArrowLeft className="h-4 w-4" />
+									演習問題一覧に戻る
+								</Link>
+							</Button>
+							<div className="text-sm text-gray-500">
+								{setInfo.due_date
+									? `回答期限: ${new Date(setInfo.due_date).toLocaleString("ja-JP")}`
+									: "回答期限: なし"}
+							</div>
+						</div>
+						<div className="space-y-1">
+							<h1 className="text-xl md:text-2xl font-bold text-gray-800">
+								{setInfo.title}
+							</h1>
+							<p className="text-sm text-gray-600">
+								問題 {currentPage} / {totalPages}
+							</p>
+						</div>
+						<div className="w-full bg-gray-200 rounded-full h-2.5">
+							<div
+								className="bg-primary h-2.5 rounded-full transition-all duration-300"
+								style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
+							/>
+						</div>
+					</CardContent>
+				</Card>
 
-				<Card className="mb-6 shadow-md border-gray-200">
-					<CardHeader>
+				<Card className="border-gray-200">
+					<CardContent className="pt-5">
+						<div className="flex justify-center gap-2 flex-wrap">
+							{Array.from({ length: totalPages }, (_, i) => {
+								const pageNum = i + 1;
+								const status = pageAnswerStatus[pageNum] || "unanswered";
+								return (
+									<button
+										key={pageNum}
+										onClick={() => setCurrentPage(pageNum)}
+										className={`
+											w-9 h-9 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
+											${pageNum === currentPage ? "ring-2 ring-primary ring-offset-2" : ""}
+											${status === "correct"
+												? "bg-green-500 text-white hover:bg-green-600"
+												: status === "incorrect"
+													? "bg-red-500 text-white hover:bg-red-600"
+													: "bg-gray-200 hover:bg-gray-300 text-gray-700"}
+										`}
+									>
+										{pageNum}
+									</button>
+								);
+							})}
+						</div>
+						{isPastDue && (
+							<Alert variant="destructive" className="mt-4">
+								<AlertCircle className="h-4 w-4" />
+								<AlertDescription>
+									回答期限（{new Date(setInfo.due_date!).toLocaleString("ja-JP")}）を過ぎているため、解答できません。
+								</AlertDescription>
+							</Alert>
+						)}
+					</CardContent>
+				</Card>
+
+				<Card className="shadow-sm border-gray-200">
+					<CardHeader className="pb-4">
 						<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 							<CardTitle className="text-xl font-bold text-gray-800">問題 {currentPage}</CardTitle>
 							{hintText && (
@@ -315,11 +331,15 @@ export default function StudentExerciseSetPage() {
 								</Button>
 							)}
 						</div>
-						<CardDescription className="text-base mt-2">{currentQuestion?.title ?? "問題"}</CardDescription>
+						<CardDescription className="text-base mt-2">
+							{currentQuestion?.title ?? "問題"}
+						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<div className="prose prose-sm max-w-none">
-							<MathJax text={questionText} />
+						<div className="rounded-xl border border-gray-200 bg-white p-4 md:p-5">
+							<div className="prose prose-sm max-w-none">
+								<MathJax text={questionText} />
+							</div>
 						</div>
 
 						{showHint && hintText && (
@@ -331,9 +351,9 @@ export default function StudentExerciseSetPage() {
 							</Alert>
 						)}
 
-						<div className="mt-10 bg-blue-50/40 rounded-2xl p-5 md:p-7 border border-blue-100 shadow-sm">
-							<h3 className="text-lg font-bold text-gray-800 mb-5 flex items-center gap-2">
-								<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+						<div className="mt-4 rounded-2xl p-5 md:p-6 border border-gray-200 bg-gray-50/70">
+							<h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+								<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
 								解答欄
 							</h3>
 
@@ -347,8 +367,8 @@ export default function StudentExerciseSetPage() {
 													key={choice.choice_id}
 													className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${
 														isSelected
-															? "bg-white border-blue-500 shadow-sm ring-2 ring-blue-500 ring-opacity-50"
-															: "bg-white/80 hover:bg-white border-gray-200 hover:border-gray-300"
+															? "bg-white border-primary shadow-sm ring-2 ring-primary/40"
+															: "bg-white hover:bg-gray-50 border-gray-200"
 													}`}
 												>
 													<input
@@ -356,7 +376,7 @@ export default function StudentExerciseSetPage() {
 														name="mcq-choice"
 														checked={isSelected}
 														onChange={() => setSingleAnswer("choice", choice.choice_id)}
-														className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300"
+														className="h-5 w-5 text-primary focus:ring-primary border-gray-300"
 													/>
 													<span className="flex-1 text-base">
 														<MathJax text={choice.choice_text} />
@@ -410,12 +430,12 @@ export default function StudentExerciseSetPage() {
 								/>
 							)}
 
-							<div className="pt-6 mt-6 border-t border-blue-200/60">
-								<Button 
-									onClick={checkAnswer} 
+							<div className="pt-6 mt-6 border-t border-gray-200">
+								<Button
+									onClick={checkAnswer}
 									disabled={submitted || isPastDue}
 									size="lg"
-									className="w-full text-lg font-bold py-6 rounded-xl shadow-sm hover:shadow-md transition-all bg-blue-600 hover:bg-blue-700 text-white"
+									className="w-full text-lg font-bold py-6 rounded-xl shadow-sm hover:shadow-md transition-all"
 								>
 									{isPastDue ? "期限切れ" : submitted ? "解答済み" : "解答する"}
 								</Button>
@@ -425,7 +445,7 @@ export default function StudentExerciseSetPage() {
 				</Card>
 
 				{submitted && (
-					<Card className={`mb-6 border-2 shadow-md transition-all duration-300 ${
+					<Card className={`border-2 shadow-sm transition-all duration-300 ${
 						isCorrect ? "border-green-500 bg-green-50/50" : "border-red-500 bg-red-50/50"
 					}`}>
 						<CardHeader className="pb-3">
@@ -453,8 +473,8 @@ export default function StudentExerciseSetPage() {
 					</Card>
 				)}
 
-				<Card>
-					<CardContent className="pt-6 flex justify-between">
+				<Card className="border-gray-200">
+					<CardContent className="pt-6 flex justify-between gap-3">
 						<Button
 							variant="outline"
 							onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}

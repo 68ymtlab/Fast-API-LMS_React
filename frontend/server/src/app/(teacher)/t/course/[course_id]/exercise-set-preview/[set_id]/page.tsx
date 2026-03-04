@@ -205,208 +205,225 @@ export default function ExerciseSetPreviewPage() {
 
 	return (
 		<MathJaxSetup>
-			<div className="container mx-auto py-8 px-4 max-w-4xl">
-			<Alert className="mb-6 border-blue-200 bg-blue-50">
-				<Eye className="h-4 w-4 text-blue-600" />
-				<AlertDescription className="text-blue-800">
-					<span className="font-medium">演習セットプレビュー:</span> 「{setInfo.title}」を学習者と同じように解けます。
-				</AlertDescription>
-			</Alert>
+			<div className="container mx-auto py-8 px-4 max-w-5xl space-y-5">
+				<Alert className="border-blue-200 bg-blue-50">
+					<Eye className="h-4 w-4 text-blue-600" />
+					<AlertDescription className="text-blue-800">
+						<span className="font-medium">演習セットプレビュー:</span> 「{setInfo.title}」を学習者と同じように解けます。
+					</AlertDescription>
+				</Alert>
 
-			<div className="mb-6">
-				<div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-					<Button variant="outline" size="sm" asChild>
-						<Link href={`/t/course/${courseId}`} className="flex items-center gap-2">
-							<ArrowLeft className="h-4 w-4" />
-							コースに戻る
-						</Link>
-					</Button>
-					<div className="text-gray-600">
-						問題 {currentPage} / {totalPages}
-					</div>
-				</div>
-				<div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-					<div
-						className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-						style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
-					/>
-				</div>
-				<div className="flex justify-center gap-2 flex-wrap">
-					{Array.from({ length: totalPages }, (_, i) => {
-						const pageNum = i + 1;
-						const status = pageAnswerStatus[pageNum] || "unanswered";
-						return (
-							<button
-								key={pageNum}
-								onClick={() => setCurrentPage(pageNum)}
-								className={`
-									w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
-									${pageNum === currentPage ? "ring-2 ring-blue-500 ring-offset-2" : ""}
-									${status === "correct"
-										? "bg-green-500 text-white hover:bg-green-600"
-										: status === "incorrect"
-											? "bg-red-500 text-white hover:bg-red-600"
-											: "bg-gray-200 hover:bg-gray-300 text-gray-700"}
-								`}
-							>
-								{pageNum}
-							</button>
-						);
-					})}
-				</div>
-			</div>
-
-			<Card className="mb-6">
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-lg">問題 {currentPage}</CardTitle>
-						{hintText && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setShowHint(!showHint)}
-								className="gap-2"
-							>
-								<Lightbulb className="h-4 w-4" />
-								ヒント
+				<Card className="border-gray-200">
+					<CardContent className="pt-5 pb-5 space-y-3">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<Button variant="outline" size="sm" asChild>
+								<Link href={`/t/course/${courseId}`} className="flex items-center gap-2">
+									<ArrowLeft className="h-4 w-4" />
+									コースに戻る
+								</Link>
 							</Button>
-						)}
-					</div>
-					<CardDescription>{currentQuestion?.title ?? "問題"}</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="prose prose-sm max-w-none">
-						<MathJax text={questionText} />
-					</div>
-
-					{showHint && hintText && (
-						<Alert>
-							<Lightbulb className="h-4 w-4" />
-							<AlertDescription>
-								<MathJax text={hintText} />
-							</AlertDescription>
-						</Alert>
-					)}
-
-					<div className="mt-8 space-y-4">
-						{/* 入力UI by type */}
-						{currentQuestion?.question_type === "mcq" && (
-							<div className="space-y-2">
-								{((content?.choices as Array<{ choice_id: string; choice_text: string }>) ?? []).map(
-									(choice) => (
-										<label
-											key={choice.choice_id}
-											className="flex items-center gap-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer"
-										>
-											<input
-												type="radio"
-												name="mcq-choice"
-												checked={(answerInput.choice as string) === choice.choice_id}
-												onChange={() => setSingleAnswer("choice", choice.choice_id)}
-												className="h-4 w-4"
-											/>
-											<span className="flex-1">
-												<MathJax text={choice.choice_text} />
-											</span>
-										</label>
-									),
-								)}
-							</div>
-						)}
-
-						{currentQuestion?.question_type === "numeric" && (
-							<Input
-								type="number"
-								step="any"
-								placeholder="数値を入力"
-								value={(answerInput.value as string) ?? ""}
-								onChange={(e) => setSingleAnswer("value", e.target.value)}
-							/>
-						)}
-
-						{currentQuestion?.question_type === "multiple_numeric" && (
-							<div className="space-y-3">
-								{((content?.blanks as Array<{ blank_id: string; label: string }>) ?? []).map(
-									(blank) => (
-										<div key={blank.blank_id}>
-											<label className="text-sm font-medium">{blank.label}</label>
-											<Input
-												type="number"
-												step="any"
-												className="mt-1"
-												value={(answerInput[`blank_${blank.blank_id}`] as string) ?? ""}
-												onChange={(e) =>
-													setSingleAnswer(`blank_${blank.blank_id}`, e.target.value)
-												}
-											/>
-										</div>
-									),
-								)}
-							</div>
-						)}
-
-						{currentQuestion?.question_type === "descriptive" && (
-							<Textarea
-								placeholder="解答を入力"
-								rows={5}
-								value={(answerInput.value as string) ?? ""}
-								onChange={(e) => setSingleAnswer("value", e.target.value)}
-							/>
-						)}
-
-						<div className="flex justify-center pt-4">
-							<Button onClick={checkAnswer} disabled={submitted}>
-								{submitted ? "解答済み" : "解答する"}
-							</Button>
+							<div className="text-sm text-gray-600">問題 {currentPage} / {totalPages}</div>
 						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			{submitted && (
-				<Card className="mb-6">
-					<CardHeader>
-						<CardTitle className="text-lg flex items-center gap-2">
-							{isCorrect ? (
-								<CheckCircle className="h-5 w-5 text-green-500" />
-							) : (
-								<XCircle className="h-5 w-5 text-red-500" />
-							)}
-							{isCorrect ? "正解" : "不正解"}
-						</CardTitle>
-					</CardHeader>
-					{answerComment && (
-						<CardContent>
-							<div className="prose prose-sm max-w-none">
-								<MathJax text={answerComment} />
-							</div>
-						</CardContent>
-					)}
+						<div className="w-full bg-gray-200 rounded-full h-2.5">
+							<div
+								className="bg-primary h-2.5 rounded-full transition-all duration-300"
+								style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
+							/>
+						</div>
+					</CardContent>
 				</Card>
-			)}
 
-			<Card>
-				<CardContent className="pt-6 flex justify-between">
-					<Button
-						variant="outline"
-						onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-						disabled={currentPage <= 1}
-						className="gap-2"
+				<Card className="border-gray-200">
+					<CardContent className="pt-5">
+						<div className="flex justify-center gap-2 flex-wrap">
+							{Array.from({ length: totalPages }, (_, i) => {
+								const pageNum = i + 1;
+								const status = pageAnswerStatus[pageNum] || "unanswered";
+								return (
+									<button
+										key={pageNum}
+										onClick={() => setCurrentPage(pageNum)}
+										className={`
+											w-10 h-10 rounded-full text-sm font-medium transition-all duration-200 hover:scale-105
+											${pageNum === currentPage ? "ring-2 ring-primary ring-offset-2" : ""}
+											${status === "correct"
+												? "bg-green-500 text-white hover:bg-green-600"
+												: status === "incorrect"
+													? "bg-red-500 text-white hover:bg-red-600"
+													: "bg-gray-200 hover:bg-gray-300 text-gray-700"}
+										`}
+									>
+										{pageNum}
+									</button>
+								);
+							})}
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="shadow-sm border-gray-200">
+					<CardHeader className="pb-4">
+						<div className="flex items-center justify-between">
+							<CardTitle className="text-xl font-bold text-gray-800">問題 {currentPage}</CardTitle>
+							{hintText && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setShowHint(!showHint)}
+									className="gap-2"
+								>
+									<Lightbulb className="h-4 w-4" />
+									ヒント
+								</Button>
+							)}
+						</div>
+						<CardDescription className="text-base mt-2">
+							{currentQuestion?.title ?? "問題"}
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="rounded-xl border border-gray-200 bg-white p-4 md:p-5">
+							<div className="prose prose-sm max-w-none">
+								<MathJax text={questionText} />
+							</div>
+						</div>
+
+						{showHint && hintText && (
+							<Alert>
+								<Lightbulb className="h-4 w-4" />
+								<AlertDescription>
+									<MathJax text={hintText} />
+								</AlertDescription>
+							</Alert>
+						)}
+
+						<div className="mt-10">
+							<div className="rounded-2xl p-5 md:p-6 border border-gray-200 bg-gray-50/70">
+								<div className="mb-4 text-base font-semibold text-gray-700">解答欄</div>
+							{currentQuestion?.question_type === "mcq" && (
+								<div className="space-y-2">
+									{((content?.choices as Array<{ choice_id: string; choice_text: string }>) ?? []).map(
+										(choice) => (
+											<label
+												key={choice.choice_id}
+												className="flex items-center gap-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer bg-white"
+											>
+												<input
+													type="radio"
+													name="mcq-choice"
+													checked={(answerInput.choice as string) === choice.choice_id}
+													onChange={() => setSingleAnswer("choice", choice.choice_id)}
+													className="h-4 w-4"
+												/>
+												<span className="flex-1">
+													<MathJax text={choice.choice_text} />
+												</span>
+											</label>
+										),
+									)}
+								</div>
+							)}
+
+							{currentQuestion?.question_type === "numeric" && (
+								<Input
+									type="number"
+									step="any"
+									placeholder="数値を入力"
+									value={(answerInput.value as string) ?? ""}
+									onChange={(e) => setSingleAnswer("value", e.target.value)}
+									className="bg-white"
+								/>
+							)}
+
+							{currentQuestion?.question_type === "multiple_numeric" && (
+								<div className="space-y-3">
+									{((content?.blanks as Array<{ blank_id: string; label: string }>) ?? []).map(
+										(blank) => (
+											<div key={blank.blank_id}>
+												<label className="text-sm font-medium">{blank.label}</label>
+												<Input
+													type="number"
+													step="any"
+													className="mt-1 bg-white"
+													value={(answerInput[`blank_${blank.blank_id}`] as string) ?? ""}
+													onChange={(e) =>
+														setSingleAnswer(`blank_${blank.blank_id}`, e.target.value)
+													}
+												/>
+											</div>
+										),
+									)}
+								</div>
+							)}
+
+							{currentQuestion?.question_type === "descriptive" && (
+								<Textarea
+									placeholder="解答を入力"
+									rows={5}
+									value={(answerInput.value as string) ?? ""}
+									onChange={(e) => setSingleAnswer("value", e.target.value)}
+									className="bg-white"
+								/>
+							)}
+
+							<div className="flex justify-center pt-4">
+								<Button onClick={checkAnswer} disabled={submitted}>
+									{submitted ? "解答済み" : "解答する"}
+								</Button>
+							</div>
+						</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				{submitted && (
+					<Card
+						className={`border-2 shadow-sm ${
+							isCorrect ? "border-green-500 bg-green-50/50" : "border-red-500 bg-red-50/50"
+						}`}
 					>
-						<ArrowLeft className="h-4 w-4" />
-						前の問題
-					</Button>
-					<Button
-						variant="outline"
-						onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-						disabled={currentPage >= totalPages}
-						className="gap-2"
-					>
-						次の問題
-						<ArrowRight className="h-4 w-4" />
-					</Button>
-				</CardContent>
-			</Card>
+						<CardHeader>
+							<CardTitle className="text-lg flex items-center gap-2">
+								{isCorrect ? (
+									<CheckCircle className="h-5 w-5 text-green-500" />
+								) : (
+									<XCircle className="h-5 w-5 text-red-500" />
+								)}
+								{isCorrect ? "正解" : "不正解"}
+							</CardTitle>
+						</CardHeader>
+						{answerComment && (
+							<CardContent>
+								<div className="prose prose-sm max-w-none">
+									<MathJax text={answerComment} />
+								</div>
+							</CardContent>
+						)}
+					</Card>
+				)}
+
+				<Card className="border-gray-200">
+					<CardContent className="pt-6 flex justify-between">
+						<Button
+							variant="outline"
+							onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+							disabled={currentPage <= 1}
+							className="gap-2"
+						>
+							<ArrowLeft className="h-4 w-4" />
+							前の問題
+						</Button>
+						<Button
+							variant="outline"
+							onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+							disabled={currentPage >= totalPages}
+							className="gap-2"
+						>
+							次の問題
+							<ArrowRight className="h-4 w-4" />
+						</Button>
+					</CardContent>
+				</Card>
 			</div>
 		</MathJaxSetup>
 	);

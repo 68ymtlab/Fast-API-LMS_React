@@ -3,6 +3,8 @@
 import {
 	AlertCircle,
 	CheckCircle,
+	ChevronDown,
+	ChevronUp,
 	Copy,
 	Eye,
 	FolderKanban,
@@ -36,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
+import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 
 interface CourseQuestion {
 	id: number;
@@ -43,6 +46,7 @@ interface CourseQuestion {
 	question_type: string;
 	difficulty: number | null;
 	is_active: boolean;
+	content_data: Record<string, unknown>;
 	tag_names: string[];
 }
 
@@ -79,8 +83,10 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	const [setDeleting, setSetDeleting] = useState<number | null>(null);
 	const [duplicating, setDuplicating] = useState(false);
 	const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null);
+	const [expandedQuestionIds, setExpandedQuestionIds] = useState<number[]>([]);
 
 	const [questionKeyword, setQuestionKeyword] = useState("");
+	const [questionDisplayLimit, setQuestionDisplayLimit] = useState(20);
 	const [questionViewMode, setQuestionViewMode] = useState<
 		"all" | "selected" | "unselected"
 	>("all");
@@ -158,6 +164,11 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 			.map((id) => questionMap.get(id))
 			.filter((question): question is CourseQuestion => question != null);
 	}, [selectedQuestionIds, questionMap]);
+
+	const displayedQuestions = useMemo(
+		() => filteredQuestions.slice(0, questionDisplayLimit),
+		[filteredQuestions, questionDisplayLimit],
+	);
 
 	const normalizeDueDateForInput = (dueDate: string | null | undefined) => {
 		return dueDate ? new Date(dueDate).toISOString().slice(0, 16) : "";
@@ -249,6 +260,50 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 			next.splice(targetIndex, 0, sourceId);
 			return next;
 		});
+	};
+
+	const toggleQuestionPreview = (questionId: number) => {
+		setExpandedQuestionIds((prev) =>
+			prev.includes(questionId)
+				? prev.filter((id) => id !== questionId)
+				: [...prev, questionId],
+		);
+	};
+
+	const getQuestionPreview = (contentData: Record<string, unknown>) => {
+		const questionText =
+			typeof contentData.question === "string"
+				? contentData.question
+				: typeof contentData.prompt === "string"
+					? contentData.prompt
+					: typeof contentData.statement === "string"
+						? contentData.statement
+					: typeof contentData.description === "string"
+						? contentData.description
+						: "";
+
+		const choices = Array.isArray(contentData.choices)
+			? contentData.choices
+					.map((choice) => {
+						if (typeof choice === "string") return choice;
+						if (
+							typeof choice === "object" &&
+							choice !== null &&
+							"choice_text" in choice &&
+							typeof (choice as { choice_text?: unknown }).choice_text === "string"
+						) {
+							return (choice as { choice_text: string }).choice_text;
+						}
+						return "";
+					})
+					.filter(Boolean)
+			: [];
+
+		return {
+			questionText: questionText.trim(),
+			choices,
+			fallbackText: JSON.stringify(contentData, null, 2).slice(0, 400),
+		};
 	};
 
 	const handleDuplicateSet = async () => {
@@ -544,14 +599,39 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 									</div>
 								</div>
 								<div className="mb-2">
-									<Input
-										value={questionKeyword ?? ""}
-										onChange={(e) => setQuestionKeyword(e.target.value)}
-										placeholder="ここで問題を検索（問題名 / タグ / タイプ）"
-									/>
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+										<div className="md:col-span-2">
+											<Input
+												value={questionKeyword ?? ""}
+												onChange={(e) => setQuestionKeyword(e.target.value)}
+												placeholder="ここで問題を検索（問題名 / タグ / タイプ）"
+												className="h-10"
+											/>
+										</div>
+										<div>
+											<Select
+												value={String(questionDisplayLimit)}
+												onValueChange={(value) =>
+													setQuestionDisplayLimit(Number(value))
+												}
+											>
+												<SelectTrigger className="h-10 w-full">
+													<SelectValue placeholder="表示件数" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="10">10件表示</SelectItem>
+													<SelectItem value="20">20件表示</SelectItem>
+													<SelectItem value="50">50件表示</SelectItem>
+													<SelectItem value="100">100件表示</SelectItem>
+												</SelectContent>
+											</Select>
+										</div>
+									</div>
 								</div>
 								<div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-gray-500">
-									<span>選択中 {selectedQuestionIds.length} 件</span>
+									<span>
+										選択中 {selectedQuestionIds.length} 件 / 一覧 {filteredQuestions.length} 件
+									</span>
 									<div className="flex items-center gap-2">
 										<Button
 											type="button"
@@ -604,40 +684,117 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 										</div>
 									</div>
 								)}
-								<div className="border rounded-md max-h-[340px] overflow-auto">
-									{filteredQuestions.length === 0 ? (
+								<div className="border rounded-md max-h-[640px] overflow-auto">
+									{displayedQuestions.length === 0 ? (
 										<div className="p-4 text-sm text-gray-500">該当する問題がありません。</div>
 									) : (
-										filteredQuestions.map((q) => {
+										displayedQuestions.map((q) => {
 											const checked = selectedQuestionIds.includes(q.id);
+											const isPreviewOpen = expandedQuestionIds.includes(q.id);
+											const preview = getQuestionPreview(q.content_data ?? {});
 											return (
-												<label
+												<div
 													key={q.id}
-													className="flex items-start gap-3 p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
+													className="border-b last:border-b-0"
 												>
-													<Checkbox
-														checked={checked}
-														onCheckedChange={(value) => toggleQuestion(q.id, Boolean(value))}
-													/>
-													<div className="min-w-0">
-														<div className="font-medium text-sm">{q.title}</div>
-														<div className="text-xs text-gray-500 mt-1">
-															type: {q.question_type}
-															{q.difficulty != null ? ` / difficulty: ${q.difficulty}` : ""}
-														</div>
-														<div className="flex gap-1 flex-wrap mt-1">
-															{q.tag_names.map((tag) => (
-																<Badge key={`${q.id}-${tag}`} variant="secondary">
-																	{tag}
-																</Badge>
-															))}
+													<div className="flex items-start gap-3 p-4 hover:bg-gray-50">
+														<Checkbox
+															checked={checked}
+															onCheckedChange={(value) => toggleQuestion(q.id, Boolean(value))}
+														/>
+														<div className="min-w-0 flex-1">
+															<div className="flex items-start justify-between gap-2">
+																<div className="min-w-0">
+																	<div className="font-medium text-base leading-relaxed">
+																		{q.title}
+																	</div>
+																	<div className="text-xs text-gray-500 mt-1">
+																		type: {q.question_type}
+																		{q.difficulty != null
+																			? ` / difficulty: ${q.difficulty}`
+																			: ""}
+																	</div>
+																</div>
+																<Button
+																	type="button"
+																	variant="ghost"
+																	size="sm"
+																	className="h-7 px-2 text-xs"
+																	onClick={() => toggleQuestionPreview(q.id)}
+																>
+																	内容を見る
+																	{isPreviewOpen ? (
+																		<ChevronUp className="h-4 w-4 ml-1" />
+																	) : (
+																		<ChevronDown className="h-4 w-4 ml-1" />
+																	)}
+																</Button>
+															</div>
+															<div className="flex gap-1 flex-wrap mt-1">
+																{q.tag_names.map((tag) => (
+																	<Badge key={`${q.id}-${tag}`} variant="secondary">
+																		{tag}
+																	</Badge>
+																))}
+															</div>
 														</div>
 													</div>
-												</label>
+													{isPreviewOpen && (
+														<div className="px-3 pb-3 pl-10 text-sm text-gray-700 space-y-2">
+															<MathJaxSetup>
+																<div className="rounded-md bg-muted/40 p-3">
+																	<p className="text-xs font-semibold text-gray-500 mb-1">
+																		問題文
+																	</p>
+																	<div className="whitespace-pre-wrap break-words">
+																		<MathJax
+																			text={
+																				preview.questionText ||
+																				"問題文キーが見つからないため、下に content_data の要約を表示しています。"
+																			}
+																		/>
+																	</div>
+																</div>
+																{!preview.questionText && (
+																	<div className="rounded-md bg-muted/30 p-3">
+																		<p className="text-xs font-semibold text-gray-500 mb-1">
+																			content_data 要約
+																		</p>
+																		<pre className="text-xs whitespace-pre-wrap break-words overflow-auto">
+																			{preview.fallbackText}
+																		</pre>
+																	</div>
+																)}
+																{preview.choices.length > 0 && (
+																	<div className="rounded-md bg-muted/30 p-3">
+																		<p className="text-xs font-semibold text-gray-500 mb-1">
+																			選択肢
+																		</p>
+																		<ul className="list-disc pl-5 space-y-1">
+																			{preview.choices.map((choice, idx) => (
+																				<li
+																					key={`${q.id}-choice-${idx}`}
+																					className="break-words"
+																				>
+																					<MathJax text={choice} />
+																				</li>
+																			))}
+																		</ul>
+																	</div>
+																)}
+															</MathJaxSetup>
+														</div>
+													)}
+												</div>
 											);
 										})
 									)}
 								</div>
+								{filteredQuestions.length > displayedQuestions.length && (
+									<p className="mt-2 text-xs text-muted-foreground">
+										表示件数により一部のみ表示中です（全 {filteredQuestions.length} 件）。
+									</p>
+								)}
 							</div>
 						</div>
 
