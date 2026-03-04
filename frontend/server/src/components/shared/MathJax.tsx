@@ -225,6 +225,24 @@ export const MathJax: FC<MathJaxProps> = (props) => {
 						// eslint-disable-next-line @next/next/no-img-element
 						return <img src={src} alt={alt || ""} {...rest} />;
 					},
+					td: ({ node: _node, ...props }) => {
+						const { vAlign: _vAlign, ...safeProps } = props as {
+							vAlign?: string;
+						};
+						return <td {...safeProps} />;
+					},
+					th: ({ node: _node, ...props }) => {
+						const { vAlign: _vAlign, ...safeProps } = props as {
+							vAlign?: string;
+						};
+						return <th {...safeProps} />;
+					},
+					tr: ({ node: _node, ...props }) => {
+						const { vAlign: _vAlign, ...safeProps } = props as {
+							vAlign?: string;
+						};
+						return <tr {...safeProps} />;
+					},
 				}}
 			>
 				{normalizedText}
