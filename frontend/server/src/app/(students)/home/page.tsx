@@ -64,7 +64,10 @@ const StudentHome = () => {
 	const [progress, setProgress] = useState(0);
 	const [point_list_dialog, setPointListDialog] = useState(false);
 	const [ranking_dialog, setRankingDialog] = useState(false);
-	const [open_dialog, setOpenDialog] = useState(true);
+	const [open_dialog, setOpenDialog] = useState(false);
+	const [onboardingStorageKey, setOnboardingStorageKey] = useState<string | null>(
+		null,
+	);
 	const [_highPointers, setHighPointers] = useState<HighPointer[]>([]);
 	const [userRank, setUserRank] = useState<number>(0);
 	const [loadingButtons, setLoadingButtons] = useState<{
@@ -150,6 +153,17 @@ const StudentHome = () => {
 					setUsername(
 						res.data.username ?? res.data.display_name ?? res.data.email ?? "",
 					);
+
+					const userId = res.data.id;
+					const key = `student_onboarding_seen_${userId}`;
+					setOnboardingStorageKey(key);
+
+					if (typeof window !== "undefined") {
+						const hasSeenOnboarding = window.localStorage.getItem(key) === "1";
+						if (!hasSeenOnboarding) {
+							setOpenDialog(true);
+						}
+					}
 				}
 			})
 			.catch((error) => {
@@ -177,6 +191,13 @@ const StudentHome = () => {
 				console.error("ハイスコアの取得に失敗しました:", error);
 			});
 	}, [username]);
+
+	const handleOnboardingOpenChange = (open: boolean) => {
+		setOpenDialog(open);
+		if (!open && onboardingStorageKey && typeof window !== "undefined") {
+			window.localStorage.setItem(onboardingStorageKey, "1");
+		}
+	};
 
 	return (
 		<>
@@ -427,7 +448,7 @@ const StudentHome = () => {
 
 			<OnboardingDialog
 				open_dialog={open_dialog}
-				setOpenDialog={setOpenDialog}
+				setOpenDialog={handleOnboardingOpenChange}
 			/>
 		</>
 	);

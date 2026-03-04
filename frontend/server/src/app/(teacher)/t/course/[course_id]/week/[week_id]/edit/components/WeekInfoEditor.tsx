@@ -138,6 +138,8 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 			form.reset({
 				weekName: data.title ?? "",
 				order: data.display_order ?? 1,
+				lessonTitle: "",
+				lessonNumber: 1,
 			});
 		} catch (error) {
 			console.error("Error fetching week info:", error);
@@ -302,6 +304,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 															<Input
 																placeholder="例）数列の基礎"
 																{...field}
+																value={field.value ?? ""}
 																disabled={loading || !canUpdate || !parentLesson}
 																className="text-base"
 															/>
@@ -332,6 +335,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 															<Input
 																placeholder="例）数列の和"
 																{...field}
+																value={field.value ?? ""}
 																disabled={loading || !canUpdate}
 																className="text-base"
 															/>
@@ -360,7 +364,14 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 															<Input
 																type="number"
 																min="1"
-																{...field}
+																value={field.value ?? 1}
+																onChange={(e) =>
+																	field.onChange(
+																		e.target.value === ""
+																			? 1
+																			: Number(e.target.value),
+																	)
+																}
 																disabled={loading || !canUpdate || !parentLesson}
 																className="w-24"
 															/>
@@ -395,7 +406,14 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 																type="number"
 																min="1"
 																placeholder="1"
-																{...field}
+																value={field.value ?? 1}
+																onChange={(e) =>
+																	field.onChange(
+																		e.target.value === ""
+																			? 1
+																			: Number(e.target.value),
+																	)
+																}
 																disabled={loading || !canUpdate}
 																className="w-24"
 															/>

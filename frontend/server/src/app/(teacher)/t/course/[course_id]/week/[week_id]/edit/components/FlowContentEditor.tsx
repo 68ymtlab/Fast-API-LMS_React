@@ -1,8 +1,19 @@
 "use client";
 
-import { AlertCircle, CheckCircle, Eye, Plus, Save, Trash2 } from "lucide-react";
+import {
+	AlertCircle,
+	CheckCircle,
+	Copy,
+	Eye,
+	FolderKanban,
+	GripVertical,
+	ListChecks,
+	Save,
+	Settings2,
+	Trash2,
+} from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +27,13 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
 
@@ -43,13 +61,29 @@ interface FlowContentEditorProps {
 }
 
 function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps) {
+	const normalizeExerciseSet = (set: Partial<ExerciseSet>): ExerciseSet => ({
+		id: Number(set.id ?? 0),
+		title: set.title ?? "",
+		description: set.description ?? null,
+		course_id: Number(set.course_id ?? courseId),
+		question_ids: Array.isArray(set.question_ids)
+			? set.question_ids.filter((id): id is number => typeof id === "number")
+			: [],
+		due_date: set.due_date ?? null,
+	});
+
 	const [loading, setLoading] = useState(false);
 	const [initialLoading, setInitialLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 	const [setDeleting, setSetDeleting] = useState<number | null>(null);
+	const [duplicating, setDuplicating] = useState(false);
+	const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null);
 
 	const [questionKeyword, setQuestionKeyword] = useState("");
+	const [questionViewMode, setQuestionViewMode] = useState<
+		"all" | "selected" | "unselected"
+	>("all");
 	const [questions, setQuestions] = useState<CourseQuestion[]>([]);
 	const [sets, setSets] = useState<ExerciseSet[]>([]);
 
@@ -58,6 +92,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	const [setDescription, setSetDescription] = useState("");
 	const [setDueDate, setSetDueDate] = useState("");
 	const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
+	const editorSectionRef = useRef<HTMLDivElement | null>(null);
 
 	const selectedSet = useMemo(
 		() => sets.find((set) => set.id === selectedSetId) ?? null,
@@ -73,7 +108,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 					axios.get(`/courses/${courseId}/exercise-sets`),
 				]);
 				setQuestions(questionsRes.data as CourseQuestion[]);
-				setSets(setsRes.data as ExerciseSet[]);
+				setSets((setsRes.data as ExerciseSet[]).map(normalizeExerciseSet));
 			} catch (error) {
 				console.error("演習問題データの取得に失敗:", error);
 				setErrorMessage("演習問題データの取得に失敗しました");
@@ -86,7 +121,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 
 	useEffect(() => {
 		if (!selectedSet) return;
-		setSetTitle(selectedSet.title);
+		setSetTitle(selectedSet.title ?? "");
 		setSetDescription(selectedSet.description ?? "");
 		setSetDueDate(selectedSet.due_date ? new Date(selectedSet.due_date).toISOString().slice(0, 16) : "");
 		setSelectedQuestionIds(selectedSet.question_ids ?? []);
@@ -94,18 +129,78 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 
 	const filteredQuestions = useMemo(() => {
 		const keyword = questionKeyword.trim().toLowerCase();
-		if (!keyword) return questions;
-		return questions.filter((q) => {
-			const tags = q.tag_names.join(" ").toLowerCase();
-			return (
-				q.title.toLowerCase().includes(keyword) ||
-				q.question_type.toLowerCase().includes(keyword) ||
-				tags.includes(keyword)
-			);
-		});
-	}, [questions, questionKeyword]);
+		const keywordMatched = !keyword
+			? questions
+			: questions.filter((q) => {
+					const tags = q.tag_names.join(" ").toLowerCase();
+					return (
+						q.title.toLowerCase().includes(keyword) ||
+						q.question_type.toLowerCase().includes(keyword) ||
+						tags.includes(keyword)
+					);
+				});
+
+		if (questionViewMode === "selected") {
+			return keywordMatched.filter((q) => selectedQuestionIds.includes(q.id));
+		}
+		if (questionViewMode === "unselected") {
+			return keywordMatched.filter((q) => !selectedQuestionIds.includes(q.id));
+		}
+		return keywordMatched;
+	}, [questions, questionKeyword, questionViewMode, selectedQuestionIds]);
+
+	const questionMap = useMemo(() => {
+		return new Map(questions.map((question) => [question.id, question]));
+	}, [questions]);
+
+	const selectedQuestions = useMemo(() => {
+		return selectedQuestionIds
+			.map((id) => questionMap.get(id))
+			.filter((question): question is CourseQuestion => question != null);
+	}, [selectedQuestionIds, questionMap]);
+
+	const normalizeDueDateForInput = (dueDate: string | null | undefined) => {
+		return dueDate ? new Date(dueDate).toISOString().slice(0, 16) : "";
+	};
+
+	const baselineSnapshot = useMemo(() => {
+		if (!selectedSet) {
+			return {
+				title: "",
+				description: "",
+				dueDate: "",
+				questionIds: [],
+			};
+		}
+		return {
+			title: selectedSet.title ?? "",
+			description: selectedSet.description ?? "",
+			dueDate: normalizeDueDateForInput(selectedSet.due_date),
+			questionIds: selectedSet.question_ids ?? [],
+		};
+	}, [selectedSet]);
+
+	const currentSnapshot = useMemo(
+		() => ({
+			title: setTitle,
+			description: setDescription,
+			dueDate: setDueDate,
+			questionIds: selectedQuestionIds,
+		}),
+		[setTitle, setDescription, setDueDate, selectedQuestionIds],
+	);
+
+	const hasUnsavedChanges = useMemo(() => {
+		return JSON.stringify(currentSnapshot) !== JSON.stringify(baselineSnapshot);
+	}, [currentSnapshot, baselineSnapshot]);
 
 	const handleCreateSet = () => {
+		if (
+			hasUnsavedChanges &&
+			!confirm("未保存の変更があります。破棄して新しいセットを作成しますか？")
+		) {
+			return;
+		}
 		setSelectedSetId(null);
 		setSetTitle("");
 		setSetDescription("");
@@ -114,11 +209,68 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 		setErrorMessage("");
 	};
 
+	const handleSelectSet = (setId: number) => {
+		if (
+			hasUnsavedChanges &&
+			!confirm("未保存の変更があります。破棄して別のセットに切り替えますか？")
+		) {
+			return;
+		}
+		setSelectedSetId(setId);
+	};
+
 	const toggleQuestion = (questionId: number, checked: boolean) => {
 		if (checked) {
 			setSelectedQuestionIds((prev) => [...prev, questionId]);
 		} else {
 			setSelectedQuestionIds((prev) => prev.filter((id) => id !== questionId));
+		}
+	};
+
+	const handleSelectAllFiltered = () => {
+		const filteredIds = filteredQuestions.map((question) => question.id);
+		setSelectedQuestionIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+	};
+
+	const handleClearFiltered = () => {
+		const filteredIdSet = new Set(filteredQuestions.map((question) => question.id));
+		setSelectedQuestionIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+	};
+
+	const moveSelectedQuestion = (sourceId: number, targetId: number) => {
+		setSelectedQuestionIds((prev) => {
+			const sourceIndex = prev.indexOf(sourceId);
+			const targetIndex = prev.indexOf(targetId);
+			if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+				return prev;
+			}
+			const next = [...prev];
+			next.splice(sourceIndex, 1);
+			next.splice(targetIndex, 0, sourceId);
+			return next;
+		});
+	};
+
+	const handleDuplicateSet = async () => {
+		if (!selectedSet) return;
+		setDuplicating(true);
+		setErrorMessage("");
+		try {
+			const payload = {
+				title: `${selectedSet.title}（コピー）`,
+				description: selectedSet.description ?? null,
+				question_ids: selectedSet.question_ids ?? [],
+				due_date: selectedSet.due_date ?? null,
+			};
+			const res = await axios.post(`/courses/${courseId}/exercise-sets`, payload);
+			const created = normalizeExerciseSet(res.data as ExerciseSet);
+			setSets((prev) => [created, ...prev]);
+			setSelectedSetId(created.id);
+		} catch (error) {
+			console.error("演習セット複製失敗:", error);
+			setErrorMessage("演習セットの複製に失敗しました");
+		} finally {
+			setDuplicating(false);
 		}
 	};
 
@@ -139,11 +291,11 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 
 			if (selectedSetId) {
 				const res = await axios.put(`/exercise-sets/${selectedSetId}`, payload);
-				const updated = res.data as ExerciseSet;
+				const updated = normalizeExerciseSet(res.data as ExerciseSet);
 				setSets((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
 			} else {
 				const res = await axios.post(`/courses/${courseId}/exercise-sets`, payload);
-				const created = res.data as ExerciseSet;
+				const created = normalizeExerciseSet(res.data as ExerciseSet);
 				setSets((prev) => [created, ...prev]);
 				setSelectedSetId(created.id);
 			}
@@ -180,6 +332,21 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 		}
 	};
 
+	useEffect(() => {
+		const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+			if (!hasUnsavedChanges) return;
+			event.preventDefault();
+			event.returnValue = "";
+		};
+		window.addEventListener("beforeunload", handleBeforeUnload);
+		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+	}, [hasUnsavedChanges]);
+
+	useEffect(() => {
+		if (selectedSetId == null) return;
+		editorSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+	}, [selectedSetId]);
+
 	if (initialLoading) {
 		return (
 			<div className="flex items-center justify-center py-8">
@@ -199,46 +366,69 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-xl">演習セット編集（新構成）</CardTitle>
+					<CardTitle className="text-xl">演習セット編集</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-6">
-					<div className="flex items-center gap-3">
-						<Button variant="outline" onClick={handleCreateSet}>
-							<Plus className="h-4 w-4 mr-2" />
-							新しいセットを作成
-						</Button>
-						<div className="text-sm text-gray-600">
-							コース単位で演習セットを管理し、問題を複数選択して構成します。
-						</div>
+					<div className="text-sm text-gray-600">
+						コース単位で演習セットを管理し、問題を複数選択して構成します。
 					</div>
 
-					<div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-						<div className="space-y-2">
-							<h3 className="text-sm font-semibold text-gray-700">セット一覧</h3>
-							<div className="border rounded-md max-h-[520px] overflow-auto">
-								{sets.length === 0 ? (
-									<div className="p-4 text-sm text-gray-500">
-										まだ演習セットがありません。
+					<div className="space-y-6">
+						<div className="rounded-lg border bg-slate-50/70 p-4 space-y-3">
+							<div className="flex items-center gap-2">
+								<FolderKanban className="h-4 w-4 text-slate-600" />
+								<h3 className="text-sm font-semibold text-gray-800">1. 問題セット選択</h3>
+							</div>
+							<p className="text-xs text-gray-500">
+								まず編集対象のセットを選びます。未作成なら新規作成モードに切り替えます。
+							</p>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<div className="space-y-1">
+									<p className="text-xs text-gray-500">編集するセット</p>
+									<Select
+										value={selectedSetId != null ? String(selectedSetId) : "__new__"}
+										onValueChange={(value) => {
+											if (value === "__new__") {
+												handleCreateSet();
+												return;
+											}
+											handleSelectSet(Number(value));
+										}}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="問題セットを選択" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="__new__">新しいセットを作成</SelectItem>
+											{sets.map((set) => (
+												<SelectItem key={set.id} value={String(set.id)}>
+													{set.title}（{set.question_ids?.length ?? 0}問）
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="space-y-1">
+									<p className="text-xs text-gray-500">セット情報</p>
+									<div className="h-10 px-3 rounded-md border bg-muted/20 flex items-center text-sm text-gray-600">
+										{selectedSet
+											? `ID: ${selectedSet.id} / 問題数: ${selectedSet.question_ids?.length ?? 0}`
+											: "新規作成モード"}
 									</div>
-								) : (
-									sets.map((set) => (
-										<button
-											type="button"
-											key={set.id}
-											onClick={() => setSelectedSetId(set.id)}
-											className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-gray-50 ${selectedSetId === set.id ? "bg-gray-100" : ""}`}
-										>
-											<div className="font-medium">{set.title}</div>
-											<div className="text-xs text-gray-500 mt-1">
-												問題数: {set.question_ids?.length ?? 0}
-											</div>
-										</button>
-									))
-								)}
+								</div>
 							</div>
 						</div>
 
-						<div className="lg:col-span-2 space-y-4">
+						<div ref={editorSectionRef} className="rounded-lg border bg-white p-4 space-y-4">
+							<div className="flex items-center gap-2">
+								<Settings2 className="h-4 w-4 text-slate-600" />
+								<h3 className="text-sm font-semibold text-gray-800">
+									2. セット基本情報
+								</h3>
+							</div>
+							<p className="text-xs text-gray-500">
+								セット名、期限、説明などの基本情報を編集します。
+							</p>
 							{selectedSet && (
 								<div className="flex flex-wrap items-center gap-2">
 									<Button variant="outline" size="sm" asChild>
@@ -250,6 +440,15 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 											<Eye className="h-4 w-4 mr-2" />
 											学習者と同じUIでプレビュー
 										</Link>
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleDuplicateSet}
+										disabled={duplicating}
+									>
+										<Copy className="h-4 w-4 mr-2" />
+										{duplicating ? "複製中..." : "セットを複製"}
 									</Button>
 									<Button
 										variant="destructive"
@@ -275,7 +474,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 								<div>
 									<label className="text-sm font-medium mb-1 block">セット名</label>
 									<Input
-										value={setTitle}
+										value={setTitle ?? ""}
 										onChange={(e) => setSetTitle(e.target.value)}
 										placeholder="例: 第1回確認テスト"
 									/>
@@ -284,16 +483,8 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 									<label className="text-sm font-medium mb-1 block">回答期限 (任意)</label>
 									<Input
 										type="datetime-local"
-										value={setDueDate}
+										value={setDueDate ?? ""}
 										onChange={(e) => setSetDueDate(e.target.value)}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium mb-1 block">問題検索</label>
-									<Input
-										value={questionKeyword}
-										onChange={(e) => setQuestionKeyword(e.target.value)}
-										placeholder="問題名 / タグ / タイプ"
 									/>
 								</div>
 							</div>
@@ -301,19 +492,118 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							<div>
 								<label className="text-sm font-medium mb-1 block">説明</label>
 								<Textarea
-									value={setDescription}
+									value={setDescription ?? ""}
 									onChange={(e) => setSetDescription(e.target.value)}
 									className="min-h-[90px]"
 								/>
 							</div>
+						</div>
 
+						<div className="rounded-lg border bg-emerald-50/40 p-4 space-y-3">
+							<div className="flex items-center gap-2">
+								<ListChecks className="h-4 w-4 text-emerald-700" />
+								<h3 className="text-sm font-semibold text-gray-800">
+									3. セットに含める問題
+								</h3>
+							</div>
+							<p className="text-xs text-gray-500">
+								検索・絞り込みで問題を選択し、必要ならドラッグで順序を調整します。
+							</p>
 							<div>
-								<div className="flex items-center justify-between mb-2">
+								<div className="flex flex-wrap items-center justify-between gap-2 mb-2">
 									<label className="text-sm font-medium">セットに含める問題</label>
-									<span className="text-xs text-gray-500">
-										選択中 {selectedQuestionIds.length} 件
-									</span>
+									<div className="flex items-center gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant={questionViewMode === "all" ? "default" : "outline"}
+											onClick={() => setQuestionViewMode("all")}
+										>
+											すべて
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant={
+												questionViewMode === "selected" ? "default" : "outline"
+											}
+											onClick={() => setQuestionViewMode("selected")}
+										>
+											選択済み
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant={
+												questionViewMode === "unselected" ? "default" : "outline"
+											}
+											onClick={() => setQuestionViewMode("unselected")}
+										>
+											未選択
+										</Button>
+									</div>
 								</div>
+								<div className="mb-2">
+									<Input
+										value={questionKeyword ?? ""}
+										onChange={(e) => setQuestionKeyword(e.target.value)}
+										placeholder="ここで問題を検索（問題名 / タグ / タイプ）"
+									/>
+								</div>
+								<div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-gray-500">
+									<span>選択中 {selectedQuestionIds.length} 件</span>
+									<div className="flex items-center gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={handleSelectAllFiltered}
+											disabled={filteredQuestions.length === 0}
+										>
+											表示中を全選択
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={handleClearFiltered}
+											disabled={filteredQuestions.length === 0}
+										>
+											表示中を解除
+										</Button>
+									</div>
+								</div>
+								{selectedQuestions.length > 0 && (
+									<div className="mb-3 rounded-md border bg-muted/30 p-2">
+										<p className="text-xs font-medium text-gray-600 mb-2">
+											選択中の問題（ドラッグで順序変更）
+										</p>
+										<div className="flex flex-wrap gap-1.5">
+											{selectedQuestions.map((question) => (
+												<button
+													key={`selected-${question.id}`}
+													type="button"
+													onClick={() => toggleQuestion(question.id, false)}
+													draggable
+													onDragStart={() => setDraggingQuestionId(question.id)}
+													onDragOver={(event) => event.preventDefault()}
+													onDrop={(event) => {
+														event.preventDefault();
+														if (draggingQuestionId == null) return;
+														moveSelectedQuestion(draggingQuestionId, question.id);
+														setDraggingQuestionId(null);
+													}}
+													onDragEnd={() => setDraggingQuestionId(null)}
+													className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs hover:bg-gray-50"
+												>
+													<GripVertical className="h-3 w-3 text-gray-400" />
+													<span className="max-w-[180px] truncate">{question.title}</span>
+													<span className="text-gray-400">×</span>
+												</button>
+											))}
+										</div>
+									</div>
+								)}
 								<div className="border rounded-md max-h-[340px] overflow-auto">
 									{filteredQuestions.length === 0 ? (
 										<div className="p-4 text-sm text-gray-500">該当する問題がありません。</div>
@@ -349,14 +639,23 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 									)}
 								</div>
 							</div>
-
-							<div className="flex justify-end">
-								<Button onClick={handleSaveSet} disabled={loading}>
-									<Save className="h-4 w-4 mr-2" />
-									{loading ? "保存中..." : "演習セットを保存"}
-								</Button>
-							</div>
 						</div>
+
+						<div className="flex justify-end">
+							<Button onClick={handleSaveSet} disabled={loading}>
+								<Save className="h-4 w-4 mr-2" />
+								{loading
+									? "保存中..."
+									: selectedSetId == null
+										? "演習セットを新規作成"
+										: "演習セットを更新"}
+							</Button>
+						</div>
+						{hasUnsavedChanges && (
+							<p className="text-xs text-amber-600 text-right">
+								未保存の変更があります
+							</p>
+						)}
 					</div>
 				</CardContent>
 			</Card>

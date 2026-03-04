@@ -140,20 +140,24 @@ function EditCourseInfoPage() {
 
 			const startDateTime = splitDateTime(data.start_date_time);
 			const endDateTime = splitDateTime(data.end_date_time);
+			const weeksValue =
+				typeof data.weeks === "number" && Number.isFinite(data.weeks)
+					? data.weeks
+					: 1;
 
 			form.reset({
-				courseName: data.course_name,
-				startYear: startDateTime.year,
-				startMonth: startDateTime.month,
-				startDay: startDateTime.day,
-				startHour: startDateTime.hour,
-				startMinute: startDateTime.minute,
-				endYear: endDateTime.year,
-				endMonth: endDateTime.month,
-				endDay: endDateTime.day,
-				endHour: endDateTime.hour,
-				endMinute: endDateTime.minute,
-				weeks: data.weeks,
+				courseName: data.course_name ?? "",
+				startYear: startDateTime.year ?? "",
+				startMonth: startDateTime.month ?? "",
+				startDay: startDateTime.day ?? "",
+				startHour: startDateTime.hour ?? "",
+				startMinute: startDateTime.minute ?? "",
+				endYear: endDateTime.year ?? "",
+				endMonth: endDateTime.month ?? "",
+				endDay: endDateTime.day ?? "",
+				endHour: endDateTime.hour ?? "",
+				endMinute: endDateTime.minute ?? "",
+				weeks: weeksValue,
 			});
 		} catch (error) {
 			console.error("Error fetching course info:", error);
@@ -312,6 +316,7 @@ function EditCourseInfoPage() {
 													<Input
 														placeholder="例）線形代数学_1AA1"
 														{...field}
+														value={field.value ?? ""}
 														disabled={loading || !canUpdate}
 														className="text-base"
 													/>
@@ -345,6 +350,7 @@ function EditCourseInfoPage() {
 															type="number"
 															placeholder="2024"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -365,6 +371,7 @@ function EditCourseInfoPage() {
 															max="12"
 															placeholder="4"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -385,6 +392,7 @@ function EditCourseInfoPage() {
 															max="31"
 															placeholder="1"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -407,6 +415,7 @@ function EditCourseInfoPage() {
 															max="23"
 															placeholder="00"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -427,6 +436,7 @@ function EditCourseInfoPage() {
 															max="59"
 															placeholder="00"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -461,6 +471,7 @@ function EditCourseInfoPage() {
 															type="number"
 															placeholder="2025"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -481,6 +492,7 @@ function EditCourseInfoPage() {
 															max="12"
 															placeholder="3"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -501,6 +513,7 @@ function EditCourseInfoPage() {
 															max="31"
 															placeholder="31"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -523,6 +536,7 @@ function EditCourseInfoPage() {
 															max="23"
 															placeholder="23"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -543,6 +557,7 @@ function EditCourseInfoPage() {
 															max="59"
 															placeholder="59"
 															{...field}
+															value={field.value ?? ""}
 															disabled={loading || !canUpdate}
 														/>
 													</FormControl>
@@ -574,7 +589,14 @@ function EditCourseInfoPage() {
 															type="number"
 															min="1"
 															placeholder="15"
-															{...field}
+															value={field.value ?? 1}
+															onChange={(e) =>
+																field.onChange(
+																	e.target.value === ""
+																		? 1
+																		: Number(e.target.value),
+																)
+															}
 															disabled={loading || !canUpdate}
 															className="w-32"
 														/>

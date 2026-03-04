@@ -15,11 +15,9 @@ import {
 	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
-	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-	SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import axios from "@/lib/axios";
 import type { SidebarGroups } from "@/types/sidebarGroups";
@@ -63,37 +61,42 @@ export const AppSidebar: FC<Props> = memo((props) => {
 		await signOut({ callbackUrl: "/login" });
 	};
 
+	const renderMenuItems = (items: SidebarGroups["groupItems"]) =>
+		items.map((item) => (
+			<SidebarMenuItem key={item.title}>
+				<SidebarMenuButton asChild className="h-9 px-2.5 justify-start">
+					{item.externalUrl ? (
+						<a
+							href={item.externalUrl}
+							target={item.newTab ? "_blank" : "_self"}
+							rel={item.newTab ? "noopener noreferrer" : undefined}
+						>
+							<item.icon className="size-4 shrink-0" />
+							<span className="leading-none">{item.title}</span>
+						</a>
+					) : (
+						<Link href={item.url || "#"}>
+							<item.icon className="size-4 shrink-0" />
+							<span className="leading-none">{item.title}</span>
+						</Link>
+					)}
+				</SidebarMenuButton>
+			</SidebarMenuItem>
+		));
+
 	const renderGroup = (group: SidebarGroups, groupIndex: number) => (
 		<SidebarGroup
 			key={`${group.groupLabel ?? "group"}-${groupIndex}`}
-			className={groupIndex === 0 ? "pt-0 pb-0" : "pt-0 pb-0 mt-3"}
+			className={showGroupLabels ? "pt-0 pb-0" : "p-0"}
 		>
 			{showGroupLabels && group.groupLabel ? (
-				<div className="px-2 pb-1 text-xs text-muted-foreground">{group.groupLabel}</div>
+				<div className="px-2.5 pb-1.5 text-xs text-muted-foreground">
+					{group.groupLabel}
+				</div>
 			) : null}
 			<SidebarGroupContent>
-				<SidebarMenu>
-					{group.groupItems.map((item) => (
-						<SidebarMenuItem key={item.title}>
-							<SidebarMenuButton asChild>
-								{item.externalUrl ? (
-									<a
-										href={item.externalUrl}
-										target={item.newTab ? "_blank" : "_self"}
-										rel={item.newTab ? "noopener noreferrer" : undefined}
-									>
-										<item.icon />
-										<span>{item.title}</span>
-									</a>
-								) : (
-									<Link href={item.url || "#"}>
-										<item.icon />
-										<span>{item.title}</span>
-									</Link>
-								)}
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					))}
+				<SidebarMenu className="gap-2">
+					{renderMenuItems(group.groupItems)}
 				</SidebarMenu>
 			</SidebarGroupContent>
 		</SidebarGroup>
@@ -101,10 +104,20 @@ export const AppSidebar: FC<Props> = memo((props) => {
 
 	return (
 		<Sidebar>
-			<SidebarContent className="pt-4 gap-0">
-				{contentGroups.map((group, groupIndex) => renderGroup(group, groupIndex))}
+			<SidebarContent className={showGroupLabels ? "pt-3 gap-2" : "pt-3 gap-0"}>
+				{showGroupLabels ? (
+					contentGroups.map((group, groupIndex) => renderGroup(group, groupIndex))
+				) : (
+					<SidebarGroup className="p-0">
+						<SidebarGroupContent>
+							<SidebarMenu className="gap-2">
+								{renderMenuItems(contentGroups.flatMap((group) => group.groupItems))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
 			</SidebarContent>
-			<SidebarFooter>
+			<SidebarFooter className="gap-2">
 				{footerGroups.map((group, groupIndex) =>
 					renderGroup(group, contentGroups.length + groupIndex),
 				)}
@@ -112,10 +125,13 @@ export const AppSidebar: FC<Props> = memo((props) => {
 					<SidebarMenuItem>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<SidebarMenuSubButton>
-									<User2 /> {userProfile?.display_name || userProfile?.username || "ユーザー"}
+								<SidebarMenuButton className="h-9 px-2.5 justify-start">
+									<User2 className="size-4 shrink-0" />
+									<span className="leading-none">
+										{userProfile?.display_name || userProfile?.username || "ユーザー"}
+									</span>
 									<ChevronUp className="ml-auto" />
-								</SidebarMenuSubButton>
+								</SidebarMenuButton>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								side="top"
