@@ -13,7 +13,9 @@ services:
   backend:
     restart: unless-stopped
     # 本番ではソースバインドマウントを削除
-    volumes: !reset [uploads-data:/app/uploads]
+    # `!reset` タグは環境によって解釈されず volumes が空になるため、明示的に定義する
+    volumes:
+      - uploads-data:/app/uploads
     environment:
       - UPLOAD_ROOT=/app/uploads
     # ホストへのポート公開を削除（nginx 経由のみアクセス）
