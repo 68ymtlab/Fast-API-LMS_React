@@ -285,9 +285,12 @@ export const StudentBreadcrumbInline = memo(() => {
 			{paths[0] === "coursescore" && paths[1] && (
 				<>
 					<ChevronRight className="size-3.5 mx-0.5" />
-					<span className="flex items-center gap-1 text-gray-600 font-medium">
+					<button
+						onClick={() => router.push(`/course/${paths[1]}`)}
+						className="flex items-center gap-1 hover:text-gray-600 transition-colors"
+					>
 						<Book className="size-3.5" />コース
-					</span>
+					</button>
 					<ChevronRight className="size-3.5 mx-0.5" />
 					<span className="flex items-center gap-1 text-gray-600 font-medium">
 						<BarChart2 className="size-3.5" />学習状況照会

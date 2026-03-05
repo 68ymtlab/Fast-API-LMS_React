@@ -100,7 +100,7 @@ function WeekPreviewPage() {
 
 	const totalPages = pages.length;
 	const goBackToList = () => {
-		router.push(`/t/course/${params.course_id}/preview`);
+		router.push(`/t/course/${params.course_id}`);
 	};
 
 	return (
@@ -152,9 +152,10 @@ function WeekPreviewPage() {
 								{currentPage !== 1 ? (
 									<Button
 										variant="outline"
+										className="flex items-center gap-2"
 										onClick={() => goToPage(currentPage - 1)}
 									>
-										<ChevronLeft className="h-4 w-4 mr-2" />
+										<ChevronLeft className="h-4 w-4" />
 										前のページ
 									</Button>
 								) : (
@@ -171,11 +172,11 @@ function WeekPreviewPage() {
 							{currentPage < totalPages && (
 								<Button
 									variant="outline"
-									className="ml-auto mt-8 block"
+									className="ml-auto mt-8 flex items-center gap-2"
 									onClick={() => goToPage(currentPage + 1)}
 								>
 									次のページ
-									<ChevronRight className="h-4 w-4 ml-2" />
+									<ChevronRight className="h-4 w-4" />
 								</Button>
 							)}
 						</>

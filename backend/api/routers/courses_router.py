@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from api.db.session import get_db
 from api.core.security import get_current_active_user, require_teacher_or_higher, require_admin
-from api.models import users_model, courses_model, lessons_model
+from api.models import users_model, courses_model, lessons_model, subjects_model
 from api.repositories.courses_repo import CourseRepository
 from api.repositories.users_repo import UserRepository
 from api.repositories.lessons_repo import LessonRepository
@@ -66,6 +66,91 @@ def get_lesson_service(
 #
 # Endpoints
 #
+
+class SyllabusInfoResponse(BaseModel):
+    """学生向けシラバス照会画面用のレスポンス（コースID指定で取得）"""
+    subject_class: str = ""
+    subject_name: str = ""
+    subject_credit: int = 0
+    subject_code: str = ""
+    subject_period: str = ""
+    subject_keyword: str = ""
+    subject_goals: str = ""
+
+
+@courses_router.get(
+    "/get_syllabus_info/{course_id}",
+    response_model=Optional[SyllabusInfoResponse],
+    summary="（学生向け）コースに紐づくシラバス情報の取得",
+)
+async def get_syllabus_info_by_course(
+    course_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    指定したコースに紐づく科目のシラバス情報を取得します。
+    コースが存在しない場合は404、科目未紐づけ・シラバス未登録の場合は200でnullを返します。
+    """
+    stmt = (
+        select(
+            courses_model.Courses,
+            subjects_model.Subjects,
+            subjects_model.SubjectSyllabuses,
+            subjects_model.SubjectCategories,
+            subjects_model.Semesters,
+        )
+        .select_from(courses_model.Courses)
+        .outerjoin(subjects_model.Subjects, courses_model.Courses.subject_id == subjects_model.Subjects.id)
+        .outerjoin(subjects_model.SubjectSyllabuses, subjects_model.Subjects.id == subjects_model.SubjectSyllabuses.subject_id)
+        .outerjoin(subjects_model.SubjectCategories, subjects_model.SubjectSyllabuses.subject_category_id == subjects_model.SubjectCategories.id)
+        .outerjoin(subjects_model.Semesters, subjects_model.Subjects.semester_id == subjects_model.Semesters.id)
+        .where(courses_model.Courses.id == course_id)
+    )
+    result = await db.execute(stmt)
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    course, subject, syllabus, category, semester = row
+    if subject is None or syllabus is None:
+        return None
+    subject_class = category.name if category else ""
+    subject_name = subject.subject_name or ""
+    subject_credit = syllabus.credits or 0
+    subject_code = syllabus.code or ""
+    subject_period = semester.name if semester else ""
+    keywords = syllabus.keywords
+    if isinstance(keywords, list):
+        subject_keyword = ",".join(str(k) for k in keywords)
+    elif isinstance(keywords, dict):
+        subject_keyword = ",".join(str(v) for v in keywords.values() if v)
+    else:
+        subject_keyword = ""
+    subject_goals = syllabus.learning_goal or ""
+    return SyllabusInfoResponse(
+        subject_class=subject_class,
+        subject_name=subject_name,
+        subject_credit=subject_credit,
+        subject_code=subject_code,
+        subject_period=subject_period,
+        subject_keyword=subject_keyword,
+        subject_goals=subject_goals,
+    )
+
+
+@courses_router.get(
+    "/courses/{course_id}/syllabus",
+    response_model=Optional[SyllabusInfoResponse],
+    summary="（学生向け）コースに紐づくシラバス情報の取得（courses path）",
+)
+async def get_syllabus_info_by_course_path(
+    course_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """GET /get_syllabus_info/{course_id} と同じ処理。"""
+    return await get_syllabus_info_by_course(course_id=course_id, current_user=current_user, db=db)
+
 
 @courses_router.get("/courses/me/enrolled", response_model=List[courses_schema.Course], summary="（学生向け）履修中コース一覧の取得")
 async def get_my_enrolled_courses(

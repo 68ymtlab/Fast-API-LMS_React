@@ -75,10 +75,6 @@ const AdminHome = () => {
 	const [exerciseSessions, setExerciseSessions] = useState<ExerciseSession[]>([]);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 
-	const handleLogout = async () => {
-		await signOut({ callbackUrl: "/login" });
-	};
-
 	const fetchDashboardData = async () => {
 		setLoading(true);
 		setError(null);
@@ -210,7 +206,7 @@ const AdminHome = () => {
 
 	return (
 		<div className="min-h-[calc(100vh-3.5rem)] bg-gray-100 p-6 space-y-6">
-			<div className="flex items-start justify-between gap-4">
+				<div className="flex items-start justify-between gap-4">
 				<div>
 					<h1 className="text-2xl font-bold">管理者ホーム</h1>
 					<p className="text-sm text-muted-foreground">
@@ -221,7 +217,6 @@ const AdminHome = () => {
 					<Button variant="outline" onClick={fetchDashboardData} disabled={loading}>
 						{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "再読込"}
 					</Button>
-					<Button onClick={handleLogout}>ログアウト</Button>
 				</div>
 			</div>
 
@@ -231,7 +226,7 @@ const AdminHome = () => {
 				<Card>
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-muted-foreground">
-							本日のログイン数
+							本日のアクセス数
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="flex items-center justify-between">
@@ -375,54 +370,6 @@ const AdminHome = () => {
 							演習解答
 						</div>
 					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>ショートカット</CardTitle>
-				</CardHeader>
-				<CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-					<Button
-						variant="outline"
-						className="justify-between"
-						onClick={() => router.push("/t/announcements")}
-					>
-						お知らせ管理
-						<Megaphone className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="outline"
-						className="justify-between"
-						onClick={() => router.push("/admin/courses")}
-					>
-						科目・コース管理
-						<ArrowRight className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="outline"
-						className="justify-between"
-						onClick={() => router.push("/admin/login-history")}
-					>
-						ログイン履歴
-						<ArrowRight className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="outline"
-						className="justify-between"
-						onClick={() => router.push("/admin/flow-log")}
-					>
-						演習問題ログ
-						<ArrowRight className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="outline"
-						className="justify-between"
-						onClick={() => router.push("/t/users/add")}
-					>
-						ユーザー登録
-						<ArrowRight className="h-4 w-4" />
-					</Button>
 				</CardContent>
 			</Card>
 

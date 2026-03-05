@@ -282,8 +282,7 @@ function FlowPreviewPage() {
                 flow_session_id: flowSession.flow_session_id,
             });
             clearSessionState();
-            // 適切な戻り先を指定します
-            router.push(`/t/course/${course_id}/preview/week/${week_id}/1`);
+            router.push(`/t/course/${course_id}`);
         } catch (err) {
             setError('セッションの終了に失敗しました');
             console.error(err);

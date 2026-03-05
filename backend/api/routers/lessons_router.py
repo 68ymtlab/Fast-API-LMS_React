@@ -900,6 +900,76 @@ async def list_course_questions(
     return response_items
 
 
+@lessons_router.get(
+    "/get_flow_session_student_score/{course_id}",
+    response_model=List[Dict[str, Any]],
+    summary="（学生向け）コース別自分の演習スコア取得",
+)
+async def get_flow_session_student_score(
+    course_id: int,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    指定コースに紐づく演習セットについて、ログイン中の学生の挑戦履歴・スコアを
+    学習状況照会画面用のネスト構造で返します。
+    """
+    # コースに紐づく演習セット一覧
+    sets_stmt = (
+        select(exercises_model.ExerciseSets)
+        .where(exercises_model.ExerciseSets.course_id == course_id)
+        .order_by(exercises_model.ExerciseSets.id.asc())
+    )
+    sets_result = await db.execute(sets_stmt)
+    exercise_sets = sets_result.scalars().all()
+    if not exercise_sets:
+        return []
+
+    set_ids = [s.id for s in exercise_sets]
+    set_id_to_title = {s.id: s.title for s in exercise_sets}
+
+    # 自分のセッションのみ取得（該当コースの演習セットに紐づくもの）
+    sessions_stmt = (
+        select(exercises_model.ExerciseSessions)
+        .where(
+            exercises_model.ExerciseSessions.exercise_set_id.in_(set_ids),
+            exercises_model.ExerciseSessions.user_id == current_user.id,
+        )
+        .order_by(exercises_model.ExerciseSessions.completed_at.asc().nullslast())
+    )
+    sessions_result = await db.execute(sessions_stmt)
+    sessions = sessions_result.scalars().all()
+
+    # 演習セットIDごとにセッションをまとめる
+    by_set: Dict[int, List[Dict[str, Any]]] = {sid: [] for sid in set_ids}
+    for s in sessions:
+        if s.exercise_set_id not in by_set:
+            continue
+        # スコアがないセッションはグラフ用に含めない（フロントの toFixed 対策）
+        if s.score is None:
+            continue
+        grade = float(s.score)
+        finish_dt = s.completed_at.isoformat() if s.completed_at else None
+        by_set[s.exercise_set_id].append({
+            "finish_date_time": finish_dt,
+            "flow_session_grade": grade,
+        })
+
+    # フロントの ScoreResponse 形式: Lesson[] = [ { [lessonTitle]: [ { [problemKey]: Session[] } ] }, ... ]
+    result: List[Dict[str, Any]] = []
+    for es in exercise_sets:
+        sessions_list = by_set.get(es.id, [])
+        # 1演習セット = 1レッスン、1「問題」キーでスコア履歴を渡す
+        lesson_block = {
+            es.title: [
+                {"スコア": sessions_list}
+            ]
+        }
+        result.append(lesson_block)
+
+    return result
+
+
 @lessons_router.get("/courses/{course_id}/exercise-sets", response_model=List[lessons_schema.ExerciseSet], summary="コース演習セット一覧取得")
 async def list_course_exercise_sets(
     course_id: int,
