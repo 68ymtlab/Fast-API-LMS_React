@@ -47,11 +47,28 @@ const AdminFlowLogPage = () => {
 	const [wrongAnswers, setWrongAnswers] = useState<WrongAnswerLog[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [wrongLoading, setWrongLoading] = useState(false);
+	const [hydrated, setHydrated] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [wrongError, setWrongError] = useState<string | null>(null);
 	const [courseIdFilter, setCourseIdFilter] = useState("");
 	const [userIdFilter, setUserIdFilter] = useState("");
 	const [exerciseSetIdFilter, setExerciseSetIdFilter] = useState("");
+
+	const formatDateTime = (value: string | null) => {
+		if (!value) return "未完了";
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return "-";
+		return new Intl.DateTimeFormat("ja-JP", {
+			timeZone: "Asia/Tokyo",
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+			hour12: false,
+		}).format(date);
+	};
 
 	const fetchLogs = async () => {
 		setLoading(true);
@@ -173,9 +190,22 @@ const AdminFlowLogPage = () => {
 	};
 
 	useEffect(() => {
+		setHydrated(true);
 		fetchLogs();
 		fetchWrongAnswers();
 	}, []);
+
+	if (!hydrated) {
+		return (
+			<div className="p-6">
+				<Card>
+					<CardContent className="py-8 text-sm text-muted-foreground">
+						表示を初期化中...
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
 
 	return (
 		<div className="p-6 space-y-6">
@@ -253,7 +283,7 @@ const AdminFlowLogPage = () => {
 									{logs.map((log) => (
 										<tr key={log.session_id} className="border-b align-top">
 											<td className="p-2 whitespace-nowrap">
-												{new Date(log.started_at).toLocaleString("ja-JP")}
+												{formatDateTime(log.started_at)}
 											</td>
 											<td className="p-2">
 												<div>{log.display_name || log.username || "-"}</div>
@@ -263,9 +293,7 @@ const AdminFlowLogPage = () => {
 											<td className="p-2">{log.exercise_set_title}</td>
 											<td className="p-2">{log.score ?? "-"}</td>
 											<td className="p-2 whitespace-nowrap">
-												{log.completed_at
-													? new Date(log.completed_at).toLocaleString("ja-JP")
-													: "未完了"}
+												{formatDateTime(log.completed_at)}
 											</td>
 										</tr>
 									))}
