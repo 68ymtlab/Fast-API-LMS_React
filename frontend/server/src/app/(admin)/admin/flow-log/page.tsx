@@ -24,12 +24,34 @@ type ExerciseSessionLog = {
 	completed_at: string | null;
 };
 
+type WrongAnswerLog = {
+	answer_id: number;
+	session_id: number;
+	user_id: number;
+	username: string | null;
+	display_name: string | null;
+	email: string;
+	course_id: number;
+	course_name: string;
+	exercise_set_id: number;
+	exercise_set_title: string;
+	question_id: number;
+	question_title: string;
+	question_type: string;
+	answer_data: Record<string, unknown>;
+	is_correct: boolean | null;
+};
+
 const AdminFlowLogPage = () => {
 	const [logs, setLogs] = useState<ExerciseSessionLog[]>([]);
+	const [wrongAnswers, setWrongAnswers] = useState<WrongAnswerLog[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [wrongLoading, setWrongLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [wrongError, setWrongError] = useState<string | null>(null);
 	const [courseIdFilter, setCourseIdFilter] = useState("");
 	const [userIdFilter, setUserIdFilter] = useState("");
+	const [exerciseSetIdFilter, setExerciseSetIdFilter] = useState("");
 
 	const fetchLogs = async () => {
 		setLoading(true);
@@ -42,6 +64,9 @@ const AdminFlowLogPage = () => {
 			if (userIdFilter.trim()) {
 				params.user_id = Number.parseInt(userIdFilter, 10);
 			}
+			if (exerciseSetIdFilter.trim()) {
+				params.exercise_set_id = Number.parseInt(exerciseSetIdFilter, 10);
+			}
 			const response = await axios.get<ExerciseSessionLog[]>("/admin/exercise-sessions", {
 				params,
 				withCredentials: true,
@@ -51,6 +76,35 @@ const AdminFlowLogPage = () => {
 			setError("演習ログの取得に失敗しました");
 		} finally {
 			setLoading(false);
+		}
+	};
+
+	const fetchWrongAnswers = async () => {
+		setWrongLoading(true);
+		setWrongError(null);
+		try {
+			const params: Record<string, string | number> = { limit: 300 };
+			if (courseIdFilter.trim()) {
+				params.course_id = Number.parseInt(courseIdFilter, 10);
+			}
+			if (userIdFilter.trim()) {
+				params.user_id = Number.parseInt(userIdFilter, 10);
+			}
+			if (exerciseSetIdFilter.trim()) {
+				params.exercise_set_id = Number.parseInt(exerciseSetIdFilter, 10);
+			}
+			const response = await axios.get<WrongAnswerLog[]>(
+				"/admin/exercise-sessions/wrong-answers",
+				{
+					params,
+					withCredentials: true,
+				},
+			);
+			setWrongAnswers(response.data);
+		} catch (_error) {
+			setWrongError("誤答ログの取得に失敗しました");
+		} finally {
+			setWrongLoading(false);
 		}
 	};
 
@@ -120,6 +174,7 @@ const AdminFlowLogPage = () => {
 
 	useEffect(() => {
 		fetchLogs();
+		fetchWrongAnswers();
 	}, []);
 
 	return (
@@ -146,9 +201,19 @@ const AdminFlowLogPage = () => {
 						value={userIdFilter}
 						onChange={(e) => setUserIdFilter(e.target.value)}
 					/>
+					<Input
+						placeholder="演習セットID"
+						type="number"
+						value={exerciseSetIdFilter}
+						onChange={(e) => setExerciseSetIdFilter(e.target.value)}
+					/>
 					<Button onClick={fetchLogs}>
 						<Search className="h-4 w-4" />
 						検索
+					</Button>
+					<Button variant="outline" onClick={fetchWrongAnswers}>
+						<Search className="h-4 w-4" />
+						誤答検索
 					</Button>
 					<Button variant="outline" onClick={exportCsv} disabled={logs.length === 0}>
 						<Download className="h-4 w-4" />
@@ -158,6 +223,7 @@ const AdminFlowLogPage = () => {
 			</Card>
 
 			{error ? <p className="text-sm text-red-500">{error}</p> : null}
+			{wrongError ? <p className="text-sm text-red-500">{wrongError}</p> : null}
 
 			<Card>
 				<CardHeader>
@@ -200,6 +266,66 @@ const AdminFlowLogPage = () => {
 												{log.completed_at
 													? new Date(log.completed_at).toLocaleString("ja-JP")
 													: "未完了"}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>誤答ログ一覧</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{wrongLoading ? (
+						<div className="flex items-center gap-2 text-sm text-muted-foreground">
+							<Loader2 className="h-4 w-4 animate-spin" /> 読み込み中...
+						</div>
+					) : wrongAnswers.length === 0 ? (
+						<p className="text-sm text-muted-foreground">誤答データがありません</p>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="text-left border-b">
+										<th className="p-2">ユーザー</th>
+										<th className="p-2">コース / 演習セット</th>
+										<th className="p-2">問題</th>
+										<th className="p-2">解答内容</th>
+									</tr>
+								</thead>
+								<tbody>
+									{wrongAnswers.map((row) => (
+										<tr key={row.answer_id} className="border-b align-top">
+											<td className="p-2">
+												<div>{row.display_name || row.username || "-"}</div>
+												<div className="text-xs text-muted-foreground">
+													{row.email} / user:{row.user_id}
+												</div>
+											</td>
+											<td className="p-2">
+												<div>
+													{row.course_name} (#{row.course_id})
+												</div>
+												<div className="text-xs text-muted-foreground">
+													{row.exercise_set_title} (#{row.exercise_set_id}) / session:
+													{row.session_id}
+												</div>
+											</td>
+											<td className="p-2">
+												<div>{row.question_title}</div>
+												<div className="text-xs text-muted-foreground">
+													{row.question_type} / q:{row.question_id}
+												</div>
+											</td>
+											<td className="p-2">
+												<pre className="text-xs bg-muted p-2 rounded max-w-[420px] overflow-auto whitespace-pre-wrap break-words">
+													{JSON.stringify(row.answer_data, null, 2)}
+												</pre>
 											</td>
 										</tr>
 									))}

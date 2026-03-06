@@ -1496,3 +1496,85 @@ async def list_exercise_sessions_for_admin(
         )
 
     return response
+
+
+@lessons_router.get(
+    "/admin/exercise-sessions/wrong-answers",
+    response_model=List[lessons_schema.AdminWrongAnswerLog],
+    summary="（管理者向け）誤答ログ一覧取得",
+    dependencies=[Depends(require_admin)],
+)
+async def list_wrong_answers_for_admin(
+    limit: int = Query(200, ge=1, le=1000, description="取得件数の上限"),
+    course_id: Optional[int] = Query(None, description="コースIDで絞り込み"),
+    user_id: Optional[int] = Query(None, description="ユーザーIDで絞り込み"),
+    exercise_set_id: Optional[int] = Query(None, description="演習セットIDで絞り込み"),
+    db: AsyncSession = Depends(get_db),
+):
+    """（管理者向け）不正解だった解答ログを新しいセッション順で取得します。"""
+    stmt = (
+        select(
+            exercises_model.StudentAnswers,
+            exercises_model.ExerciseSessions,
+            exercises_model.ExerciseSets,
+            courses_model.Courses,
+            users_model.Users,
+            questions_model.Questions,
+        )
+        .join(
+            exercises_model.ExerciseSessions,
+            exercises_model.StudentAnswers.session_id == exercises_model.ExerciseSessions.id,
+        )
+        .join(
+            exercises_model.ExerciseSets,
+            exercises_model.ExerciseSessions.exercise_set_id == exercises_model.ExerciseSets.id,
+        )
+        .join(
+            courses_model.Courses,
+            exercises_model.ExerciseSets.course_id == courses_model.Courses.id,
+        )
+        .join(
+            users_model.Users,
+            exercises_model.ExerciseSessions.user_id == users_model.Users.id,
+        )
+        .join(
+            questions_model.Questions,
+            exercises_model.StudentAnswers.question_id == questions_model.Questions.id,
+        )
+        .where(exercises_model.StudentAnswers.is_correct == False)  # noqa: E712
+        .order_by(exercises_model.ExerciseSessions.started_at.desc())
+        .limit(limit)
+    )
+
+    if course_id is not None:
+        stmt = stmt.where(courses_model.Courses.id == course_id)
+    if user_id is not None:
+        stmt = stmt.where(users_model.Users.id == user_id)
+    if exercise_set_id is not None:
+        stmt = stmt.where(exercises_model.ExerciseSets.id == exercise_set_id)
+
+    rows = (await db.execute(stmt)).all()
+
+    response: List[lessons_schema.AdminWrongAnswerLog] = []
+    for answer, session, exercise_set, course, user, question in rows:
+        response.append(
+            lessons_schema.AdminWrongAnswerLog(
+                answer_id=answer.id,
+                session_id=session.id,
+                user_id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                email=user.email,
+                course_id=course.id,
+                course_name=course.course_name,
+                exercise_set_id=exercise_set.id,
+                exercise_set_title=exercise_set.title,
+                question_id=question.id,
+                question_title=question.title,
+                question_type=question.question_type,
+                answer_data=answer.answer_data or {},
+                is_correct=answer.is_correct,
+            )
+        )
+
+    return response

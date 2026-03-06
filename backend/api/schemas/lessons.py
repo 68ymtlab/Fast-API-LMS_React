@@ -373,3 +373,22 @@ class AdminExerciseSessionLog(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime] = None
 
+
+class AdminWrongAnswerLog(BaseModel):
+    """管理者向け誤答ログ"""
+    answer_id: int
+    session_id: int
+    user_id: int
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    email: str
+    course_id: int
+    course_name: str
+    exercise_set_id: int
+    exercise_set_title: str
+    question_id: int
+    question_title: str
+    question_type: str
+    answer_data: Dict[str, Any]
+    is_correct: Optional[bool] = None
+
