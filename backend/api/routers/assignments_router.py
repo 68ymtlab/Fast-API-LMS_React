@@ -11,15 +11,19 @@
 import os
 import uuid
 import shutil
+import io
+import json
+import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter, Depends, File, HTTPException, Query,
     UploadFile, status
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -47,6 +51,13 @@ def _is_teacher_or_admin(user: users_model.Users) -> bool:
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _safe_path_component(value: str) -> str:
+    """ZIP 内の安全なフォルダ・ファイル名に整形する。"""
+    cleaned = re.sub(r'[\\/:*?"<>|]+', "_", value).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return (cleaned[:80] or "untitled")
 
 
 async def _get_assignment_or_404(
@@ -464,6 +475,132 @@ async def download_submission(
         path=str(file_path),
         filename=sub.original_filename,
         media_type=sub.content_type or "application/octet-stream",
+    )
+
+
+@assignments_router.get(
+    "/assignments/{assignment_id}/export",
+    summary="課題提出一括エクスポート（ZIP）（教師向け）",
+)
+async def export_assignment_submissions_zip(
+    assignment_id: int,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    指定課題の情報と提出ファイルを ZIP で一括エクスポートします。
+    """
+    assignment = await _get_assignment_or_404(assignment_id, db)
+    lesson = (await db.execute(
+        select(CourseLessons).where(CourseLessons.id == assignment.lesson_id)
+    )).scalar_one_or_none()
+    lesson_number = lesson.lesson_number if lesson else 0
+    lesson_title = lesson.title if lesson else "unknown_lesson"
+
+    submissions_stmt = (
+        select(AssignmentSubmissions)
+        .where(
+            AssignmentSubmissions.assignment_id == assignment_id,
+            AssignmentSubmissions.is_latest == True,  # noqa: E712
+        )
+        .options(
+            selectinload(AssignmentSubmissions.student).selectinload(users_model.Users.student)
+        )
+        .order_by(
+            AssignmentSubmissions.student_user_id,
+            AssignmentSubmissions.submission_number,
+        )
+    )
+    submissions = (await db.execute(submissions_stmt)).scalars().all()
+
+    buffer = io.BytesIO()
+    missing_files: List[Dict[str, Any]] = []
+
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        assignment_dir = (
+            f"{_safe_path_component(assignment.title)}_{assignment.id}"
+        )
+
+        assignment_meta = {
+            "id": assignment.id,
+            "lesson_id": assignment.lesson_id,
+            "lesson_title": lesson_title,
+            "lesson_number": lesson_number,
+            "title": assignment.title,
+            "description": assignment.description,
+            "is_published": assignment.is_published,
+            "publish_start_at": assignment.publish_start_at.isoformat() if assignment.publish_start_at else None,
+            "publish_end_at": assignment.publish_end_at.isoformat() if assignment.publish_end_at else None,
+            "due_date": assignment.due_date.isoformat() if assignment.due_date else None,
+            "allow_late_submission": assignment.allow_late_submission,
+            "max_file_size_mb": assignment.max_file_size_mb,
+            "allowed_file_types": assignment.allowed_file_types,
+            "display_order": assignment.display_order,
+            "created_at": assignment.created_at.isoformat() if assignment.created_at else None,
+            "updated_at": assignment.updated_at.isoformat() if assignment.updated_at else None,
+        }
+        zf.writestr(
+            f"{assignment_dir}/assignment.json",
+            json.dumps(assignment_meta, ensure_ascii=False, indent=2),
+        )
+
+        if not submissions:
+            zf.writestr(
+                f"{assignment_dir}/README.txt",
+                "この課題には提出ファイルがありません。",
+            )
+
+        for sub in submissions:
+            file_path = Path(sub.file_path)
+            student_display = (
+                sub.student.display_name
+                if sub.student and sub.student.display_name
+                else f"user_{sub.student_user_id}"
+            )
+            student_number = (
+                sub.student.student.student_number
+                if sub.student and sub.student.student and sub.student.student.student_number
+                else f"user{sub.student_user_id}"
+            )
+            original_name = Path(sub.original_filename).name
+            safe_original = _safe_path_component(original_name)
+            submission_arcname = (
+                f"{assignment_dir}/"
+                f"{_safe_path_component(student_number)}_{_safe_path_component(student_display)}/"
+                f"{safe_original}"
+            )
+
+            if file_path.exists():
+                zf.write(file_path, submission_arcname)
+            else:
+                missing_files.append({
+                    "assignment_id": assignment.id,
+                    "submission_id": sub.id,
+                    "file_path": str(file_path),
+                })
+
+        manifest = {
+            "assignment_id": assignment.id,
+            "exported_at": _now_utc().isoformat(),
+            "exported_by_user_id": current_user.id,
+            "submission_count": len(submissions),
+            "missing_file_count": len(missing_files),
+            "missing_files": missing_files,
+        }
+        zf.writestr(
+            "manifest.json",
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+        )
+
+    buffer.seek(0)
+    filename = (
+        f"assignment_{assignment.id}_submissions_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

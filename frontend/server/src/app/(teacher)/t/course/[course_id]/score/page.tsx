@@ -38,6 +38,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import axios from "@/lib/axios";
 
 ChartJS.register(
@@ -146,6 +147,19 @@ function CourseScorePage() {
 	>([]);
 	const [exerciseList, setExerciseList] = useState<string[]>([]);
 	const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+	const [selectedReachabilitySetIds, setSelectedReachabilitySetIds] = useState<
+		number[]
+	>([]);
+	const [reachabilityStudentFilter, setReachabilityStudentFilter] = useState<
+		"all" | "unsolved_any" | "unsolved_all" | "solved_all"
+	>("all");
+	const [reachabilityKeyword, setReachabilityKeyword] = useState("");
+	const [reachabilityTargetSetId, setReachabilityTargetSetId] = useState<
+		number | "all"
+	>("all");
+	const [reachabilityTargetSetStatus, setReachabilityTargetSetStatus] = useState<
+		"all" | "attempted" | "unattempted"
+	>("all");
 	const [showFilterDialog, setShowFilterDialog] = useState(false);
 
 	useEffect(() => {
@@ -329,6 +343,24 @@ function CourseScorePage() {
 		setSelectedExercises([]);
 	};
 
+	const toggleReachabilitySetSelection = (setId: number, checked: boolean) => {
+		if (checked) {
+			setSelectedReachabilitySetIds((prev) =>
+				prev.includes(setId) ? prev : [...prev, setId],
+			);
+		} else {
+			setSelectedReachabilitySetIds((prev) => prev.filter((id) => id !== setId));
+		}
+	};
+
+	const selectAllReachabilitySets = () => {
+		setSelectedReachabilitySetIds(exerciseSets.map((set) => set.id));
+	};
+
+	const clearAllReachabilitySets = () => {
+		setSelectedReachabilitySetIds([]);
+	};
+
 	const exportData = () => {
 		const csvContent = [
 			["演習問題", "平均値", "最大値", "最小値", "中央値", "データ数"],
@@ -379,6 +411,97 @@ function CourseScorePage() {
 		}
 		return map;
 	}, [apiResponseData]);
+
+	const filteredReachabilitySets = useMemo(() => {
+		if (selectedReachabilitySetIds.length === 0) {
+			return exerciseSets;
+		}
+		return exerciseSets.filter((set) => selectedReachabilitySetIds.includes(set.id));
+	}, [exerciseSets, selectedReachabilitySetIds]);
+
+	const reachabilityTargetSetOptions = useMemo(() => {
+		return filteredReachabilitySets.length > 0
+			? filteredReachabilitySets
+			: exerciseSets;
+	}, [filteredReachabilitySets, exerciseSets]);
+
+	useEffect(() => {
+		if (
+			reachabilityTargetSetId !== "all" &&
+			!reachabilityTargetSetOptions.some((set) => set.id === reachabilityTargetSetId)
+		) {
+			setReachabilityTargetSetId("all");
+		}
+	}, [reachabilityTargetSetId, reachabilityTargetSetOptions]);
+
+	const filteredReachabilityStudents = useMemo(() => {
+		if (filteredReachabilitySets.length === 0) {
+			return enrolledStudents;
+		}
+
+		return enrolledStudents.filter((student) => {
+			const keyword = reachabilityKeyword.trim().toLowerCase();
+			const searchable = [
+				student.display_name ?? "",
+				student.username ?? "",
+				student.email ?? "",
+				student.student_number ?? "",
+				student.department ?? "",
+				student.class_number ?? "",
+				student.class_roster_number ?? "",
+			]
+				.join(" ")
+				.toLowerCase();
+			const matchesKeyword = keyword ? searchable.includes(keyword) : true;
+			if (!matchesKeyword) return false;
+
+			const attemptedCount = filteredReachabilitySets.filter((set) => {
+				const key = `${student.user_id}-${set.id}`;
+				return (sessionMap.get(key) ?? []).length > 0;
+			}).length;
+			const total = filteredReachabilitySets.length;
+
+			let matchesOverall = true;
+			switch (reachabilityStudentFilter) {
+				case "unsolved_any":
+					matchesOverall = attemptedCount < total;
+					break;
+				case "unsolved_all":
+					matchesOverall = attemptedCount === 0;
+					break;
+				case "solved_all":
+					matchesOverall = attemptedCount === total;
+					break;
+				case "all":
+				default:
+					matchesOverall = true;
+					break;
+			}
+
+			if (!matchesOverall) return false;
+
+			if (
+				reachabilityTargetSetId !== "all" &&
+				reachabilityTargetSetStatus !== "all"
+			) {
+				const key = `${student.user_id}-${reachabilityTargetSetId}`;
+				const attempted = (sessionMap.get(key) ?? []).length > 0;
+				return reachabilityTargetSetStatus === "attempted"
+					? attempted
+					: !attempted;
+			}
+
+			return true;
+		});
+	}, [
+		enrolledStudents,
+		filteredReachabilitySets,
+		reachabilityStudentFilter,
+		reachabilityKeyword,
+		reachabilityTargetSetId,
+		reachabilityTargetSetStatus,
+		sessionMap,
+	]);
 
 	return (
 		<div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -561,6 +684,65 @@ function CourseScorePage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent>
+										<div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+											<Input
+												value={reachabilityKeyword}
+												onChange={(e) => setReachabilityKeyword(e.target.value)}
+												placeholder="氏名 / メール / 学籍番号で検索"
+											/>
+											<select
+												className="h-10 rounded-md border bg-background px-3 text-sm"
+												value={reachabilityStudentFilter}
+												onChange={(e) =>
+													setReachabilityStudentFilter(
+														e.target.value as typeof reachabilityStudentFilter,
+													)
+												}
+											>
+												<option value="all">全員表示</option>
+												<option value="unsolved_any">未実施がある学生</option>
+												<option value="unsolved_all">
+													すべて未実施の学生
+												</option>
+												<option value="solved_all">すべて実施済みの学生</option>
+											</select>
+											<select
+												className="h-10 rounded-md border bg-background px-3 text-sm"
+												value={String(reachabilityTargetSetId)}
+												onChange={(e) =>
+													setReachabilityTargetSetId(
+														e.target.value === "all"
+															? "all"
+															: Number(e.target.value),
+													)
+												}
+											>
+												<option value="all">対象演習セット: すべて</option>
+												{reachabilityTargetSetOptions.map((set) => (
+													<option key={set.id} value={String(set.id)}>
+														{set.title || `セット #${set.id}`}
+													</option>
+												))}
+											</select>
+											<select
+												className="h-10 rounded-md border bg-background px-3 text-sm"
+												value={reachabilityTargetSetStatus}
+												onChange={(e) =>
+													setReachabilityTargetSetStatus(
+														e.target.value as typeof reachabilityTargetSetStatus,
+													)
+												}
+												disabled={reachabilityTargetSetId === "all"}
+											>
+												<option value="all">対象セット条件: 指定なし</option>
+												<option value="unattempted">対象セットが未実施</option>
+												<option value="attempted">対象セットが実施済み</option>
+											</select>
+										</div>
+										<div className="mb-3 text-xs text-gray-500">
+											表示学生: {filteredReachabilityStudents.length} /{" "}
+											{enrolledStudents.length}
+										</div>
 										<div className="overflow-x-auto">
 											<table className="w-full border-collapse border border-gray-300 text-xs md:text-sm">
 												<thead>
@@ -571,7 +753,7 @@ function CourseScorePage() {
 														<th className="border border-gray-300 p-2 text-left">
 															学籍情報
 														</th>
-														{exerciseSets.map((set) => (
+														{filteredReachabilitySets.map((set) => (
 															<th
 																key={set.id}
 																className="border border-gray-300 p-2 text-center"
@@ -582,7 +764,7 @@ function CourseScorePage() {
 													</tr>
 												</thead>
 												<tbody>
-													{enrolledStudents.map((student) => {
+													{filteredReachabilityStudents.map((student) => {
 														const label =
 															student.display_name ||
 															student.username ||
@@ -637,7 +819,7 @@ function CourseScorePage() {
 																		</span>
 																	)}
 																</td>
-																{exerciseSets.map((set) => {
+																{filteredReachabilitySets.map((set) => {
 																	const key = `${student.user_id}-${set.id}`;
 																	const sessionsForCell =
 																		sessionMap.get(key) ?? [];
@@ -708,6 +890,16 @@ function CourseScorePage() {
 													})}
 												</tbody>
 											</table>
+											{filteredReachabilityStudents.length === 0 && (
+												<p className="text-sm text-gray-500 text-center py-4">
+													条件に一致する学生はいません。
+												</p>
+											)}
+											{filteredReachabilitySets.length === 0 && (
+												<p className="text-sm text-gray-500 text-center py-4">
+													表示対象の演習セットが選択されていません。
+												</p>
+											)}
 										</div>
 									</CardContent>
 								</Card>
@@ -876,6 +1068,45 @@ function CourseScorePage() {
 									</label>
 								</div>
 							))}
+						</div>
+						<div className="border-t pt-4">
+							<div className="flex items-center justify-between mb-2">
+								<p className="text-sm font-medium">到達状況（演習セット別）</p>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={selectAllReachabilitySets}
+									>
+										全て選択
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={clearAllReachabilitySets}
+									>
+										全て解除
+									</Button>
+								</div>
+							</div>
+							<div className="grid grid-cols-2 gap-4 max-h-64 overflow-y-auto">
+								{exerciseSets.map((set) => (
+									<div key={set.id} className="flex items-center space-x-2">
+										<Checkbox
+											checked={selectedReachabilitySetIds.includes(set.id)}
+											onCheckedChange={(checked) =>
+												toggleReachabilitySetSelection(
+													set.id,
+													checked as boolean,
+												)
+											}
+										/>
+										<label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+											{set.title || `セット #${set.id}`}
+										</label>
+									</div>
+								))}
+							</div>
 						</div>
 					</div>
 					<DialogFooter>

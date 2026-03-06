@@ -16,7 +16,7 @@ import {
 	Users,
 	X,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,7 +94,6 @@ function fmtFileSize(bytes: number | null): string {
 // ── メインコンポーネント ──────────────────────────────
 export default function AssignmentsPage() {
 	const params = useParams();
-	const router = useRouter();
 	const courseId = params.course_id as string;
 
 	// ---------- state ----------
@@ -103,6 +102,9 @@ export default function AssignmentsPage() {
 	const [selectedLesson, setSelectedLesson] = useState<number | null>(null);
 	const [expandedLessons, setExpandedLessons] = useState<Set<number>>(new Set());
 	const [loading, setLoading] = useState(true);
+	const [exportingAssignmentId, setExportingAssignmentId] = useState<number | null>(
+		null,
+	);
 
 	// 課題作成・編集ダイアログ
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -315,6 +317,37 @@ export default function AssignmentsPage() {
 		}
 	};
 
+	const handleExportAssignment = async (assignment: Assignment) => {
+		setExportingAssignmentId(assignment.id);
+		try {
+			const res = await axios.get(`/assignments/${assignment.id}/export`, {
+				responseType: "blob",
+			});
+			const disposition = res.headers?.["content-disposition"] as
+				| string
+				| undefined;
+			const matched = disposition?.match(
+				/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i,
+			);
+			const filename = matched
+				? decodeURIComponent(matched[1] ?? matched[2])
+				: `assignment_${assignment.id}_submissions.zip`;
+
+			const url = window.URL.createObjectURL(new Blob([res.data]));
+			const link = document.createElement("a");
+			link.href = url;
+			link.setAttribute("download", filename);
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+			window.URL.revokeObjectURL(url);
+		} catch (e) {
+			alert("課題の一括エクスポートに失敗しました");
+		} finally {
+			setExportingAssignmentId(null);
+		}
+	};
+
 	// ---------- 採点 ----------
 	const openGrade = (sub: Submission) => {
 		setGradeTarget(sub);
@@ -364,7 +397,7 @@ export default function AssignmentsPage() {
 		assignments.filter((a) => a.lesson_id === lessonId);
 
 	return (
-		<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+		<div className="min-h-screen bg-gray-100">
 			<div className="container mx-auto px-4 py-8 max-w-5xl">
 				{/* ヘッダー */}
 				<div className="flex items-center justify-between mb-8">
@@ -377,9 +410,6 @@ export default function AssignmentsPage() {
 							各レッスンの課題を作成・管理します
 						</p>
 					</div>
-					<Button variant="outline" onClick={() => router.back()}>
-						← 戻る
-					</Button>
 				</div>
 
 				{/* レッスン別課題リスト */}
@@ -477,6 +507,19 @@ export default function AssignmentsPage() {
 
 															{/* 操作ボタン */}
 															<div className="flex items-center gap-2 flex-shrink-0">
+																<Button
+																	size="sm"
+																	variant="outline"
+																	onClick={() => handleExportAssignment(a)}
+																	disabled={exportingAssignmentId === a.id}
+																	title="課題の一括エクスポート"
+																>
+																	{exportingAssignmentId === a.id ? (
+																		<Loader2 className="w-4 h-4 animate-spin" />
+																	) : (
+																		<Download className="w-4 h-4" />
+																	)}
+																</Button>
 																<Button
 																	size="sm"
 																	variant="outline"

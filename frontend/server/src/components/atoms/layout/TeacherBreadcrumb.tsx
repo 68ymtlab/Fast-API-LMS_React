@@ -104,6 +104,12 @@ export const TeacherBreadcrumb = memo(() => {
 									履修者登録
 								</span>
 							)}
+							{paths[3] === "assignments" && (
+								<span className="flex items-center gap-1 text-gray-600 font-medium">
+									<ClipboardList className="size-3.5" />
+									課題管理
+								</span>
+							)}
 						</>
 					)}
 				</>

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,23 @@ export default function StudentExerciseSetPage() {
 	const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 	const [pageAnswerStatus, setPageAnswerStatus] = useState<Record<number, AnswerStatus>>({});
 	const [sessionId, setSessionId] = useState<number | null>(null);
+	const [activeNumericField, setActiveNumericField] = useState<string | null>(null);
+	const [isNumpadOpen, setIsNumpadOpen] = useState(false);
+	const [numpadPosition, setNumpadPosition] = useState<{ x: number; y: number } | null>(
+		null,
+	);
+	const [numpadSize, setNumpadSize] = useState({ width: 232, height: 248 });
+	const [isNumpadDragging, setIsNumpadDragging] = useState(false);
+	const [isNumpadResizing, setIsNumpadResizing] = useState(false);
+	const multiNumericInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+	const numpadRef = useRef<HTMLDivElement | null>(null);
+	const numpadDragOffsetRef = useRef({ x: 0, y: 0 });
+	const numpadResizeStartRef = useRef({
+		mouseX: 0,
+		mouseY: 0,
+		width: 232,
+		height: 248,
+	});
 
 	const router = useRouter();
 
@@ -115,6 +132,8 @@ export default function StudentExerciseSetPage() {
 		setShowHint(false);
 		setSubmitted(false);
 		setIsCorrect(null);
+		setIsNumpadOpen(false);
+		setActiveNumericField(null);
 	}, [currentPage, currentQuestion?.id]);
 
 	useEffect(() => {
@@ -127,6 +146,50 @@ export default function StudentExerciseSetPage() {
 			return next;
 		});
 	}, [totalPages]);
+
+	useEffect(() => {
+		if (!isNumpadDragging && !isNumpadResizing) return;
+
+		const handleMouseMove = (e: MouseEvent) => {
+			if (isNumpadDragging) {
+				if (!numpadRef.current) return;
+				const width = numpadRef.current.offsetWidth;
+				const height = numpadRef.current.offsetHeight;
+				const nextX = e.clientX - numpadDragOffsetRef.current.x;
+				const nextY = e.clientY - numpadDragOffsetRef.current.y;
+				setNumpadPosition({
+					x: Math.max(8, Math.min(nextX, window.innerWidth - width - 8)),
+					y: Math.max(8, Math.min(nextY, window.innerHeight - height - 8)),
+				});
+			}
+
+			if (isNumpadResizing) {
+				const diffX = e.clientX - numpadResizeStartRef.current.mouseX;
+				const diffY = e.clientY - numpadResizeStartRef.current.mouseY;
+				const nextWidth = Math.max(
+					200,
+					Math.min(numpadResizeStartRef.current.width + diffX, 420),
+				);
+				const nextHeight = Math.max(
+					220,
+					Math.min(numpadResizeStartRef.current.height + diffY, 560),
+				);
+				setNumpadSize({ width: nextWidth, height: nextHeight });
+			}
+		};
+
+		const handleMouseUp = () => {
+			setIsNumpadDragging(false);
+			setIsNumpadResizing(false);
+		};
+
+		document.addEventListener("mousemove", handleMouseMove);
+		document.addEventListener("mouseup", handleMouseUp);
+		return () => {
+			document.removeEventListener("mousemove", handleMouseMove);
+			document.removeEventListener("mouseup", handleMouseUp);
+		};
+	}, [isNumpadDragging, isNumpadResizing]);
 
 	const checkAnswer = useCallback(() => {
 		if (!currentQuestion || !content) return;
@@ -182,6 +245,101 @@ export default function StudentExerciseSetPage() {
 
 	const setSingleAnswer = (key: string, value: string | number) => {
 		setAnswerInput((prev) => ({ ...prev, [key]: value }));
+	};
+
+	const normalizeNumericInput = (value: string) =>
+		value
+			.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+			.replace("．", ".")
+			.replace(/[－ー]/g, "-")
+			.replace(/[，、]/g, ",")
+			.replace(/,/g, "");
+
+	const openNumpadForField = (fieldKey: string) => {
+		setActiveNumericField(fieldKey);
+		setIsNumpadOpen(true);
+		if (!numpadPosition) {
+			setNumpadPosition({
+				x: Math.max(8, window.innerWidth - 260),
+				y: Math.max(8, window.innerHeight - 340),
+			});
+		}
+	};
+
+	const handleNumpadDragStart = (e: ReactMouseEvent) => {
+		if (!numpadRef.current) return;
+		const rect = numpadRef.current.getBoundingClientRect();
+		numpadDragOffsetRef.current = {
+			x: e.clientX - rect.left,
+			y: e.clientY - rect.top,
+		};
+		setIsNumpadDragging(true);
+	};
+
+	const handleNumpadResizeStart = (e: ReactMouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		numpadResizeStartRef.current = {
+			mouseX: e.clientX,
+			mouseY: e.clientY,
+			width: numpadSize.width,
+			height: numpadSize.height,
+		};
+		setIsNumpadResizing(true);
+	};
+
+	const handleNumpadEnter = () => {
+		if (currentQuestion?.question_type !== "multiple_numeric") return;
+		const blanks =
+			(content?.blanks as Array<{ blank_id: string; label: string }> | undefined) ?? [];
+		if (blanks.length === 0) return;
+		const currentIndex = blanks.findIndex(
+			(blank) => `blank_${blank.blank_id}` === activeNumericField,
+		);
+		if (currentIndex >= 0 && currentIndex < blanks.length - 1) {
+			const next = blanks[currentIndex + 1];
+			setActiveNumericField(`blank_${next.blank_id}`);
+			multiNumericInputRefs.current[next.blank_id]?.focus();
+		}
+	};
+
+	const handleNumpadInput = (key: string) => {
+		let targetField = activeNumericField;
+		if (!targetField && currentQuestion?.question_type === "numeric") {
+			targetField = "value";
+		}
+		if (!targetField) {
+			const blanks =
+				(content?.blanks as Array<{ blank_id: string; label: string }> | undefined) ??
+				[];
+			if (blanks.length > 0) {
+				targetField = `blank_${blanks[0].blank_id}`;
+				setActiveNumericField(targetField);
+				multiNumericInputRefs.current[blanks[0].blank_id]?.focus();
+			}
+		}
+		if (!targetField) return;
+
+		const currentValue = String(answerInput[targetField] ?? "");
+		let nextValue = currentValue;
+
+		if (key === "clear") {
+			nextValue = "";
+		} else if (key === "backspace") {
+			nextValue = currentValue.slice(0, -1);
+		} else if (key === ".") {
+			if (!currentValue.includes(".")) {
+				nextValue = currentValue === "" || currentValue === "-" ? `${currentValue}0.` : `${currentValue}.`;
+			}
+		} else if (key === "-") {
+			nextValue = currentValue.startsWith("-")
+				? currentValue.slice(1)
+				: `-${currentValue}`;
+		} else if (/^[0-9]$/.test(key)) {
+			nextValue = `${currentValue}${key}`;
+		}
+
+		setSingleAnswer(targetField, normalizeNumericInput(nextValue));
 	};
 
 	const finishSession = async () => {
@@ -246,38 +404,20 @@ export default function StudentExerciseSetPage() {
 				page="student_weekflow_set" 
 				details={JSON.stringify({ course_id: courseId, week_id: weekId, set_id: setId, current_page: currentPage, current_question_id: currentQuestion?.id })}
 			/>
-			<div className="container mx-auto py-8 px-4 max-w-5xl space-y-5">
-				<Card className="border-gray-200">
-					<CardContent className="pt-5 pb-5 space-y-3">
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900">
-								<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
-									<ArrowLeft className="h-4 w-4" />
-									演習問題一覧に戻る
-								</Link>
-							</Button>
-							<div className="text-sm text-gray-500">
-								{setInfo.due_date
-									? `回答期限: ${new Date(setInfo.due_date).toLocaleString("ja-JP")}`
-									: "回答期限: なし"}
-							</div>
-						</div>
-						<div className="space-y-1">
-							<h1 className="text-xl md:text-2xl font-bold text-gray-800">
-								{setInfo.title}
-							</h1>
-							<p className="text-sm text-gray-600">
-								問題 {currentPage} / {totalPages}
-							</p>
-						</div>
-						<div className="w-full bg-gray-200 rounded-full h-2.5">
-							<div
-								className="bg-primary h-2.5 rounded-full transition-all duration-300"
-								style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
-							/>
-						</div>
-					</CardContent>
-				</Card>
+			<div className="container mx-auto pt-16 pb-6 px-4 max-w-5xl space-y-4">
+				<div className="flex flex-wrap items-center justify-between gap-2 px-1">
+					<Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900 h-8">
+						<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
+							<ArrowLeft className="h-4 w-4" />
+							演習問題一覧に戻る
+						</Link>
+					</Button>
+					<div className="text-xs text-gray-500">
+						{setInfo.due_date
+							? `回答期限: ${new Date(setInfo.due_date).toLocaleString("ja-JP")}`
+							: "回答期限: なし"}
+					</div>
+				</div>
 
 				<Card className="border-gray-200">
 					<CardContent className="pt-5">
@@ -303,6 +443,12 @@ export default function StudentExerciseSetPage() {
 									</button>
 								);
 							})}
+						</div>
+						<div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+							<div
+								className="bg-primary h-2.5 rounded-full transition-all duration-300"
+								style={{ width: `${(currentPage / Math.max(totalPages, 1)) * 100}%` }}
+							/>
 						</div>
 						{isPastDue && (
 							<Alert variant="destructive" className="mt-4">
@@ -336,7 +482,7 @@ export default function StudentExerciseSetPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<div className="rounded-xl border border-gray-200 bg-white p-4 md:p-5">
+						<div className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
 							<div className="prose prose-sm max-w-none">
 								<MathJax text={questionText} />
 							</div>
@@ -351,11 +497,37 @@ export default function StudentExerciseSetPage() {
 							</Alert>
 						)}
 
-						<div className="mt-4 rounded-2xl p-5 md:p-6 border border-gray-200 bg-gray-50/70">
-							<h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-								<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-								解答欄
-							</h3>
+						<div className="mt-4 rounded-2xl p-5 md:p-6 border border-stone-200 bg-stone-50">
+							<div className="mb-4 flex items-center justify-between gap-2">
+								<h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+									<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+									解答欄
+								</h3>
+								{(currentQuestion?.question_type === "numeric" ||
+									currentQuestion?.question_type === "multiple_numeric") && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											if (currentQuestion?.question_type === "numeric") {
+												openNumpadForField("value");
+												return;
+											}
+											const blanks =
+												(content?.blanks as
+													| Array<{ blank_id: string; label: string }>
+													| undefined) ?? [];
+											if (blanks.length > 0) {
+												openNumpadForField(`blank_${blanks[0].blank_id}`);
+												multiNumericInputRefs.current[blanks[0].blank_id]?.focus();
+											}
+										}}
+									>
+										数字入力
+									</Button>
+								)}
+							</div>
 
 							{currentQuestion?.question_type === "mcq" && (
 								<div className="space-y-3">
@@ -367,7 +539,7 @@ export default function StudentExerciseSetPage() {
 													key={choice.choice_id}
 													className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all duration-200 ${
 														isSelected
-															? "bg-white border-primary shadow-sm ring-2 ring-primary/40"
+															? "bg-gray-50 border-gray-400 ring-1 ring-gray-300"
 															: "bg-white hover:bg-gray-50 border-gray-200"
 													}`}
 												>
@@ -389,30 +561,61 @@ export default function StudentExerciseSetPage() {
 							)}
 
 							{currentQuestion?.question_type === "numeric" && (
-								<Input
-									type="number"
-									step="any"
-									placeholder="数値を入力"
-									value={(answerInput.value as string) ?? ""}
-									onChange={(e) => setSingleAnswer("value", e.target.value)}
-									className="bg-white border-gray-300 text-lg py-6 rounded-xl"
-								/>
+								<div className="space-y-2">
+									<Input
+										type="text"
+										inputMode="decimal"
+										placeholder="数値を入力"
+										value={(answerInput.value as string) ?? ""}
+										onChange={(e) =>
+											setSingleAnswer("value", normalizeNumericInput(e.target.value))
+										}
+										onFocus={() => setActiveNumericField("value")}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.preventDefault();
+											}
+										}}
+										autoFocus
+										className="bg-white border-gray-300 text-lg py-6 rounded-xl focus-visible:ring-gray-400"
+									/>
+								</div>
 							)}
 
 							{currentQuestion?.question_type === "multiple_numeric" && (
 								<div className="space-y-4">
 									{((content?.blanks as Array<{ blank_id: string; label: string }>) ?? []).map(
-										(blank) => (
+										(blank, index, blanks) => (
 											<div key={blank.blank_id} className="bg-white p-4 rounded-xl border border-gray-200">
 												<label className="text-base font-bold text-gray-700 block mb-2">{blank.label}</label>
 												<Input
-													type="number"
-													step="any"
-													className="bg-gray-50 text-lg py-5"
+													ref={(el) => {
+														multiNumericInputRefs.current[blank.blank_id] = el;
+													}}
+													type="text"
+													inputMode="decimal"
+													className="bg-white border-gray-300 text-lg py-5 focus-visible:ring-gray-400"
 													value={(answerInput[`blank_${blank.blank_id}`] as string) ?? ""}
-													onChange={(e) =>
-														setSingleAnswer(`blank_${blank.blank_id}`, e.target.value)
+													onChange={(e) => {
+														setSingleAnswer(
+															`blank_${blank.blank_id}`,
+															normalizeNumericInput(e.target.value),
+														);
+													}}
+													onFocus={() =>
+														setActiveNumericField(`blank_${blank.blank_id}`)
 													}
+													onKeyDown={(e) => {
+														if (e.key !== "Enter") return;
+														e.preventDefault();
+														const next = blanks[index + 1];
+														if (next) {
+															multiNumericInputRefs.current[next.blank_id]?.focus();
+															setActiveNumericField(`blank_${next.blank_id}`);
+															return;
+														}
+													}}
+													autoFocus={index === 0}
 												/>
 											</div>
 										),
@@ -426,23 +629,92 @@ export default function StudentExerciseSetPage() {
 									rows={5}
 									value={(answerInput.value as string) ?? ""}
 									onChange={(e) => setSingleAnswer("value", e.target.value)}
-									className="bg-white border-gray-300 rounded-xl text-base p-4"
+									className="bg-white border-gray-300 rounded-xl text-base p-4 focus-visible:ring-gray-400"
 								/>
 							)}
 
-							<div className="pt-6 mt-6 border-t border-gray-200">
-								<Button
-									onClick={checkAnswer}
-									disabled={submitted || isPastDue}
-									size="lg"
-									className="w-full text-lg font-bold py-6 rounded-xl shadow-sm hover:shadow-md transition-all"
-								>
-									{isPastDue ? "期限切れ" : submitted ? "解答済み" : "解答する"}
-								</Button>
-							</div>
+						</div>
+						<div className="pt-4 mt-2 border-t border-gray-200 flex justify-end">
+							<Button
+								onClick={checkAnswer}
+								disabled={submitted || isPastDue}
+								size="sm"
+								className="px-5 rounded-lg font-medium shadow-none"
+							>
+								{isPastDue ? "期限切れ" : submitted ? "解答済み" : "解答する"}
+							</Button>
 						</div>
 					</CardContent>
 				</Card>
+
+				{isNumpadOpen &&
+					(currentQuestion?.question_type === "numeric" ||
+						currentQuestion?.question_type === "multiple_numeric") && (
+						<div
+							ref={numpadRef}
+							className="fixed z-50 rounded-xl border border-gray-200 bg-white p-3 shadow-xl"
+							style={{
+								left: (numpadPosition?.x ?? 16),
+								top: (numpadPosition?.y ?? 16),
+								width: numpadSize.width,
+								height: numpadSize.height,
+								minWidth: 200,
+								minHeight: 220,
+								maxWidth: 420,
+								maxHeight: 560,
+								overflow: "auto",
+							}}
+						>
+							<div
+								className="mb-2 flex items-center justify-between cursor-move select-none"
+								onMouseDown={handleNumpadDragStart}
+							>
+								<p className="text-xs text-gray-500">数字入力</p>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-7 px-2 text-xs"
+									onClick={() => setIsNumpadOpen(false)}
+								>
+									閉じる
+								</Button>
+							</div>
+							<div className="h-[calc(100%-2.1rem)] flex flex-col">
+								<div className="grid flex-1 grid-cols-4 auto-rows-fr gap-2">
+								{["7", "8", "9", "backspace", "4", "5", "6", "clear", "1", "2", "3", "-", "0", ".", "enter", ""].map(
+									(key, idx) =>
+										key ? (
+											<Button
+												key={key}
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() =>
+													key === "enter" ? handleNumpadEnter() : handleNumpadInput(key)
+												}
+												className="h-full min-h-9 text-sm"
+											>
+												{key === "backspace"
+													? "⌫"
+													: key === "clear"
+														? "C"
+														: key === "enter"
+															? "Enter"
+															: key}
+											</Button>
+										) : (
+											<div key={`numpad-empty-${idx}`} />
+										),
+								)}
+								</div>
+							</div>
+							<div
+								className="absolute bottom-1 right-1 h-4 w-4 cursor-se-resize rounded-sm bg-gray-200"
+								onMouseDown={handleNumpadResizeStart}
+							/>
+						</div>
+					)}
 
 				{submitted && (
 					<Card className={`border-2 shadow-sm transition-all duration-300 ${

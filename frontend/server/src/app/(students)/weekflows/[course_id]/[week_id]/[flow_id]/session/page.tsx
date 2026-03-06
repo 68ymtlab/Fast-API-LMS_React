@@ -477,23 +477,10 @@ function FlowSessionPage() {
 						<h1 className="text-2xl font-bold mb-2">
 							{flowSession?.flow_title || "演習問題"}
 						</h1>
-						<div className="text-gray-600">
-							問題 {currentPage} / {flowSession?.total_pages || 1}
-						</div>
-					</div>
-
-					{/* Progress Bar */}
-					<div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-						<div
-							className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-							style={{
-								width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%`,
-							}}
-						/>
 					</div>
 
 					{/* Page Navigation */}
-					<div className="flex justify-center space-x-2 mb-8 flex-wrap">
+					<div className="flex justify-center space-x-2 mb-3 flex-wrap">
 						{Array.from({ length: flowSession?.total_pages || 1 }, (_, i) => {
 							const pageNum = i + 1;
 							const status = pageAnswerStatus[pageNum] || "unanswered";
@@ -529,6 +516,18 @@ function FlowSessionPage() {
 								</button>
 							);
 						})}
+					</div>
+
+					{/* Progress Bar */}
+					<div className="mb-8">
+						<div className="w-full bg-gray-200 rounded-full h-2">
+							<div
+								className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+								style={{
+									width: `${(currentPage / (flowSession?.total_pages || 1)) * 100}%`,
+								}}
+							/>
+						</div>
 					</div>
 
 					{/* ヒントダイアログ（ページナビゲーション下・問題文より上） */}
@@ -740,10 +739,6 @@ function FlowSessionPage() {
 							<ChevronLeft className="w-4 h-4" />
 							前の問題
 						</Button>
-
-						<div className="text-sm text-gray-600">
-							{currentPage} / {flowSession?.total_pages || 1}
-						</div>
 
 						{currentPage === flowSession?.total_pages ? (
 							<Button

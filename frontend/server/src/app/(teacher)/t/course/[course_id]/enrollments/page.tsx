@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
 
 type StudentOption = {
@@ -53,6 +54,7 @@ export default function CourseEnrollmentsPage() {
 	const [initialLoading, setInitialLoading] = useState(true);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [successMessage, setSuccessMessage] = useState("");
+	const [activeTab, setActiveTab] = useState<"manual" | "csv">("manual");
 	const csvInputRef = useRef<HTMLInputElement>(null);
 
 	const enrolledIdSet = useMemo(
@@ -325,7 +327,23 @@ export default function CourseEnrollmentsPage() {
 						履修者登録
 					</CardTitle>
 				</CardHeader>
-				<CardContent className="space-y-4">
+				<CardContent className="space-y-3">
+					{activeTab === "manual" ? (
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+								候補学生数:{" "}
+								<span className="font-semibold">{availableStudents.length}</span>
+							</div>
+							<div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+								現在の履修者数: <span className="font-semibold">{enrolled.length}</span>
+							</div>
+						</div>
+					) : (
+						<div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+							CSV読込件数: <span className="font-semibold">{csvStudentNumbers.length}</span>
+						</div>
+					)}
+
 					{errorMessage && (
 						<Alert variant="destructive">
 							<AlertCircle className="h-4 w-4" />
@@ -338,196 +356,214 @@ export default function CourseEnrollmentsPage() {
 							<AlertDescription>{successMessage}</AlertDescription>
 						</Alert>
 					)}
-					<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-						<Input
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							placeholder="氏名 / メール / 学籍番号で検索"
-						/>
-						<select
-							className="h-10 rounded-md border bg-background px-3 text-sm"
-							value={filterGrade}
-							onChange={(e) => setFilterGrade(e.target.value)}
-						>
-							<option value="">学年: すべて</option>
-							{gradeOptions.map((g) => (
-								<option key={g} value={g}>
-									{g}
-								</option>
-							))}
-						</select>
-						<select
-							className="h-10 rounded-md border bg-background px-3 text-sm"
-							value={filterDepartment}
-							onChange={(e) => setFilterDepartment(e.target.value)}
-						>
-							<option value="">所属: すべて</option>
-							{departmentOptions.map((d) => (
-								<option key={d} value={d}>
-									{d}
-								</option>
-							))}
-						</select>
-						<select
-							className="h-10 rounded-md border bg-background px-3 text-sm"
-							value={filterClass}
-							onChange={(e) => setFilterClass(e.target.value)}
-						>
-							<option value="">クラス: すべて</option>
-							{classOptions.map((c) => (
-								<option key={c} value={c}>
-									{c}
-								</option>
-							))}
-						</select>
-					</div>
-					<div className="flex flex-wrap gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={handleSelectAllFiltered}
-							disabled={availableStudents.length === 0 || loading}
-						>
-							絞り込み結果を全選択
-						</Button>
-						<Button onClick={handleEnroll} disabled={loading}>
-							<UserPlus className="h-4 w-4 mr-2" />
-							{loading ? "登録中..." : "選択した学生を登録"}
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={handleUnenroll}
-							disabled={loading || selectedEnrolledIds.length === 0}
-						>
-							<UserMinus className="h-4 w-4 mr-2" />
-							{loading ? "処理中..." : "選択した履修者を解除"}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-lg flex items-center gap-2">
-						<Upload className="h-5 w-5" />
-						CSVで履修登録（学籍番号ベース）
-					</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-3">
-					<p className="text-sm text-muted-foreground">
-						1列CSV（学籍番号）を読み込み、該当学生を一括で履修登録します。
-						ヘッダーは任意です（`student_number` / `学籍番号`）。
-					</p>
-					<input
-						ref={csvInputRef}
-						type="file"
-						accept=".csv"
-						onChange={handleCsvChange}
-						className="block w-full text-sm text-gray-500
-						file:mr-4 file:py-2 file:px-4
-						file:rounded-full file:border-0
-						file:text-sm file:font-semibold
-						file:bg-primary file:text-white
-						hover:file:bg-primary/90"
-						disabled={loading}
-					/>
-					{csvStudentNumbers.length > 0 && (
-						<p className="text-sm">
-							読み込み件数: <span className="font-semibold">{csvStudentNumbers.length}</span>
-						</p>
-					)}
-					<div>
-						<Button
-							type="button"
-							onClick={handleEnrollByCsv}
-							disabled={loading || csvStudentNumbers.length === 0}
-						>
-							{loading ? "登録中..." : "CSVから履修登録"}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
+					<Tabs
+						value={activeTab}
+						onValueChange={(v) => setActiveTab(v as "manual" | "csv")}
+						className="space-y-4"
+					>
+						<TabsList className="w-full sm:w-auto">
+							<TabsTrigger value="manual" className="gap-2">
+								<UserPlus className="h-4 w-4" />
+								学生候補から登録
+							</TabsTrigger>
+							<TabsTrigger value="csv" className="gap-2">
+								<Upload className="h-4 w-4" />
+								CSVで登録
+							</TabsTrigger>
+						</TabsList>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>学生一覧（候補）</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-2 max-h-[420px] overflow-auto">
-						{filteredStudents.map((s) => {
-							const isEnrolled = enrolledIdSet.has(s.id);
-							return (
-								<label
-									key={s.id}
-									className="flex items-start gap-3 p-3 border rounded-md hover:bg-muted/40"
+						<TabsContent value="manual" className="space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+								<Input
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									placeholder="氏名 / メール / 学籍番号で検索"
+								/>
+								<select
+									className="h-10 rounded-md border bg-background px-3 text-sm"
+									value={filterGrade}
+									onChange={(e) => setFilterGrade(e.target.value)}
 								>
-									<Checkbox
-										checked={selectedIds.includes(s.id)}
-										onCheckedChange={(v) => toggleSelect(s.id, Boolean(v))}
-										disabled={isEnrolled}
-									/>
-									<div className="space-y-1">
-										<div className="font-medium">
-											{s.display_name || s.username || "名称未設定"}
-										</div>
-										<div className="text-sm text-muted-foreground">{s.email}</div>
-										<div className="flex flex-wrap gap-1 text-xs">
-											{s.student_number && (
-												<Badge variant="secondary">学籍番号: {s.student_number}</Badge>
-											)}
-											{s.class_number && (
-												<Badge variant="secondary">クラス: {s.class_number}</Badge>
-											)}
-											{s.class_roster_number && (
-												<Badge variant="secondary">
-													名列: {s.class_roster_number}
-												</Badge>
-											)}
-											{s.department && (
-												<Badge variant="secondary">所属: {s.department}</Badge>
-											)}
-											{isEnrolled && <Badge>履修登録済み</Badge>}
-										</div>
-									</div>
-								</label>
-							);
-						})}
-					</div>
+									<option value="">学年: すべて</option>
+									{gradeOptions.map((g) => (
+										<option key={g} value={g}>
+											{g}
+										</option>
+									))}
+								</select>
+								<select
+									className="h-10 rounded-md border bg-background px-3 text-sm"
+									value={filterDepartment}
+									onChange={(e) => setFilterDepartment(e.target.value)}
+								>
+									<option value="">所属: すべて</option>
+									{departmentOptions.map((d) => (
+										<option key={d} value={d}>
+											{d}
+										</option>
+									))}
+								</select>
+								<select
+									className="h-10 rounded-md border bg-background px-3 text-sm"
+									value={filterClass}
+									onChange={(e) => setFilterClass(e.target.value)}
+								>
+									<option value="">クラス: すべて</option>
+									{classOptions.map((c) => (
+										<option key={c} value={c}>
+											{c}
+										</option>
+									))}
+								</select>
+							</div>
+						</TabsContent>
+
+						<TabsContent value="csv" className="space-y-3">
+							<p className="text-sm text-muted-foreground">
+								1列CSV（学籍番号）を読み込み、該当学生を一括で履修登録します。
+								ヘッダーは任意です（`student_number` / `学籍番号`）。
+							</p>
+							<input
+								ref={csvInputRef}
+								type="file"
+								accept=".csv"
+								onChange={handleCsvChange}
+								className="block w-full text-sm text-gray-500
+								file:mr-4 file:py-2 file:px-4
+								file:rounded-full file:border-0
+								file:text-sm file:font-semibold
+								file:bg-primary file:text-white
+								hover:file:bg-primary/90"
+								disabled={loading}
+							/>
+							<div className="flex justify-end">
+								<Button
+									type="button"
+									onClick={handleEnrollByCsv}
+									disabled={loading || csvStudentNumbers.length === 0}
+								>
+									{loading ? "登録中..." : "CSVから履修登録"}
+								</Button>
+							</div>
+						</TabsContent>
+					</Tabs>
+
 				</CardContent>
 			</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>現在の履修者</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<div className="space-y-2">
-						{enrolled.length === 0 ? (
-							<p className="text-sm text-muted-foreground">履修者はまだいません。</p>
-						) : (
-							enrolled.map((e) => (
-								<label
-									key={e.user_id}
-									className="flex items-start gap-3 p-3 border rounded-md text-sm"
+			{activeTab === "manual" && (
+				<>
+					<Card>
+						<CardHeader className="flex flex-row items-center justify-between space-y-0 gap-3">
+							<CardTitle>学生一覧（候補）</CardTitle>
+							<div className="flex flex-wrap items-center justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleSelectAllFiltered}
+									disabled={availableStudents.length === 0 || loading}
+									size="sm"
 								>
-									<Checkbox
-										checked={selectedEnrolledIds.includes(e.user_id)}
-										onCheckedChange={(v) =>
-											toggleSelectEnrolled(e.user_id, Boolean(v))
-										}
-									/>
-									<div>
-										<div className="font-medium">
-											{e.display_name || e.username || `user:${e.user_id}`}
-										</div>
-										<div className="text-muted-foreground">{e.email}</div>
-									</div>
-								</label>
-							))
-						)}
-					</div>
-				</CardContent>
-			</Card>
+									絞り込み結果を全選択
+								</Button>
+								<Button onClick={handleEnroll} disabled={loading} size="sm">
+									<UserPlus className="h-4 w-4 mr-2" />
+									{loading ? "登録中..." : "選択した学生を登録"}
+								</Button>
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-2 max-h-[420px] overflow-auto">
+								{filteredStudents.map((s) => {
+									const isEnrolled = enrolledIdSet.has(s.id);
+									return (
+										<label
+											key={s.id}
+											className="flex items-start gap-3 p-3 border rounded-md hover:bg-muted/40"
+										>
+											<Checkbox
+												checked={selectedIds.includes(s.id)}
+												onCheckedChange={(v) => toggleSelect(s.id, Boolean(v))}
+												disabled={isEnrolled}
+											/>
+											<div className="space-y-1">
+												<div className="font-medium">
+													{s.display_name || s.username || "名称未設定"}
+												</div>
+												<div className="text-sm text-muted-foreground">{s.email}</div>
+												<div className="flex flex-wrap gap-1 text-xs">
+													{s.student_number && (
+														<Badge variant="secondary">
+															学籍番号: {s.student_number}
+														</Badge>
+													)}
+													{s.class_number && (
+														<Badge variant="secondary">クラス: {s.class_number}</Badge>
+													)}
+													{s.class_roster_number && (
+														<Badge variant="secondary">
+															名列: {s.class_roster_number}
+														</Badge>
+													)}
+													{s.department && (
+														<Badge variant="secondary">所属: {s.department}</Badge>
+													)}
+													{isEnrolled && <Badge>履修登録済み</Badge>}
+												</div>
+											</div>
+										</label>
+									);
+								})}
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader className="flex flex-row items-center justify-between space-y-0">
+							<CardTitle>現在の履修者</CardTitle>
+							<Button
+								variant="destructive"
+								onClick={handleUnenroll}
+								disabled={loading || selectedEnrolledIds.length === 0}
+								size="sm"
+							>
+								<UserMinus className="h-4 w-4 mr-2" />
+								{loading ? "処理中..." : "選択した履修者を解除"}
+							</Button>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-2">
+								{enrolled.length === 0 ? (
+									<p className="text-sm text-muted-foreground">
+										履修者はまだいません。
+									</p>
+								) : (
+									enrolled.map((e) => (
+										<label
+											key={e.user_id}
+											className="flex items-start gap-3 p-3 border rounded-md text-sm"
+										>
+											<Checkbox
+												checked={selectedEnrolledIds.includes(e.user_id)}
+												onCheckedChange={(v) =>
+													toggleSelectEnrolled(e.user_id, Boolean(v))
+												}
+											/>
+											<div>
+												<div className="font-medium">
+													{e.display_name || e.username || `user:${e.user_id}`}
+												</div>
+												<div className="text-muted-foreground">{e.email}</div>
+											</div>
+										</label>
+									))
+								)}
+							</div>
+						</CardContent>
+					</Card>
+				</>
+			)}
 		</div>
 	);
 }
