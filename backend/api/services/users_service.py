@@ -152,8 +152,16 @@ class UserService:
         await self.user_repo.db.commit()
         return True
 
-    async def reset_password_by_admin(self, *, password_in: user_schema.AdminPasswordReset) -> bool:
+    async def reset_password_by_admin(
+        self,
+        *,
+        admin_user: user_model.Users,
+        password_in: user_schema.AdminPasswordReset
+    ) -> bool:
         """管理者がユーザーのパスワードをリセットします。"""
+        if not SecurityManager.verify_password(password_in.admin_password, admin_user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect admin password")
+
         user_to_reset = await self.user_repo.get_by_email(email=password_in.email)
         if not user_to_reset:
             return False
@@ -175,3 +183,38 @@ class UserService:
     async def get_student_users(self) -> List[user_model.Users]:
         """学生ユーザー一覧を取得します。"""
         return await self.user_repo.list_students()
+
+    async def update_user_by_admin(
+        self,
+        *,
+        admin_user: user_model.Users,
+        user_id: int,
+        user_in: user_schema.AdminUserUpdate,
+    ) -> Optional[user_model.Users]:
+        """管理者がユーザー情報を更新します（管理者パスワード再入力必須）。"""
+        if not SecurityManager.verify_password(user_in.admin_password, admin_user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect admin password")
+
+        user_to_update = await self.user_repo.get_by_id(user_id=user_id)
+        if not user_to_update:
+            return None
+
+        if user_in.email and user_in.email != user_to_update.email:
+            existing_user = await self.user_repo.get_by_email(email=user_in.email)
+            if existing_user and existing_user.id != user_to_update.id:
+                raise HTTPException(status_code=400, detail="User with this email already exists")
+
+        update_payload = {}
+        for field in ("username", "display_name", "email", "role_id", "is_disabled"):
+            value = getattr(user_in, field)
+            if value is not None:
+                update_payload[field] = value
+
+        if not update_payload:
+            raise HTTPException(status_code=400, detail="No user fields to update")
+
+        update_schema = user_schema.UserUpdate(**update_payload)
+        await self.user_repo.update(user=user_to_update, user_in=update_schema)
+        await self.user_repo.db.commit()
+        updated_user = await self.user_repo.get_by_id(user_id=user_id)
+        return updated_user or user_to_update

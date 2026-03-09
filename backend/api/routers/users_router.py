@@ -264,13 +264,14 @@ async def list_teacher_users(
 # Admin Endpoints
 #
 
-@users_router.post("/admin/users/password-reset", status_code=status.HTTP_204_NO_CONTENT, summary="ユーザーのパスワードリセット（管理者向け）", dependencies=[Depends(require_admin)])
+@users_router.post("/admin/users/password-reset", status_code=status.HTTP_204_NO_CONTENT, summary="ユーザーのパスワードリセット（管理者向け）")
 async def reset_password_by_admin(
     password_in: user_schema.AdminPasswordReset,
+    current_user: user_model.Users = Depends(require_admin),
     service: UserService = Depends(get_user_service)
 ):
     """（管理者権限）指定したユーザーのパスワードをリセットします。"""
-    success = await service.reset_password_by_admin(password_in=password_in)
+    success = await service.reset_password_by_admin(admin_user=current_user, password_in=password_in)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return
@@ -290,6 +291,28 @@ async def get_user_by_id(user_id: int, service: UserService = Depends(get_user_s
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
+
+
+@users_router.put(
+    "/admin/users/{user_id}",
+    response_model=user_schema.User,
+    summary="ユーザー情報更新（管理者向け）",
+)
+async def update_user_by_admin(
+    user_id: int,
+    user_in: user_schema.AdminUserUpdate,
+    current_user: user_model.Users = Depends(require_admin),
+    service: UserService = Depends(get_user_service),
+):
+    """（管理者権限）管理者パスワード確認のうえ、指定ユーザーの情報を更新します。"""
+    updated_user = await service.update_user_by_admin(
+        admin_user=current_user,
+        user_id=user_id,
+        user_in=user_in,
+    )
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return updated_user
 
 
 @users_router.get(

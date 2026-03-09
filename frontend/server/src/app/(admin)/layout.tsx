@@ -12,7 +12,7 @@ import {
 	Users,
 	LayoutList,
 } from "lucide-react";
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useEffect, useState } from "react";
 import { AdminHeader } from "@/components/atoms/layout/AdminHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -36,6 +36,11 @@ const sidebarGroups: SidebarGroups[] = [
 				title: "ログイン履歴",
 				url: "/admin/login-history",
 				icon: LogIn,
+			},
+			{
+				title: "ユーザー管理",
+				url: "/admin/users",
+				icon: Users,
 			},
 			{
 				title: "演習問題ログ",
@@ -108,6 +113,16 @@ const AdminLayoutInner = memo(
 );
 
 const AdminLayout = memo(({ children }: { children: ReactNode }) => {
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted) {
+		return null;
+	}
+
 	return (
 		<SidebarProvider defaultOpen={false}>
 			<div className="flex flex-col min-h-screen w-full bg-gray-100">

@@ -102,7 +102,18 @@ class PasswordUpdate(BaseModel):
 class AdminPasswordReset(BaseModel):
     """管理者によるパスワードリセット用スキーマ"""
     email: EmailStr = Field(..., description="対象ユーザーのメールアドレス")
+    admin_password: str = Field(..., min_length=4, max_length=50, description="操作実行者（管理者）の現在パスワード")
     new_password: str = Field(..., min_length=4, max_length=50, description="新しいパスワード")
+
+
+class AdminUserUpdate(BaseModel):
+    """管理者によるユーザー情報更新用スキーマ（管理者パスワード再入力必須）"""
+    admin_password: str = Field(..., min_length=4, max_length=50, description="操作実行者（管理者）の現在パスワード")
+    username: Optional[str] = Field(None, max_length=255, description="ユーザー名")
+    display_name: Optional[str] = Field(None, max_length=255, description="表示名")
+    email: Optional[EmailStr] = Field(None, description="メールアドレス")
+    role_id: Optional[int] = Field(None, ge=1, le=4, description="役割ID")
+    is_disabled: Optional[bool] = Field(None, description="無効フラグ")
 
 class UserInDBBase(UserBase):
     """DBに格納されているユーザー情報のベース"""

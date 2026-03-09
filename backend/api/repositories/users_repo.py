@@ -67,7 +67,11 @@ class UserRepository(BaseRepository):
 
     async def list_all(self, *, include_roles_mask: Optional[str] = None) -> Sequence[user_model.Users]:
         """全ユーザーのリストを取得します。"""
-        stmt = select(user_model.Users).order_by(user_model.Users.id)
+        stmt = (
+            select(user_model.Users)
+            .options(selectinload(user_model.Users.role))
+            .order_by(user_model.Users.id)
+        )
 
         # ロールIDのマッピング: 0:管理者, 1:教師, 2:学生, 3:テスト
         ROLE_ID_MAP = {0: 1, 1: 2, 2: 3, 3: 4}

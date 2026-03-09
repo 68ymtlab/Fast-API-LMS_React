@@ -12,7 +12,7 @@ import {
 	ShieldQuestion,
 	Users,
 } from "lucide-react";
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AdminHeader } from "@/components/atoms/layout/AdminHeader";
 import { TeacherHeader } from "@/components/atoms/layout/TeacherHeader";
@@ -86,6 +86,7 @@ const adminSidebarGroups: SidebarGroups[] = [
 			{ title: "管理者ホーム", url: "/admin/home", icon: Home },
 			{ title: "科目・コース管理", url: "/admin/courses", icon: LayoutList },
 			{ title: "ログイン履歴", url: "/admin/login-history", icon: LogIn },
+			{ title: "ユーザー管理", url: "/admin/users", icon: Users },
 			{ title: "演習問題ログ", url: "/admin/flow-log", icon: FileType },
 		],
 	},
@@ -127,7 +128,18 @@ const TeacherLayoutInner = memo(
 
 const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
 	const { data: session } = useSession();
-	const isAdmin = session?.user?.role?.name === "admin";
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	// 初回描画時は server/client で同じ分岐になるように固定
+	const isAdmin = mounted && session?.user?.role?.name === "admin";
+
+	if (!mounted) {
+		return null;
+	}
 
 	if (isAdmin) {
 		return (
