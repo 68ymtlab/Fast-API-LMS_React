@@ -10,12 +10,16 @@ class Token(BaseModel):
     token_type: str
 
 class TokenData(BaseModel):
-    id: int
-    email: str
-    username: str
-    display_name: str
-    role_id: int
-    theme_settings: Optional[dict] = None
+    """
+    JWTのペイロードを型付けするためのスキーマ。
+    実運用では `email` が最重要で、他は環境/ユーザーによって欠ける可能性があるため任意にする。
+    """
+    email: EmailStr
+    id: Optional[int] = None
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    role_id: Optional[int] = None
+    theme_settings: Optional[Any] = None
 
 class RefreshTokenRequest(BaseModel):
     """リフレッシュトークンリクエストスキーマ"""
