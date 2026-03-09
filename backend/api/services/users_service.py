@@ -56,7 +56,13 @@ class UserService:
         
         return user, access_token, refresh_token
 
-    async def create_user(self, *, user_in: user_schema.UserCreate, current_user: user_model.Users) -> user_model.Users:
+    async def create_user(
+        self,
+        *,
+        user_in: user_schema.UserCreate,
+        current_user: user_model.Users,
+        commit: bool = True,
+    ) -> user_model.Users:
         """新しいユーザーを作成します。学生情報があればそれも同時に作成します。"""
         # --- 権限チェック ---
         role_to_create = user_in.role_id
@@ -79,9 +85,17 @@ class UserService:
             
             if user_in.student_info:
                 await self.user_repo.create_student_details(user_id=created_user.id, student_in=user_in.student_info)
+
+        # get_db() は自動コミットしないため、ここで明示的にコミットする
+        # （コミットしないとリクエスト終了時にロールバックされ、DBに残らない）
+        if commit:
+            await self.user_repo.db.commit()
         
+        # 直近で作成したユーザーに関連情報（role / student）を含めて返すため、
+        # 関連を読み込む get_by_id を使って再取得する
         await self.user_repo.db.refresh(created_user)
-        return created_user
+        user_with_relations = await self.user_repo.get_by_id(user_id=created_user.id)
+        return user_with_relations or created_user
 
     async def create_users_bulk(
         self,
@@ -94,7 +108,11 @@ class UserService:
 
         for user_in in users_in:
             try:
-                created = await self.create_user(user_in=user_in, current_user=current_user)
+                created = await self.create_user(
+                    user_in=user_in,
+                    current_user=current_user,
+                    commit=False,
+                )
                 results.append(
                     user_schema.UserBulkCreateResult(
                         email=user_in.email,
