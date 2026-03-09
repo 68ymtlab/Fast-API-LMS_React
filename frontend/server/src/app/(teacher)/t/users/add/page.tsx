@@ -88,6 +88,10 @@ interface User {
 	class_roster_number?: string;
 }
 
+type ExistingUserForValidation = {
+	email: string;
+};
+
 type BulkCreateResponse = {
 	created_count: number;
 	failed_count: number;
@@ -107,7 +111,7 @@ function AddUserPage() {
 	const [errorMessages, setErrorMessages] = useState<string[]>([]);
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 	const [successMessage, setSuccessMessage] = useState("");
-	const [users, setUsers] = useState<any[]>([]);
+	const [users, setUsers] = useState<ExistingUserForValidation[]>([]);
 	const [fileUsers, setFileUsers] = useState<User[]>([]);
 	const [isFileUpload, setIsFileUpload] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -143,8 +147,21 @@ function AddUserPage() {
 
 	const fetchUsers = async () => {
 		try {
-			const response = await axios.get("/admin/users");
-			setUsers(response.data);
+			// 管理者専用API(/admin/users)に依存せず、教師でも取得できるAPIを使用する
+			const [studentsRes, teachersRes] = await Promise.all([
+				axios.get("/users/students"),
+				axios.get("/users/teachers"),
+			]);
+
+			const allUsers = [...(studentsRes.data ?? []), ...(teachersRes.data ?? [])];
+			const uniqueByEmail = new Map<string, ExistingUserForValidation>();
+
+			for (const u of allUsers) {
+				if (u?.email) {
+					uniqueByEmail.set(String(u.email).toLowerCase(), { email: String(u.email) });
+				}
+			}
+			setUsers(Array.from(uniqueByEmail.values()));
 		} catch (error) {
 			console.error("Error fetching users:", error);
 		}
@@ -203,7 +220,10 @@ function AddUserPage() {
 		}
 
 		// 重複チェック
-		if (users.length > 0 && users.some((u) => u.email === userData.email)) {
+		if (
+			users.length > 0 &&
+			users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())
+		) {
 			errors.push(`${userData.email}：すでに登録されています`);
 		}
 

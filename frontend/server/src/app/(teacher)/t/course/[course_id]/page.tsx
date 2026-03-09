@@ -684,15 +684,56 @@ function CoursePage() {
 		setPermissionError(null);
 		setPermissionSuccess(null);
 		try {
-			const permissions = teacherList.map((t) => ({
-				teacher_user_id: t.id,
-				course_id: Number(course_id),
-				can_read_content: permissionState[t.id]?.can_read ?? false,
-				can_update_content: permissionState[t.id]?.can_update ?? false,
-				can_delete_content: permissionState[t.id]?.can_delete ?? false,
-				start_date_time: new Date(permStartDate).toISOString(),
-				end_date_time: new Date(permEndDate).toISOString(),
-			}));
+			const existingPermissionMap = new Map(
+				existingPermissions.map((p) => [p.teacher_user_id, p]),
+			);
+
+			const permissions = teacherList
+				.map((t) => {
+					const next = {
+						can_read_content: permissionState[t.id]?.can_read ?? false,
+						can_update_content: permissionState[t.id]?.can_update ?? false,
+						can_delete_content: permissionState[t.id]?.can_delete ?? false,
+					};
+					const prev = existingPermissionMap.get(t.id);
+
+					// 既存がない && 全false は API送信不要（何もしない）
+					if (
+						!prev &&
+						!next.can_read_content &&
+						!next.can_update_content &&
+						!next.can_delete_content
+					) {
+						return null;
+					}
+
+					// 既存があり、権限ビットが全く同じなら送信不要
+					if (
+						prev &&
+						prev.can_read_content === next.can_read_content &&
+						prev.can_update_content === next.can_update_content &&
+						prev.can_delete_content === next.can_delete_content
+					) {
+						return null;
+					}
+
+					return {
+						teacher_user_id: t.id,
+						course_id: Number(course_id),
+						can_read_content: next.can_read_content,
+						can_update_content: next.can_update_content,
+						can_delete_content: next.can_delete_content,
+						start_date_time: new Date(permStartDate).toISOString(),
+						end_date_time: new Date(permEndDate).toISOString(),
+					};
+				})
+				.filter((p): p is NonNullable<typeof p> => p !== null);
+
+			if (permissions.length === 0) {
+				setPermissionSuccess("変更はありません");
+				return;
+			}
+
 			await axios.post(`/courses/${course_id}/permissions/batch`, { permissions });
 			setPermissionSuccess("権限を保存しました");
 		} catch (e: any) {

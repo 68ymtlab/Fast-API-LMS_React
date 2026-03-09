@@ -49,7 +49,8 @@ class CourseService:
         *, 
         course_id: int, 
         permission_in: courses_schema.CourseContentPermissionCreate, 
-        current_user: users_model.Users
+        current_user: users_model.Users,
+        auto_commit: bool = True,
     ) -> Optional[courses_model.CourseContentPermissions]:
         """コースコンテンツ権限を付与または更新します。
 
@@ -113,7 +114,8 @@ class CourseService:
            not permission_in.can_delete_content:
             if existing_permission:
                 await self.course_repo.delete_course_content_permission(permission=existing_permission)
-                await self.course_repo.db.commit()
+                if auto_commit:
+                    await self.course_repo.db.commit()
                 return None # 削除されたことを示す
             else:
                 return None # 元々存在しないので何もしない
@@ -128,7 +130,8 @@ class CourseService:
                     can_delete_content=permission_in.can_delete_content,
                 )
             )
-            await self.course_repo.db.commit()
+            if auto_commit:
+                await self.course_repo.db.commit()
             return updated_permission
         else:
             # 新規作成
@@ -136,7 +139,8 @@ class CourseService:
                 permission_in=permission_in,
                 created_by_user_id=current_user.id
             )
-            await self.course_repo.db.commit()
+            if auto_commit:
+                await self.course_repo.db.commit()
             return created_permission
 
     async def grant_or_update_course_content_permissions_batch(
@@ -163,11 +167,12 @@ class CourseService:
         async with self.course_repo.db.begin_nested(): # バッチ操作全体をトランザクションでラップ
             for permission_data in permissions_in:
                 # 各権限付与操作は個別のトランザクションではなく、ネストされたトランザクションとして実行
-                # grant_or_update_course_content_permission 内で commit/rollback は行わない
+                # grant_or_update_course_content_permission 内で commit は行わない
                 result = await self.grant_or_update_course_content_permission(
                     course_id=course_id,
                     permission_in=permission_data,
-                    current_user=current_user
+                    current_user=current_user,
+                    auto_commit=False,
                 )
                 results.append(result)
         await self.course_repo.db.commit() # バッチ操作全体のコミット
