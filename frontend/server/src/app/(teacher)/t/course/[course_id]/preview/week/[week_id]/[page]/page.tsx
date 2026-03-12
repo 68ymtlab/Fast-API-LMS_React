@@ -148,7 +148,7 @@ function WeekPreviewPage() {
 								)}
 							</div>
 
-							<div className="flex mt-4 justify-between items-center">
+							<div className="mt-8 flex items-center justify-between gap-3">
 								{currentPage !== 1 ? (
 									<Button
 										variant="outline"
@@ -159,26 +159,24 @@ function WeekPreviewPage() {
 										前のページ
 									</Button>
 								) : (
-									<span />
+									<div />
 								)}
+
 								{currentPage === totalPages ? (
 									<Button variant="outline" onClick={goBackToList}>
 										コンテンツ一覧に戻る
 									</Button>
 								) : (
-									<span />
+									<Button
+										variant="outline"
+										className="flex items-center gap-2"
+										onClick={() => goToPage(currentPage + 1)}
+									>
+										次のページ
+										<ChevronRight className="h-4 w-4" />
+									</Button>
 								)}
 							</div>
-							{currentPage < totalPages && (
-								<Button
-									variant="outline"
-									className="ml-auto mt-8 flex items-center gap-2"
-									onClick={() => goToPage(currentPage + 1)}
-								>
-									次のページ
-									<ChevronRight className="h-4 w-4" />
-								</Button>
-							)}
 						</>
 					)}
 				</div>

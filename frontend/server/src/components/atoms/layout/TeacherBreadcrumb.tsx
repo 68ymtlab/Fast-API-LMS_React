@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	ArrowLeft,
 	Book,
 	ChevronRight,
 	ClipboardList,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { memo } from "react";
-import { Button } from "@/components/ui/button";
+import { BreadcrumbBackButton } from "@/components/atoms/layout/BreadcrumbBackButton";
 
 export const TeacherBreadcrumb = memo(() => {
 	const pathname = usePathname();
@@ -23,16 +22,8 @@ export const TeacherBreadcrumb = memo(() => {
 	if (pathname === "/t/home") return null;
 
 	return (
-		<nav className="flex items-center text-xs text-gray-400 gap-0.5">
-			<Button
-				variant="ghost"
-				size="icon"
-				onClick={() => router.back()}
-				className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 h-7 w-7 mr-1"
-				aria-label="前のページに戻る"
-			>
-				<ArrowLeft className="size-3.5" />
-			</Button>
+		<nav className="flex items-center text-xs text-gray-400 gap-1">
+			<BreadcrumbBackButton onClick={() => router.back()} className="mr-1" />
 
 			<button
 				onClick={() => router.push("/t/home")}

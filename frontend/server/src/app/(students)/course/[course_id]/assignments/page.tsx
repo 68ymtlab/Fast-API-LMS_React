@@ -87,6 +87,9 @@ export default function StudentAssignmentsPage() {
 	const [loading, setLoading] = useState(true);
 	const [expandedLessons, setExpandedLessons] = useState<Set<number>>(new Set());
 	const [expandedAssignments, setExpandedAssignments] = useState<Set<number>>(new Set());
+	const [expandedAssignmentDetails, setExpandedAssignmentDetails] = useState<
+		Set<number>
+	>(new Set());
 
 	// 提出用ステート（課題IDごと）
 	const [uploadingId, setUploadingId] = useState<number | null>(null);
@@ -273,6 +276,10 @@ export default function StudentAssignmentsPage() {
 					<div className="space-y-4">
 						{publishedLessons.map((lesson) => {
 							const lAssignments = assignmentsByLesson(lesson.id);
+							const submittedInLesson = lAssignments.filter(
+								(a) => !!a.my_submission,
+							).length;
+							const unsubmittedInLesson = lAssignments.length - submittedInLesson;
 							const isExpanded = expandedLessons.has(lesson.id);
 							return (
 								<Card key={lesson.id} className="shadow-sm">
@@ -295,9 +302,17 @@ export default function StudentAssignmentsPage() {
 											<CardTitle className="text-base font-semibold">
 												第{lesson.lesson_number}回: {lesson.title}
 											</CardTitle>
-											<span className="ml-2 text-xs bg-primary/10 text-primary rounded-full px-2 py-0.5">
-												{lAssignments.length}件
-											</span>
+											<div className="ml-auto flex items-center gap-2 text-xs">
+												<span className="bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-medium">
+													提出済み {submittedInLesson}
+												</span>
+												<span className="bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-medium">
+													未提出 {unsubmittedInLesson}
+												</span>
+												<span className="bg-primary/10 text-primary rounded-full px-2 py-0.5">
+													{lAssignments.length}件
+												</span>
+											</div>
 										</button>
 									</CardHeader>
 
@@ -309,6 +324,8 @@ export default function StudentAssignmentsPage() {
 													overdue && !a.allow_late_submission;
 												const isUploading = uploadingId === a.id;
 												const isAssignExpanded = expandedAssignments.has(a.id);
+												const isDetailExpanded =
+													expandedAssignmentDetails.has(a.id);
 
 												return (
 													<div
@@ -327,29 +344,65 @@ export default function StudentAssignmentsPage() {
 																		)}
 																		{a.title}
 																	</h3>
-																	{a.due_date && (
-																		<p
-																			className={`text-xs mt-1 flex items-center gap-1 ${
-																				overdue
-																					? "text-red-500"
-																					: "text-gray-500"
-																			}`}
-																		>
-																			<Clock className="w-3 h-3" />
-																			締切: {fmtDate(a.due_date)}
-																			{overdue && " (締切済)"}
-																			{overdue && a.allow_late_submission && (
-																				<span className="text-orange-500 font-medium ml-1">
-																					※遅延提出可
-																				</span>
-																			)}
-																		</p>
-																	)}
+																	<div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+																		{a.my_submission ? (
+																			<span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
+																				提出済み
+																			</span>
+																		) : (
+																			<span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">
+																				未提出
+																			</span>
+																		)}
+																		{a.due_date && (
+																			<span
+																				className={`inline-flex items-center gap-1 ${
+																					overdue
+																						? "text-red-500"
+																						: "text-gray-500"
+																				}`}
+																			>
+																				<Clock className="w-3 h-3" />
+																				締切: {fmtDate(a.due_date)}
+																				{overdue && " (締切済)"}
+																				{overdue && a.allow_late_submission && (
+																					<span className="text-orange-500 font-medium">
+																						※遅延提出可
+																					</span>
+																				)}
+																			</span>
+																		)}
+																		<span className="text-gray-400">
+																			最大 {a.max_file_size_mb}MB
+																		</span>
+																		{a.allowed_file_types && (
+																			<span className="text-gray-400">
+																				許可形式: {a.allowed_file_types}
+																			</span>
+																		)}
+																	</div>
 																</div>
 																{/* 採点状態 */}
-																{a.my_submission?.score !== undefined &&
-																	a.my_submission.score !== null && (
-																		<div className="flex-shrink-0 text-right">
+																<div className="flex-shrink-0 text-right space-y-2">
+																	<div>
+																		{a.due_date ? (
+																			<span
+																				className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+																					overdue
+																						? "bg-red-100 text-red-700"
+																						: "bg-slate-100 text-slate-700"
+																				}`}
+																			>
+																				締切 {fmtDate(a.due_date)}
+																			</span>
+																		) : (
+																			<span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+																				締切なし
+																			</span>
+																		)}
+																	</div>
+																	{a.my_submission?.score !== undefined &&
+																		a.my_submission.score !== null && (
 																			<div className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 rounded-full px-3 py-1 text-sm font-bold">
 																				<Star className="w-3.5 h-3.5" />
 																				{a.my_submission.score}
@@ -358,180 +411,205 @@ export default function StudentAssignmentsPage() {
 																					: ""}
 																				点
 																			</div>
-																		</div>
-																	)}
+																		)}
+																</div>
 															</div>
 
-															{a.description && (
-																<p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-3">
-																	{a.description}
-																</p>
-															)}
-
-															{/* 提出条件 */}
-															<div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
-																<span>最大 {a.max_file_size_mb}MB</span>
-																{a.allowed_file_types && (
-																	<span>許可形式: {a.allowed_file_types}</span>
-																)}
+															<div className="mt-2 flex justify-end">
+																<Button
+																	size="sm"
+																	variant="ghost"
+																	className="h-7 px-2 text-xs text-gray-500"
+																	onClick={() => {
+																		const next = new Set(
+																			expandedAssignmentDetails,
+																		);
+																		if (isDetailExpanded) next.delete(a.id);
+																		else next.add(a.id);
+																		setExpandedAssignmentDetails(next);
+																	}}
+																>
+																	{isDetailExpanded ? "詳細を閉じる" : "詳細を表示"}
+																	{isDetailExpanded ? (
+																		<ChevronDown className="w-3 h-3 ml-1" />
+																	) : (
+																		<ChevronRight className="w-3 h-3 ml-1" />
+																	)}
+																</Button>
 															</div>
 														</div>
 
-														{/* 最新提出情報 */}
-														{a.my_submission && (
-															<div className="border-t border-gray-100 px-5 py-3 bg-green-50">
-																<div className="flex items-center justify-between">
-																	<div>
-																		<p className="text-xs font-semibold text-green-700 flex items-center gap-1">
-																			<CheckCircle className="w-3.5 h-3.5" />
-																			提出済 (第{a.my_submission.submission_number}版)
+														{isDetailExpanded && (
+															<>
+																{a.description && (
+																	<div className="border-t border-gray-100 px-5 py-3">
+																		<p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+																			{a.description}
 																		</p>
-																		<p className="text-xs text-gray-500 mt-0.5">
-																			{a.my_submission.original_filename}{" "}
-																			({fmtFileSize(a.my_submission.file_size_bytes)})
-																			— {fmtDate(a.my_submission.submitted_at)}
-																		</p>
-																		{a.my_submission.teacher_comment && (
-																			<p className="text-xs text-blue-700 mt-1 bg-blue-50 rounded px-2 py-1">
-																				💬 {a.my_submission.teacher_comment}
-																			</p>
-																		)}
 																	</div>
-																	<div className="flex items-center gap-2">
-																		<Button
-																			size="sm"
-																			variant="outline"
-																			onClick={() => handleDownload(a.my_submission!)}
-																			className="text-xs"
-																		>
-																			<Download className="w-3.5 h-3.5 mr-1" />
-																			DL
-																		</Button>
-																		<Button
-																			size="sm"
-																			variant="ghost"
-																			className="text-xs text-gray-500"
-																			onClick={async () => {
-																				const next = new Set(expandedAssignments);
-																				if (isAssignExpanded) {
-																					next.delete(a.id);
-																				} else {
-																					next.add(a.id);
-																					if (!historyByAssignment[a.id]) {
-																						await fetchHistory(a.id);
-																					}
-																				}
-																				setExpandedAssignments(next);
-																			}}
-																		>
-																			履歴
-																			{isAssignExpanded ? (
-																				<ChevronDown className="w-3 h-3 ml-1" />
-																			) : (
-																				<ChevronRight className="w-3 h-3 ml-1" />
-																			)}
-																		</Button>
-																	</div>
-																</div>
-																{/* 提出履歴 */}
-																{isAssignExpanded && (
-																	<div className="mt-3 space-y-1">
-																		{historyLoading.has(a.id) ? (
-																			<div className="flex justify-center py-2">
-																				<Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-																			</div>
-																		) : (
-																			(historyByAssignment[a.id] || []).map((h) => (
-																				<div
-																					key={h.id}
-																					className={`flex items-center justify-between text-xs rounded px-2 py-1 ${
-																						h.is_latest
-																							? "bg-green-100 text-green-800"
-																							: "bg-gray-100 text-gray-500"
-																					}`}
-																				>
-																					<span>
-																						第{h.submission_number}版:{" "}
-																						{h.original_filename}
-																					</span>
-																					<span>{fmtDate(h.submitted_at)}</span>
+																)}
+
+																{/* 最新提出情報 */}
+																{a.my_submission && (
+																	<div className="border-t border-gray-100 px-5 py-3 bg-green-50">
+																		<div className="flex items-center justify-between">
+																			<div>
+																				<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+																					<p className="font-semibold text-green-700 flex items-center gap-1">
+																						<CheckCircle className="w-3.5 h-3.5" />
+																						提出済 (第{a.my_submission.submission_number}版)
+																					</p>
+																					<p className="text-gray-600">
+																						{a.my_submission.original_filename}{" "}
+																						({fmtFileSize(a.my_submission.file_size_bytes)})
+																					</p>
+																					<p className="text-gray-500">
+																						提出: {fmtDate(a.my_submission.submitted_at)}
+																					</p>
 																				</div>
-																			))
+																				{a.my_submission.teacher_comment && (
+																					<p className="text-xs text-blue-700 mt-1 bg-blue-50 rounded px-2 py-1">
+																						💬 {a.my_submission.teacher_comment}
+																					</p>
+																				)}
+																			</div>
+																			<div className="flex items-center gap-2">
+																				<Button
+																					size="sm"
+																					variant="outline"
+																					onClick={() => handleDownload(a.my_submission!)}
+																					className="text-xs"
+																				>
+																					<Download className="w-3.5 h-3.5 mr-1" />
+																					DL
+																				</Button>
+																				<Button
+																					size="sm"
+																					variant="ghost"
+																					className="text-xs text-gray-500"
+																					onClick={async () => {
+																						const next = new Set(expandedAssignments);
+																						if (isAssignExpanded) {
+																							next.delete(a.id);
+																						} else {
+																							next.add(a.id);
+																							if (!historyByAssignment[a.id]) {
+																								await fetchHistory(a.id);
+																							}
+																						}
+																						setExpandedAssignments(next);
+																					}}
+																				>
+																					履歴
+																					{isAssignExpanded ? (
+																						<ChevronDown className="w-3 h-3 ml-1" />
+																					) : (
+																						<ChevronRight className="w-3 h-3 ml-1" />
+																					)}
+																				</Button>
+																			</div>
+																		</div>
+																		{/* 提出履歴 */}
+																		{isAssignExpanded && (
+																			<div className="mt-3 space-y-1">
+																				{historyLoading.has(a.id) ? (
+																					<div className="flex justify-center py-2">
+																						<Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+																					</div>
+																				) : (
+																					(historyByAssignment[a.id] || []).map((h) => (
+																						<div
+																							key={h.id}
+																							className={`flex items-center justify-between text-xs rounded px-2 py-1 ${
+																								h.is_latest
+																									? "bg-green-100 text-green-800"
+																									: "bg-gray-100 text-gray-500"
+																							}`}
+																						>
+																							<span>
+																								第{h.submission_number}版:{" "}
+																								{h.original_filename}
+																							</span>
+																							<span>{fmtDate(h.submitted_at)}</span>
+																						</div>
+																					))
+																				)}
+																			</div>
 																		)}
 																	</div>
 																)}
-															</div>
-														)}
 
-														{/* ファイル提出フォーム */}
-														{!cannotSubmit && (
-															<div className="border-t border-gray-100 px-5 py-4">
-																<p className="text-xs font-semibold text-gray-600 mb-2">
-																	{a.my_submission ? "再提出" : "ファイルを提出"}
-																</p>
-																<div className="flex items-center gap-3">
-																	<label
-																		htmlFor={`file-${a.id}`}
-																		className="flex-1 flex items-center gap-2 border-2 border-dashed border-gray-300 hover:border-primary/50 rounded-lg px-4 py-3 cursor-pointer transition-colors text-sm text-gray-500 hover:text-primary"
-																	>
-																		<Upload className="w-4 h-4 flex-shrink-0" />
-																		{selectedFiles[a.id]
-																			? selectedFiles[a.id]!.name
-																			: "クリックまたはドロップ"}
-																		<input
-																			id={`file-${a.id}`}
-																			type="file"
-																			className="hidden"
-																			ref={(el) => {
-																				fileInputRefs.current[a.id] = el;
-																			}}
-																			accept={a.allowed_file_types || "*"}
-																			onChange={(e) =>
-																				handleFileChange(
-																					a.id,
-																					e.target.files?.[0] ?? null,
-																				)
-																			}
-																		/>
-																	</label>
-																	<Button
-																		disabled={!selectedFiles[a.id] || isUploading}
-																		onClick={() => handleSubmit(a)}
-																		className="flex-shrink-0"
-																	>
-																		{isUploading ? (
-																			<Loader2 className="w-4 h-4 animate-spin mr-2" />
-																		) : (
-																			<Upload className="w-4 h-4 mr-2" />
+																{/* ファイル提出フォーム */}
+																{!cannotSubmit && (
+																	<div className="border-t border-gray-100 px-5 py-4">
+																		<p className="text-xs font-semibold text-gray-600 mb-2">
+																			{a.my_submission ? "再提出" : "ファイルを提出"}
+																		</p>
+																		<div className="flex items-center gap-3">
+																			<label
+																				htmlFor={`file-${a.id}`}
+																				className="flex-1 flex items-center gap-2 border-2 border-dashed border-gray-300 hover:border-primary/50 rounded-lg px-4 py-3 cursor-pointer transition-colors text-sm text-gray-500 hover:text-primary"
+																			>
+																				<Upload className="w-4 h-4 flex-shrink-0" />
+																				{selectedFiles[a.id]
+																					? selectedFiles[a.id]!.name
+																					: "クリックまたはドロップ"}
+																				<input
+																					id={`file-${a.id}`}
+																					type="file"
+																					className="hidden"
+																					ref={(el) => {
+																						fileInputRefs.current[a.id] = el;
+																					}}
+																					accept={a.allowed_file_types || "*"}
+																					onChange={(e) =>
+																						handleFileChange(
+																							a.id,
+																							e.target.files?.[0] ?? null,
+																						)
+																					}
+																				/>
+																			</label>
+																			<Button
+																				disabled={!selectedFiles[a.id] || isUploading}
+																				onClick={() => handleSubmit(a)}
+																				className="flex-shrink-0"
+																			>
+																				{isUploading ? (
+																					<Loader2 className="w-4 h-4 animate-spin mr-2" />
+																				) : (
+																					<Upload className="w-4 h-4 mr-2" />
+																				)}
+																				提出
+																			</Button>
+																		</div>
+
+																		{/* エラー */}
+																		{uploadError[a.id] && (
+																			<div className="mt-2 flex items-start gap-2 text-xs text-red-600 bg-red-50 rounded-lg p-2">
+																				<AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+																				{uploadError[a.id]}
+																			</div>
 																		)}
-																		提出
-																	</Button>
-																</div>
 
-																{/* エラー */}
-																{uploadError[a.id] && (
-																	<div className="mt-2 flex items-start gap-2 text-xs text-red-600 bg-red-50 rounded-lg p-2">
-																		<AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-																		{uploadError[a.id]}
+																		{/* 成功 */}
+																		{uploadSuccess[a.id] && (
+																			<div className="mt-2 flex items-center gap-2 text-xs text-green-600 bg-green-50 rounded-lg p-2">
+																				<CheckCircle className="w-3.5 h-3.5" />
+																				提出が完了しました！
+																			</div>
+																		)}
 																	</div>
 																)}
 
-																{/* 成功 */}
-																{uploadSuccess[a.id] && (
-																	<div className="mt-2 flex items-center gap-2 text-xs text-green-600 bg-green-50 rounded-lg p-2">
-																		<CheckCircle className="w-3.5 h-3.5" />
-																		提出が完了しました！
+																{/* 締切後・再提出不可 */}
+																{cannotSubmit && (
+																	<div className="border-t border-gray-100 px-5 py-3 bg-red-50 text-xs text-red-600 flex items-center gap-2">
+																		<AlertCircle className="w-3.5 h-3.5" />
+																		提出期限が過ぎました（再提出不可）
 																	</div>
 																)}
-															</div>
-														)}
-
-														{/* 締切後・再提出不可 */}
-														{cannotSubmit && (
-															<div className="border-t border-gray-100 px-5 py-3 bg-red-50 text-xs text-red-600 flex items-center gap-2">
-																<AlertCircle className="w-3.5 h-3.5" />
-																提出期限が過ぎました（再提出不可）
-															</div>
+															</>
 														)}
 													</div>
 												);

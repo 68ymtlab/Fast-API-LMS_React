@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	ArrowLeft,
 	BarChart2,
 	Book,
 	ChevronRight,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { memo, type ReactNode, useEffect, useState } from "react";
+import { BreadcrumbBackButton } from "@/components/atoms/layout/BreadcrumbBackButton";
 import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import { AppSidebar } from "@/components/atoms/sidebar/AppSidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -111,16 +111,9 @@ export const StudentBreadcrumbInline = memo(() => {
 	if (pathname === "/home") return null;
 
 	return (
-		<nav className="flex items-center text-xs text-gray-400 gap-0.5">
+		<nav className="flex items-center text-xs text-gray-400 gap-1">
 			{/* 戻るボタン */}
-			<button
-				type="button"
-				onClick={() => router.back()}
-				className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors mr-2"
-			>
-				<ArrowLeft className="size-3.5" />
-				<span className="hidden sm:inline">戻る</span>
-			</button>
+			<BreadcrumbBackButton onClick={() => router.back()} className="mr-1" />
 
 			{/* ホーム */}
 			<button
