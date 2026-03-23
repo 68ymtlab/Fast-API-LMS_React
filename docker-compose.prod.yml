@@ -32,6 +32,8 @@ services:
     restart: unless-stopped
     # ホットリロード関連の環境変数を削除
     environment:
+      - NODE_ENV=production
+      - NPM_CONFIG_PRODUCTION=true
       - CHOKIDAR_USEPOLLING=
       - HOSTNAME=0.0.0.0
     env_file:
