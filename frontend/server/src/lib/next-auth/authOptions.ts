@@ -6,6 +6,41 @@ import qs from "qs";
 import type { LoginResponse } from "@/types/api/auth/user";
 import config from "../utils/config";
 
+const DEFAULT_ACCESS_TOKEN_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * JWT文字列からexpを読み取り、ミリ秒のUNIX時刻に変換する
+ */
+function getJwtExpiryMs(jwtToken?: string): number {
+	if (!jwtToken) {
+		return Date.now() + DEFAULT_ACCESS_TOKEN_TTL_MS;
+	}
+
+	try {
+		const payloadBase64Url = jwtToken.split(".")[1];
+		if (!payloadBase64Url) {
+			return Date.now() + DEFAULT_ACCESS_TOKEN_TTL_MS;
+		}
+
+		const payloadBase64 = payloadBase64Url
+			.replace(/-/g, "+")
+			.replace(/_/g, "/")
+			.padEnd(Math.ceil(payloadBase64Url.length / 4) * 4, "=");
+
+		const decoded = JSON.parse(
+			Buffer.from(payloadBase64, "base64").toString("utf-8"),
+		) as { exp?: number };
+
+		if (typeof decoded.exp === "number") {
+			return decoded.exp * 1000;
+		}
+	} catch (error) {
+		console.warn("[NextAuth] Failed to parse JWT exp:", error);
+	}
+
+	return Date.now() + DEFAULT_ACCESS_TOKEN_TTL_MS;
+}
+
 /**
  * リフレッシュトークンを使用して新しいアクセストークンを取得
  */
@@ -25,7 +60,8 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 			...token,
 			accessToken: access_token,
 			refreshToken: refresh_token ?? token.refreshToken, // フォールバック
-			accessTokenExpires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7日後
+			accessTokenExpires: getJwtExpiryMs(access_token),
+			error: undefined,
 		};
 	} catch (error) {
 		console.error("[NextAuth] Failed to refresh access token:", error);
@@ -120,8 +156,9 @@ export const authOptions: NextAuthOptions = {
 
 				token.accessToken = user.accessToken;
 				token.refreshToken = user.refreshToken;
-				// アクセストークンの有効期限を設定（7日間）
-				token.accessTokenExpires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+				// アクセストークンの有効期限はJWTのexpを使用
+				token.accessTokenExpires = getJwtExpiryMs(user.accessToken);
+				token.error = undefined;
 
 				return token;
 			}

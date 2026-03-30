@@ -131,6 +131,20 @@ export default withAuth(
 					return true;
 				}
 
+				// リフレッシュ失敗済みトークンは拒否
+				if (token?.error === "RefreshAccessTokenError") {
+					return false;
+				}
+
+				// アクセストークン期限切れは未認証扱い
+				if (
+					token &&
+					typeof token.accessTokenExpires === "number" &&
+					Date.now() >= token.accessTokenExpires
+				) {
+					return false;
+				}
+
 				// その他のページは認証が必要
 				return !!token;
 			},

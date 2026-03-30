@@ -11,7 +11,7 @@ class Settings(BaseSettings):
   ALGORITHM: str = "HS256"
   
   # アクセストークンの有効期限
-  ACCESS_TOKEN_EXPIRE_MINUTES: int = 7*24*60
+  ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
   
   # リフレッシュトークンの有効期限
   REFRESH_TOKEN_EXPIRE_MINUTES: int = 30*24*60
