@@ -45,6 +45,14 @@ function getJwtExpiryMs(jwtToken?: string): number {
  * リフレッシュトークンを使用して新しいアクセストークンを取得
  */
 async function refreshAccessToken(token: JWT): Promise<JWT> {
+	if (!token.refreshToken) {
+		console.error("[NextAuth] Missing refresh token in JWT");
+		return {
+			...token,
+			error: "RefreshAccessTokenError",
+		};
+	}
+
 	try {
 		const response = await axios.post(
 			`${config.internalApiBaseUrl}/api/refresh`,

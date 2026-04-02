@@ -14,7 +14,8 @@ class TokenData(BaseModel):
     JWTのペイロードを型付けするためのスキーマ。
     実運用では `email` が最重要で、他は環境/ユーザーによって欠ける可能性があるため任意にする。
     """
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    sub: Optional[EmailStr] = None
     id: Optional[int] = None
     username: Optional[str] = None
     display_name: Optional[str] = None

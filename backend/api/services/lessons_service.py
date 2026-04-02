@@ -67,6 +67,14 @@ class LessonService:
             user_id=user_id,
         )
 
+    async def update_textbook_marker_color_by_id_and_user(self, *, marker_id: int, user_id: int, color: str):
+        """指定ユーザーが所有する教科書マーカーの色を更新します。"""
+        return await self.lesson_repo.update_textbook_marker_color_by_id_and_user(
+            marker_id=marker_id,
+            user_id=user_id,
+            color=color,
+        )
+
     async def delete_textbook_marker_by_id_and_user(self, *, marker_id: int, user_id: int) -> bool:
         """指定ユーザーが所有する教科書マーカーを削除します。"""
         return await self.lesson_repo.delete_textbook_marker_by_id_and_user(

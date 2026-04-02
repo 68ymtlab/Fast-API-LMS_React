@@ -378,6 +378,30 @@ async def delete_textbook_marker(
     return
 
 
+@lessons_router.put(
+    "/textbook-markers/{marker_id}",
+    response_model=lessons_schema.TextbookMarkerResponse,
+    summary="教科書マーカー色変更",
+)
+async def update_textbook_marker_color(
+    marker_id: int,
+    marker_in: lessons_schema.TextbookMarkerColorUpdate,
+    current_user: users_model.Users = Depends(get_current_active_user),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    lesson_service: LessonService = Depends(get_lesson_service),
+):
+    """ログインユーザーの教科書マーカー色を更新します。"""
+    marker = await lesson_service.update_textbook_marker_color_by_id_and_user(
+        marker_id=marker_id,
+        user_id=current_user.id,
+        color=marker_in.color,
+    )
+    if not marker:
+        raise HTTPException(status_code=404, detail="該当するマーカーが見つかりません")
+    await lesson_repo.db.commit()
+    return marker
+
+
 @lessons_router.get("/questions", response_model=List[lessons_schema.CourseQuestion], summary="演習問題一覧取得")
 async def list_questions(
     current_user: users_model.Users = Depends(get_current_active_user),

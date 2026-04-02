@@ -81,9 +81,14 @@ async def refresh_token(
         # リフレッシュトークンを検証してデコード
         payload = TokenManager.decode_token(refresh_request.refresh_token)
         token_data = user_schema.TokenData(**payload)
-        
-        # ユーザー情報を取得
-        user = await service.get_user_by_email(email=token_data.email)
+
+        # 後方互換: token payload は email / sub / id のいずれかでユーザー特定を許容
+        token_email = token_data.email or token_data.sub
+        user = None
+        if token_email:
+            user = await service.get_user_by_email(email=token_email)
+        elif token_data.id is not None:
+            user = await service.get_user_by_id(user_id=token_data.id)
         
         if not user or not user.is_active:
             raise HTTPException(

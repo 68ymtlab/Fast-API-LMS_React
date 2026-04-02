@@ -4,6 +4,19 @@
 	line-height: 2;
 }
 
+/* MathJaxの補助MML（不可視テキスト）は選択対象から外す */
+.textbook mjx-assistive-mml,
+.textbook .MJX_Assistive_MathML {
+	user-select: none;
+	pointer-events: none;
+}
+
+/* 長い数式でもドラッグ選択しやすくする */
+.textbook mjx-container,
+.textbook mjx-container * {
+	user-select: text;
+}
+
 /* 教科書内の画像: width/height 属性・style属性で指定したサイズを優先する */
 .textbook img {
 	height: auto;

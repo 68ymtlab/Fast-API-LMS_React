@@ -19,6 +19,19 @@ import axios from "@/lib/axios";
 // DOM ハイライト適用ユーティリティ（コンポーネント外で定義）
 // -----------------------------------------------------------------------
 
+const MARKER_COLOR_MAP: Record<string, string> = {
+	yellow: "#fff59d",
+	pink: "#ffd6eb",
+	green: "#d9fdd3",
+	blue: "#dbeafe",
+	orange: "#ffe4bf",
+};
+
+function resolveMarkerColor(color: string | null | undefined): string {
+	if (!color) return MARKER_COLOR_MAP.yellow;
+	return MARKER_COLOR_MAP[color] ?? color;
+}
+
 function removeHighlights(container: HTMLElement) {
 	container
 		.querySelectorAll("span[data-textbook-marker]")
@@ -28,6 +41,17 @@ function removeHighlights(container: HTMLElement) {
 			while (span.firstChild) parent.insertBefore(span.firstChild, span);
 			parent.removeChild(span);
 		});
+	container
+		.querySelectorAll<HTMLElement>("[data-textbook-marker-math='true']")
+		.forEach((el) => {
+			el.removeAttribute("data-textbook-marker-math");
+			el.removeAttribute("data-marker-id");
+			el.style.backgroundColor = "";
+			el.style.borderRadius = "";
+			el.style.boxShadow = "";
+			el.style.cursor = "";
+			el.title = "";
+		});
 	container.normalize();
 }
 
@@ -36,30 +60,123 @@ function normalizeSpaces(s: string): string {
 	return s.replace(/\s+/g, " ").trim();
 }
 
+function isIgnoredForMarker(node: Node): boolean {
+	const parent =
+		node.nodeType === Node.ELEMENT_NODE
+			? (node as Element)
+			: node.parentElement;
+	if (!parent) return true;
+	return !!parent.closest(
+		"mjx-assistive-mml, .MJX_Assistive_MathML, script, style, noscript",
+	);
+}
+
+function getMarkerTextNodes(container: HTMLElement): Text[] {
+	const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+	const nodes: Text[] = [];
+	let node = walker.nextNode() as Text | null;
+	while (node) {
+		if ((node.nodeValue?.length ?? 0) > 0 && !isIgnoredForMarker(node)) {
+			nodes.push(node);
+		}
+		node = walker.nextNode() as Text | null;
+	}
+	return nodes;
+}
+
+function getMarkerFullText(container: HTMLElement): string {
+	return getMarkerTextNodes(container)
+		.map((n) => n.nodeValue ?? "")
+		.join("");
+}
+
+function getMathJaxContainerIndex(container: HTMLElement, node: Node): number | null {
+	const base =
+		node.nodeType === Node.ELEMENT_NODE
+			? (node as Element)
+			: node.parentElement;
+	if (!base) return null;
+	const math = base.closest("mjx-container");
+	if (!math) return null;
+	const all = Array.from(container.querySelectorAll("mjx-container"));
+	const idx = all.indexOf(math as Element);
+	return idx >= 0 ? idx : null;
+}
+
+function getMathJaxContainerByIndex(
+	container: HTMLElement,
+	index: number | null,
+): HTMLElement | null {
+	if (typeof index !== "number" || index < 0) return null;
+	const mathEls = container.querySelectorAll<HTMLElement>("mjx-container");
+	return mathEls[index] ?? null;
+}
+
+function getMathJaxReadableText(mathEl: HTMLElement | null): string {
+	if (!mathEl) return "";
+	const assistiveText =
+		mathEl
+			.querySelector("mjx-assistive-mml, .MJX_Assistive_MathML")
+			?.textContent?.trim() ?? "";
+	if (assistiveText) return assistiveText;
+	const ariaLabel = mathEl.getAttribute("aria-label")?.trim() ?? "";
+	if (ariaLabel) return ariaLabel;
+	return mathEl.textContent?.trim() ?? "";
+}
+
+function getSingleMathJaxIndexFromRange(
+	container: HTMLElement,
+	range: Range,
+): number | null {
+	const mathEls = Array.from(container.querySelectorAll<HTMLElement>("mjx-container"));
+	const hit = mathEls
+		.map((el, idx) => ({ el, idx }))
+		.filter(({ el }) => {
+			try {
+				return range.intersectsNode(el);
+			} catch {
+				return false;
+			}
+		})
+		.map(({ idx }) => idx);
+	return hit.length === 1 ? hit[0] : null;
+}
+
+function getMathJaxIndexesFromRange(
+	container: HTMLElement,
+	range: Range,
+): number[] {
+	const mathEls = Array.from(container.querySelectorAll<HTMLElement>("mjx-container"));
+	return mathEls
+		.map((el, idx) => ({ el, idx }))
+		.filter(({ el }) => {
+			try {
+				return range.intersectsNode(el);
+			} catch {
+				return false;
+			}
+		})
+		.map(({ idx }) => idx);
+}
+
 // container.textContent と同じ基準で、任意の DOM 境界点を「文字オフセット」に変換する
 function boundaryToTextOffset(
 	container: HTMLElement,
 	boundaryNode: Node,
 	boundaryOffset: number,
 ): number | null {
-	const walker = document.createTreeWalker(
-		container,
-		NodeFilter.SHOW_TEXT,
-		null,
-	);
-
+	const nodes = getMarkerTextNodes(container);
 	let acc = 0;
-	let node = walker.nextNode() as Text | null;
 
 	// 境界が Text ノード内なら直接
-	if (boundaryNode.nodeType === Node.TEXT_NODE) {
-		while (node) {
+	if (
+		boundaryNode.nodeType === Node.TEXT_NODE &&
+		!isIgnoredForMarker(boundaryNode)
+	) {
+		for (const node of nodes) {
 			const len = node.nodeValue?.length ?? 0;
-			if (node === boundaryNode) {
-				return acc + Math.min(Math.max(boundaryOffset, 0), len);
-			}
+			if (node === boundaryNode) return acc + Math.min(Math.max(boundaryOffset, 0), len);
 			acc += len;
-			node = walker.nextNode() as Text | null;
 		}
 		return null;
 	}
@@ -74,7 +191,7 @@ function boundaryToTextOffset(
 		return null;
 	}
 
-	while (node) {
+	for (const node of nodes) {
 		const len = node.nodeValue?.length ?? 0;
 		const cmp = br.comparePoint(node, 0);
 		if (cmp >= 0) {
@@ -82,11 +199,63 @@ function boundaryToTextOffset(
 			return acc;
 		}
 		acc += len;
-		node = walker.nextNode() as Text | null;
 	}
 
 	// 境界が全テキストノードより後ろなら、全文末尾
 	return acc;
+}
+
+// Range から container.textContent 基準のオフセット [start, end) を求める
+function rangeToTextOffsets(
+	container: HTMLElement,
+	range: Range,
+): { start: number; end: number } | null {
+	const start = boundaryToTextOffset(
+		container,
+		range.startContainer,
+		range.startOffset,
+	);
+	const end = boundaryToTextOffset(
+		container,
+		range.endContainer,
+		range.endOffset,
+	);
+	if (typeof start === "number" && typeof end === "number" && end > start) {
+		return { start, end };
+	}
+
+	// フォールバック: 交差しているテキストノード群から最小/最大オフセットを推定
+	const nodes = getMarkerTextNodes(container);
+	let acc = 0;
+	let startGuess: number | null = null;
+	let endGuess: number | null = null;
+
+	for (const node of nodes) {
+		const len = node.nodeValue?.length ?? 0;
+		const nodeStart = acc;
+		const nodeEnd = acc + len;
+		let intersects = false;
+		try {
+			intersects = range.intersectsNode(node);
+		} catch {
+			intersects = false;
+		}
+
+		if (intersects) {
+			if (startGuess === null) startGuess = nodeStart;
+			endGuess = nodeEnd;
+		}
+		acc = nodeEnd;
+	}
+
+	if (
+		typeof startGuess === "number" &&
+		typeof endGuess === "number" &&
+		endGuess > startGuess
+	) {
+		return { start: startGuess, end: endGuess };
+	}
+	return null;
 }
 
 // マーカー位置の検索結果（開始インデックスとハイライトする長さ）
@@ -157,19 +326,13 @@ function createRangeFromOffsets(
 	start: number,
 	end: number,
 ): Range | null {
-	const walker = document.createTreeWalker(
-		container,
-		NodeFilter.SHOW_TEXT,
-		null,
-	);
-
-	let node = walker.nextNode() as Text | null;
+	const nodes = getMarkerTextNodes(container);
 	let acc = 0;
 	const range = document.createRange();
 	let startSet = false;
 	let endSet = false;
 
-	while (node) {
+	for (const node of nodes) {
 		const len = node.nodeValue?.length ?? 0;
 		const nodeStart = acc;
 		const nodeEnd = acc + len;
@@ -186,7 +349,6 @@ function createRangeFromOffsets(
 		}
 
 		acc = nodeEnd;
-		node = walker.nextNode() as Text | null;
 	}
 
 	// start/end のどちらかでも決まらなければ不正なオフセットとして扱う
@@ -197,6 +359,41 @@ function createRangeFromOffsets(
 }
 
 // note フィールドからオフセット情報をパース（新規マーカー用）
+function parseMarkerNote(
+	note: string | null,
+): {
+	offsets: { start: number; end: number } | null;
+	mathIndex: number | null;
+	mathIndexes: number[];
+} {
+	if (!note) return { offsets: null, mathIndex: null, mathIndexes: [] };
+	try {
+		const parsed = JSON.parse(note) as {
+			s?: number;
+			e?: number;
+			mjx?: number;
+			mjx_list?: unknown;
+		};
+		const offsets =
+			typeof parsed.s === "number" &&
+			typeof parsed.e === "number" &&
+			parsed.s >= 0 &&
+			parsed.e >= parsed.s
+				? { start: parsed.s, end: parsed.e }
+				: null;
+		const mathIndex =
+			typeof parsed.mjx === "number" && parsed.mjx >= 0
+				? parsed.mjx
+				: null;
+		const mathIndexes = Array.isArray(parsed.mjx_list)
+			? parsed.mjx_list.filter((v): v is number => typeof v === "number" && v >= 0)
+			: [];
+		return { offsets, mathIndex, mathIndexes };
+	} catch {
+		return { offsets: null, mathIndex: null, mathIndexes: [] };
+	}
+}
+
 function parseOffsetsFromNote(
 	note: string | null,
 ): { start: number; end: number } | null {
@@ -223,9 +420,7 @@ function applyHighlightsToDOM(
 ) {
 	removeHighlights(container);
 	if (!markers.length) return;
-
-	const fullText = container.textContent ?? "";
-	if (!fullText) return;
+	let markerFullTextCache: string | null = null;
 
 	// 長いものから先に処理（短いマーカーが長いものの内側にあるのを防ぐ）
 	const sorted = [...markers].sort(
@@ -237,8 +432,46 @@ function applyHighlightsToDOM(
 		if (!target) continue;
 
 		const normTarget = normalizeSpaces(target);
-		const offsets = parseOffsetsFromNote(marker.note);
+		const parsedNote = parseMarkerNote(marker.note);
+		const offsets = parsedNote.offsets ?? parseOffsetsFromNote(marker.note);
 		let range: Range | null = null;
+
+		if (parsedNote.mathIndexes.length > 0) {
+			const mathEls = container.querySelectorAll<HTMLElement>("mjx-container");
+			for (const idx of parsedNote.mathIndexes) {
+				const mathEl = mathEls[idx];
+				if (!mathEl) continue;
+				const color = marker.color || "yellow";
+				mathEl.setAttribute("data-textbook-marker-math", "true");
+				mathEl.setAttribute("data-marker-id", String(marker.id));
+				const resolvedColor = resolveMarkerColor(color);
+				mathEl.style.backgroundColor = resolvedColor;
+				mathEl.style.borderRadius = "0.2em";
+				mathEl.style.boxShadow = `inset 0 -0.35em 0 ${resolvedColor}`;
+				mathEl.style.cursor = "context-menu";
+				mathEl.title = "右クリックでマーカーを削除";
+			}
+			// offsets がある場合は本文側も続けてハイライトする
+			if (!offsets) continue;
+		}
+
+		if (typeof parsedNote.mathIndex === "number") {
+			const mathEls = container.querySelectorAll<HTMLElement>("mjx-container");
+			const mathEl = mathEls[parsedNote.mathIndex];
+			if (mathEl) {
+				const color = marker.color || "yellow";
+				const resolvedColor = resolveMarkerColor(color);
+				mathEl.setAttribute("data-textbook-marker-math", "true");
+				mathEl.setAttribute("data-marker-id", String(marker.id));
+				mathEl.style.backgroundColor = resolvedColor;
+				mathEl.style.borderRadius = "0.2em";
+				mathEl.style.boxShadow = `inset 0 -0.35em 0 ${resolvedColor}`;
+				mathEl.style.cursor = "context-menu";
+				mathEl.title = "右クリックでマーカーを削除";
+				// offsets がある場合は本文側も続けてハイライトする
+				if (!offsets) continue;
+			}
+		}
 
 		// 1) まず保存済みオフセットから Range を復元してみる
 		if (offsets) {
@@ -262,7 +495,11 @@ function applyHighlightsToDOM(
 
 		// 2) オフセットが使えない場合は、現在の本文テキストから検索して位置を決める
 		if (!range) {
-			const match = findMarkerPositionInFullText(fullText, marker);
+			if (markerFullTextCache === null) {
+				markerFullTextCache = getMarkerFullText(container);
+			}
+			if (!markerFullTextCache) continue;
+			const match = findMarkerPositionInFullText(markerFullTextCache, marker);
 			if (!match) continue;
 			const end = match.start + match.length;
 			range = createRangeFromOffsets(container, match.start, end);
@@ -277,11 +514,12 @@ function applyHighlightsToDOM(
 		const spanAttrs = (span: HTMLSpanElement) => {
 			span.setAttribute("data-textbook-marker", "true");
 			span.setAttribute("data-marker-id", String(marker.id));
-			span.style.backgroundColor = marker.color || "yellow";
-			span.style.padding = "0 0.1em";
+			span.style.backgroundColor = resolveMarkerColor(marker.color);
+			// MathJaxの記号・数字が細かいノードに分かれる場合でも字間が開かないようにする
+			span.style.padding = "0";
 			span.style.borderRadius = "0.15em";
-			span.style.cursor = "pointer";
-			span.title = "クリックでマーカーを削除";
+			span.style.cursor = "context-menu";
+			span.title = "右クリックでマーカーを削除";
 		};
 
 		try {
@@ -300,34 +538,32 @@ function applyHighlightBySegments(
 	range: Range,
 	spanAttrs: (span: HTMLSpanElement) => void,
 ) {
-	const endNode = range.endContainer;
-	const endOffset = range.endOffset;
-	const segments: { node: Text; start: number; end: number }[] = [];
+	const root =
+		range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+			? (range.commonAncestorContainer as Element)
+			: range.commonAncestorContainer.parentElement;
+	if (!root) return;
 
-	let node: Node | null = range.startContainer;
-	let offset = range.startOffset;
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+	const segments: { node: Text; start: number; end: number }[] = [];
+	let node = walker.nextNode() as Text | null;
 
 	while (node) {
-		if (node.nodeType === Node.TEXT_NODE) {
-			const textNode = node as Text;
-			const len = textNode.length;
-			const segStart =
-				node === range.startContainer ? offset : 0;
-			const segEnd = node === endNode ? endOffset : len;
-			if (segStart < segEnd)
-				segments.push({ node: textNode, start: segStart, end: segEnd });
-			// endContainer を処理したら必ず終了（ここを抜けると下まで塗ってしまう）
-			if (node === endNode) break;
-			offset = len;
+		if ((node.nodeValue?.length ?? 0) > 0 && range.intersectsNode(node)) {
+			const len = node.length;
+			const segStart = node === range.startContainer ? range.startOffset : 0;
+			const segEnd = node === range.endContainer ? range.endOffset : len;
+			if (segStart < segEnd) {
+				segments.push({ node, start: segStart, end: segEnd });
+			}
 		}
-		node = nextNodeInDocumentOrder(node, offset);
-		offset = 0;
+		node = walker.nextNode() as Text | null;
 	}
 
 	for (const { node: textNode, start, end } of segments) {
 		// 改行や段落間の空白だけのセグメントはレイアウト崩れの原因になるのでスキップ
 		const slice = textNode.data.slice(start, end);
-		if (!slice.trim()) continue;
+		if (/^[\n\r\t ]*$/.test(slice)) continue;
 		try {
 			const seg = document.createRange();
 			seg.setStart(textNode, start);
@@ -339,25 +575,6 @@ function applyHighlightBySegments(
 			// このセグメントはスキップ（既に別の span に含まれている等）
 		}
 	}
-}
-
-/** document order で次のノードへ（子→兄弟→親の兄弟） */
-function nextNodeInDocumentOrder(node: Node, offset: number): Node | null {
-	if (node.nodeType === Node.TEXT_NODE) {
-		const parent = node.parentNode;
-		if (!parent) return null;
-		const idx = Array.from(parent.childNodes).indexOf(node as ChildNode);
-		const next = parent.childNodes[idx + 1];
-		if (next) return next;
-		return nextNodeInDocumentOrder(parent, idx + 1);
-	}
-	const el = node as Element;
-	const child = el.childNodes[offset];
-	if (child) return child;
-	const parent = el.parentNode;
-	if (!parent) return null;
-	const idx = Array.from(parent.childNodes).indexOf(el as ChildNode);
-	return nextNodeInDocumentOrder(parent, idx + 1);
 }
 
 // 新APIのレスポンス型定義
@@ -402,7 +619,23 @@ type PopupState = {
 	left: number;
 	startOffset: number | null;
 	endOffset: number | null;
+	mathJaxIndex: number | null;
+	mathJaxIndexes: number[];
 };
+
+type MarkerContextMenuState = {
+	markerId: number;
+	top: number;
+	left: number;
+};
+
+const MARKER_COLOR_OPTIONS = [
+	{ value: "yellow", label: "黄", hex: "#fff59d" },
+	{ value: "pink", label: "桃", hex: "#ffd6eb" },
+	{ value: "green", label: "緑", hex: "#d9fdd3" },
+	{ value: "blue", label: "青", hex: "#dbeafe" },
+	{ value: "orange", label: "橙", hex: "#ffe4bf" },
+] as const;
 
 // -----------------------------------------------------------------------
 // React.memo でラップ → content が変わった時のみ再レンダリング
@@ -418,6 +651,50 @@ const TextbookContent = memo(function TextbookContent({
 		</MathJaxSetup>
 	);
 });
+
+function countSatisfiedMarkers(
+	container: HTMLElement,
+	markerList: TextbookMarkerType[],
+): number {
+	const mathEls = Array.from(
+		container.querySelectorAll<HTMLElement>("mjx-container"),
+	);
+
+	let satisfied = 0;
+	for (const marker of markerList) {
+		const markerId = String(marker.id);
+		const noteInfo = parseMarkerNote(marker.note);
+		const hasTextHighlight =
+			container.querySelector(
+				`span[data-textbook-marker][data-marker-id="${markerId}"]`,
+			) !== null;
+
+		let hasRequiredMathHighlight = true;
+		if (noteInfo.mathIndexes.length > 0) {
+			hasRequiredMathHighlight = noteInfo.mathIndexes.every((idx) => {
+				const mathEl = mathEls[idx];
+				return (
+					!!mathEl &&
+					mathEl.getAttribute("data-marker-id") === markerId &&
+					mathEl.getAttribute("data-textbook-marker-math") === "true"
+				);
+			});
+		} else if (typeof noteInfo.mathIndex === "number") {
+			const mathEl = mathEls[noteInfo.mathIndex];
+			hasRequiredMathHighlight =
+				!!mathEl &&
+				mathEl.getAttribute("data-marker-id") === markerId &&
+				mathEl.getAttribute("data-textbook-marker-math") === "true";
+		}
+
+		const hasOffsets = !!noteInfo.offsets;
+		const ok =
+			hasRequiredMathHighlight &&
+			(!hasOffsets || hasTextHighlight || marker.exact_text.startsWith("[math:"));
+		if (ok) satisfied += 1;
+	}
+	return satisfied;
+}
 
 const LessonPage = () => {
 	const router = useRouter();
@@ -436,15 +713,26 @@ const LessonPage = () => {
 	const [markerMode, setMarkerMode] = useState(false);
 	const [showMarkerHint, setShowMarkerHint] = useState(true);
 	const [popup, setPopup] = useState<PopupState | null>(null);
+	const [contextMenu, setContextMenu] = useState<MarkerContextMenuState | null>(null);
 	const [markerSaving, setMarkerSaving] = useState(false);
 	const [markerMessage, setMarkerMessage] = useState<string | null>(null);
+	const [deletingMarkerIds, setDeletingMarkerIds] = useState<number[]>([]);
+	const [updatingMarkerIds, setUpdatingMarkerIds] = useState<number[]>([]);
+	const [selectedMarkerColor, setSelectedMarkerColor] = useState<string>("yellow");
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const popupRef = useRef<HTMLDivElement | null>(null);
+	const contextMenuRef = useRef<HTMLDivElement | null>(null);
+	const pointerDownRef = useRef(false);
+	const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+	const selectionChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	// markersの最新値をeffect内から参照するためのref
 	const markersRef = useRef<TextbookMarkerType[]>([]);
 	markersRef.current = markers;
-	// MathJax描画後のハイライト適用タイマー
-	const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const deleteInFlightRef = useRef<Set<number>>(new Set());
+	const applyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const applyRetryRafRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
@@ -523,81 +811,172 @@ const LessonPage = () => {
 		applyHighlightsToDOM(container, markersRef.current);
 	}, []);
 
-	useEffect(() => {
-		if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
-		// MathJaxが非同期でタイプセットを完了するまで待つ
-		applyTimerRef.current = setTimeout(applyHighlights, 800);
-		return () => {
-			if (applyTimerRef.current) clearTimeout(applyTimerRef.current);
+	const clearApplyRetry = useCallback(() => {
+		if (applyRetryTimerRef.current) {
+			clearTimeout(applyRetryTimerRef.current);
+			applyRetryTimerRef.current = null;
+		}
+		if (applyRetryRafRef.current !== null) {
+			cancelAnimationFrame(applyRetryRafRef.current);
+			applyRetryRafRef.current = null;
+		}
+	}, []);
+
+	const scheduleApplyHighlights = useCallback((reason: "content" | "markers") => {
+		clearApplyRetry();
+
+		let attempt = 0;
+		const maxAttempts = reason === "content" ? 12 : 6;
+
+		const run = () => {
+			applyHighlights();
+
+			const container = containerRef.current;
+			if (!container) return;
+
+			const markerCount = markersRef.current.length;
+			if (markerCount === 0) return;
+
+			const satisfiedCount = countSatisfiedMarkers(
+				container,
+				markersRef.current,
+			);
+			if (satisfiedCount >= markerCount) return;
+
+			if (attempt >= maxAttempts) {
+				console.warn("[marker] highlight apply retry exceeded", {
+					reason,
+					markerCount,
+					satisfiedCount,
+				});
+				return;
+			}
+
+			attempt += 1;
+			const delay = reason === "content" ? 120 : 80;
+			applyRetryTimerRef.current = setTimeout(run, delay);
 		};
-	}, [content, applyHighlights]);
+
+		applyRetryRafRef.current = requestAnimationFrame(run);
+	}, [applyHighlights, clearApplyRetry]);
 
 	useEffect(() => {
-		// markersが変わった時はDOMを再描画しないので即時適用
-		applyHighlights();
-	}, [markers, applyHighlights]);
+		// MathJax描画完了の揺らぎに備えて、content更新時は短時間リトライで適用
+		scheduleApplyHighlights("content");
+		return clearApplyRetry;
+	}, [content, scheduleApplyHighlights, clearApplyRetry]);
+
+	useEffect(() => {
+		// markers更新直後はDOM確定前のことがあるため、即時 + 短時間リトライで補強
+		scheduleApplyHighlights("markers");
+	}, [markers, scheduleApplyHighlights]);
 
 	// ----------------------------------------------------------------
 	// テキスト選択でポップアップ表示（マウスカーソル付近に出す）
 	// ----------------------------------------------------------------
-	const handleMouseUp = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+	const openMarkerPopupFromSelection = useCallback((cursor?: {
+		x: number;
+		y: number;
+	}) => {
 		if (!markerMode) {
 			// モードオフ時は何もしない
 			return;
 		}
-		console.log("[marker] handleMouseUp fired");
+
 		const container = containerRef.current;
 		if (!container) {
-			console.log("[marker] no containerRef");
 			return;
 		}
+
 		const sel = window.getSelection();
 		if (!sel || sel.rangeCount === 0) {
-			console.log("[marker] no selection or rangeCount=0");
 			return;
 		}
 
 		const range = sel.getRangeAt(0);
-		const inContainer = container.contains(range.commonAncestorContainer);
-		console.log("[marker] range commonAncestor in container?", inContainer);
+		const inContainer =
+			container.contains(range.commonAncestorContainer) ||
+			(container.contains(range.startContainer) &&
+				container.contains(range.endContainer));
 		if (!inContainer) return;
 
-		const exactText = sel.toString().trim();
-		console.log("[marker] selected text:", exactText);
+		const fullText = getMarkerFullText(container);
+		const offsets = rangeToTextOffsets(container, range);
+		const startMathIndex = getMathJaxContainerIndex(container, range.startContainer);
+		const endMathIndex = getMathJaxContainerIndex(container, range.endContainer);
+		const mathJaxIndexByBoundary =
+			startMathIndex !== null && startMathIndex === endMathIndex
+				? startMathIndex
+				: null;
+		const mathJaxIndexes = getMathJaxIndexesFromRange(container, range);
+		const mathJaxIndex =
+			mathJaxIndexByBoundary ??
+			(mathJaxIndexes.length === 1
+				? mathJaxIndexes[0]
+				: getSingleMathJaxIndexFromRange(container, range));
+
+		let exactText = sel.toString().trim();
+		if (!exactText) {
+			exactText = range.toString().trim();
+		}
+		if (!exactText) {
+			try {
+				exactText = range.cloneContents().textContent?.trim() ?? "";
+			} catch {
+				// clone失敗時は次のフォールバックへ
+			}
+		}
+		if (!exactText && offsets) {
+			// Selection API が空文字を返すケースでも、可視テキスト基準の範囲文字列で補完
+			exactText = fullText.slice(offsets.start, offsets.end).trim();
+		}
+		if (!exactText && mathJaxIndex !== null) {
+			const mathEl = getMathJaxContainerByIndex(container, mathJaxIndex);
+			exactText = getMathJaxReadableText(mathEl);
+		}
+		if (!exactText && mathJaxIndexes.length > 0) {
+			exactText = mathJaxIndexes
+				.map((idx) =>
+					getMathJaxReadableText(getMathJaxContainerByIndex(container, idx)),
+				)
+				.filter(Boolean)
+				.join(" ");
+		}
+		if (!exactText && mathJaxIndex !== null) {
+			// ここまで空文字の場合でも、MathJax選択として扱えるよう保存キーを作る
+			exactText = `[math:${mathJaxIndex}]`;
+		}
+		if (!exactText && mathJaxIndexes.length > 0) {
+			exactText = `[math-list:${mathJaxIndexes.join(",")}]`;
+		}
 		if (!exactText) {
 			setPopup(null);
 			return;
 		}
-
-		const fullText = container.textContent || "";
-		const startOffset = boundaryToTextOffset(
-			container,
-			range.startContainer,
-			range.startOffset,
-		);
-		const endOffset = boundaryToTextOffset(
-			container,
-			range.endContainer,
-			range.endOffset,
-		);
-		if (
-			typeof startOffset !== "number" ||
-			typeof endOffset !== "number" ||
-			endOffset <= startOffset
-		) {
-			setPopup(null);
-			return;
+		// オフセット計算が失敗しても、選択文字列が取れていればポップアップは表示する
+		// （長い数式・特殊DOMで boundary 計算が不安定なケースの取りこぼし防止）
+		const startOffset = offsets?.start ?? null;
+		const endOffset = offsets?.end ?? null;
+		// offsets がある場合は、保存用の exactText を本文基準で統一する
+		// （MathJax可読文字列優先だと本文が欠けて保存され、再適用で数式だけになる）
+		if (typeof startOffset === "number" && typeof endOffset === "number") {
+			const fromOffsets = fullText.slice(startOffset, endOffset).trim();
+			if (fromOffsets) exactText = fromOffsets;
 		}
-		const textPrefix = fullText.slice(
-			Math.max(0, startOffset - 20),
-			startOffset,
-		);
-		const textSuffix = fullText.slice(endOffset, endOffset + 20);
+		const textPrefix =
+			typeof startOffset === "number"
+				? fullText.slice(Math.max(0, startOffset - 20), startOffset)
+				: "";
+		const textSuffix =
+			typeof endOffset === "number"
+				? fullText.slice(endOffset, endOffset + 20)
+				: "";
 
 		// マウスカーソル位置を基準にポップアップ表示位置を決定
 		// ポップアップは position: fixed なので、スクロール量は足さない（client 座標をそのまま使う）
-		const cursorX = e.clientX;
-		const cursorY = e.clientY;
+		const rect = range.getBoundingClientRect();
+		const cursorX = cursor?.x ?? rect.right;
+		const cursorY = cursor?.y ?? rect.bottom;
 		const popupTop = Math.max(8, cursorY + 8);
 		const popupLeft = Math.min(
 			Math.max(8, cursorX + 8),
@@ -612,52 +991,248 @@ const LessonPage = () => {
 			left: popupLeft,
 			startOffset,
 			endOffset,
-		});
-		console.log("[marker] popup set", {
-			exactText,
-			textPrefix,
-			textSuffix,
-			startOffset,
-			endOffset,
+			mathJaxIndex,
+			mathJaxIndexes,
 		});
 	}, [markerMode]);
 
+	const handleMouseUp = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
+		openMarkerPopupFromSelection({ x: e.clientX, y: e.clientY });
+	}, [openMarkerPopupFromSelection]);
+
+	useEffect(() => {
+		const onMouseUp = (e: globalThis.MouseEvent) => {
+			pointerDownRef.current = false;
+			lastPointerRef.current = { x: e.clientX, y: e.clientY };
+			if (!markerMode) return;
+			const targetNode = e.target as Node | null;
+			if (
+				(targetNode && popupRef.current?.contains(targetNode)) ||
+				(targetNode && contextMenuRef.current?.contains(targetNode))
+			) {
+				return;
+			}
+			openMarkerPopupFromSelection({ x: e.clientX, y: e.clientY });
+		};
+
+		document.addEventListener("mouseup", onMouseUp);
+		return () => document.removeEventListener("mouseup", onMouseUp);
+	}, [markerMode, openMarkerPopupFromSelection]);
+
+	useEffect(() => {
+		const onSelectionChange = () => {
+			if (!markerMode) return;
+			if (pointerDownRef.current) return;
+			if (selectionChangeTimerRef.current) {
+				clearTimeout(selectionChangeTimerRef.current);
+			}
+			selectionChangeTimerRef.current = setTimeout(() => {
+				const sel = window.getSelection();
+				if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+				const range = sel.getRangeAt(0);
+				const container = containerRef.current;
+				if (!container) return;
+				if (
+					!container.contains(range.startContainer) ||
+					!container.contains(range.endContainer)
+				) {
+					return;
+				}
+				openMarkerPopupFromSelection(lastPointerRef.current ?? undefined);
+			}, 80);
+		};
+
+		document.addEventListener("selectionchange", onSelectionChange);
+		return () => {
+			document.removeEventListener("selectionchange", onSelectionChange);
+			if (selectionChangeTimerRef.current) {
+				clearTimeout(selectionChangeTimerRef.current);
+				selectionChangeTimerRef.current = null;
+			}
+		};
+	}, [markerMode, openMarkerPopupFromSelection]);
+
 	useEffect(() => {
 		const onDown = (e: globalThis.MouseEvent) => {
+			pointerDownRef.current = true;
+			lastPointerRef.current = { x: e.clientX, y: e.clientY };
 			const targetNode = e.target as Node;
 			const inContainer = !!containerRef.current?.contains(targetNode);
 			const inPopup = !!popupRef.current?.contains(targetNode);
+			const inContextMenu = !!contextMenuRef.current?.contains(targetNode);
 			// 教科書本文 or ポップアップ内のクリックでは閉じない
 			if (!inContainer && !inPopup) {
 				setPopup(null);
 			}
+			if (!inContextMenu) {
+				setContextMenu(null);
+			}
+		};
+		const onBlur = () => {
+			pointerDownRef.current = false;
 		};
 		document.addEventListener("mousedown", onDown);
-		return () => document.removeEventListener("mousedown", onDown);
+		window.addEventListener("blur", onBlur);
+		return () => {
+			document.removeEventListener("mousedown", onDown);
+			window.removeEventListener("blur", onBlur);
+		};
+	}, []);
+
+	useEffect(() => {
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				setPopup(null);
+				setContextMenu(null);
+			}
+		};
+		const onScroll = () => {
+			setContextMenu(null);
+		};
+		document.addEventListener("keydown", onKeyDown);
+		window.addEventListener("scroll", onScroll, true);
+		return () => {
+			document.removeEventListener("keydown", onKeyDown);
+			window.removeEventListener("scroll", onScroll, true);
+		};
 	}, []);
 
 	// ----------------------------------------------------------------
 	// マーカー作成 / 削除
 	// ----------------------------------------------------------------
+	const deleteMarker = useCallback(async (id: number) => {
+		if (deleteInFlightRef.current.has(id)) return;
+
+		deleteInFlightRef.current.add(id);
+		setDeletingMarkerIds((prev) =>
+			prev.includes(id) ? prev : [...prev, id],
+		);
+
+		try {
+			await axios.delete(`/textbook-markers/${id}`);
+			setMarkers((prev) => prev.filter((m) => m.id !== id));
+			setMarkerMessage(null);
+		} catch (err) {
+			const anyErr = err as any;
+			if (anyErr?.response?.status === 404) {
+				setMarkers((prev) => prev.filter((m) => m.id !== id));
+				setMarkerMessage("対象マーカーは既に削除されています。");
+			} else {
+				setMarkerMessage("マーカーの削除に失敗しました。通信状態をご確認ください。");
+			}
+		} finally {
+			deleteInFlightRef.current.delete(id);
+			setDeletingMarkerIds((prev) => prev.filter((v) => v !== id));
+		}
+	}, []);
+
+	const updateMarkerColor = useCallback(async (id: number, color: string) => {
+		setMarkerMessage(null);
+		setUpdatingMarkerIds((prev) =>
+			prev.includes(id) ? prev : [...prev, id],
+		);
+		try {
+			const res = (await axios.put(`/textbook-markers/${id}`, {
+				color,
+			})) as { data: TextbookMarkerType };
+			setMarkers((prev) =>
+				prev.map((m) => (m.id === id ? { ...m, color: res.data.color } : m)),
+			);
+		} catch (err) {
+			const anyErr = err as any;
+			if (anyErr?.response?.status === 404) {
+				setMarkers((prev) => prev.filter((m) => m.id !== id));
+				setMarkerMessage("対象マーカーが見つかりませんでした。");
+			} else {
+				setMarkerMessage("マーカー色の更新に失敗しました。");
+			}
+		} finally {
+			setUpdatingMarkerIds((prev) => prev.filter((v) => v !== id));
+		}
+	}, []);
+
+	const isSameMarkerRange = useCallback(
+		(marker: TextbookMarkerType, currentPopup: PopupState) => {
+			if (marker.exact_text !== currentPopup.exactText) return false;
+			const parsed = parseMarkerNote(marker.note);
+			const markerOffsets = parsed.offsets;
+			const popupHasOffsets =
+				typeof currentPopup.startOffset === "number" &&
+				typeof currentPopup.endOffset === "number";
+			const markerHasOffsets = !!markerOffsets;
+			const popupHasMath = typeof currentPopup.mathJaxIndex === "number";
+			const markerHasMath = typeof parsed.mathIndex === "number";
+			const popupHasMathList = currentPopup.mathJaxIndexes.length > 0;
+			const markerHasMathList = parsed.mathIndexes.length > 0;
+
+			if (popupHasMathList || markerHasMathList) {
+				if (!popupHasMathList || !markerHasMathList) return false;
+				if (currentPopup.mathJaxIndexes.length !== parsed.mathIndexes.length) {
+					return false;
+				}
+				return currentPopup.mathJaxIndexes.every(
+					(v, i) => v === parsed.mathIndexes[i],
+				);
+			}
+
+			if (popupHasMath || markerHasMath) {
+				if (!popupHasMath || !markerHasMath) return false;
+				return currentPopup.mathJaxIndex === parsed.mathIndex;
+			}
+
+			if (popupHasOffsets || markerHasOffsets) {
+				if (!popupHasOffsets || !markerHasOffsets) return false;
+				return (
+					currentPopup.startOffset === markerOffsets.start &&
+					currentPopup.endOffset === markerOffsets.end
+				);
+			}
+
+			return (
+				marker.text_prefix === currentPopup.textPrefix &&
+				marker.text_suffix === currentPopup.textSuffix
+			);
+		},
+		[],
+	);
+
 	const createMarker = async () => {
-		if (!currentPage?.id || !popup) return;
+		if (!currentPage?.id || !popup || markerSaving) return;
 		setMarkerSaving(true);
 		setMarkerMessage(null);
 		try {
-			// 同一テキスト＋前後文脈に既存マーカーがあれば「トグル」として削除扱いにする
-			const sameRangeMarker = markersRef.current.find(
-				(m) =>
-					m.exact_text === popup.exactText &&
-					m.text_prefix === popup.textPrefix &&
-					m.text_suffix === popup.textSuffix,
+			// 同一範囲の既存マーカーがある場合のみトグル/色変更する
+			const sameRangeMarker = markers.find(
+				(m) => isSameMarkerRange(m, popup),
 			);
 
 			if (sameRangeMarker) {
-				console.log(
-					"[marker] same range marker found, toggling (delete)",
-					sameRangeMarker.id,
-				);
-				await deleteMarker(sameRangeMarker.id);
+				console.log("[marker] same range resolved", {
+					markerId: sameRangeMarker.id,
+					markerText: sameRangeMarker.exact_text,
+					popupOffsets: {
+						start: popup.startOffset,
+						end: popup.endOffset,
+						mjx: popup.mathJaxIndex,
+						mjxList: popup.mathJaxIndexes,
+					},
+					markerNote: parseMarkerNote(sameRangeMarker.note),
+				});
+				if (sameRangeMarker.color === selectedMarkerColor) {
+					console.log(
+						"[marker] same range marker found, toggling (delete)",
+						sameRangeMarker.id,
+					);
+					await deleteMarker(sameRangeMarker.id);
+				} else {
+					console.log(
+						"[marker] same range marker found, updating color",
+						sameRangeMarker.id,
+					);
+					await updateMarkerColor(sameRangeMarker.id, selectedMarkerColor);
+				}
+				setPopup(null);
+				window.getSelection()?.removeAllRanges();
 				setMarkerSaving(false);
 				return;
 			}
@@ -671,7 +1246,19 @@ const LessonPage = () => {
 					? JSON.stringify({
 							s: popup.startOffset,
 							e: popup.endOffset,
+							mjx:
+								typeof popup.mathJaxIndex === "number"
+									? popup.mathJaxIndex
+									: undefined,
+							mjx_list:
+								popup.mathJaxIndexes.length > 0
+									? popup.mathJaxIndexes
+									: undefined,
 					  })
+					: typeof popup.mathJaxIndex === "number"
+					? JSON.stringify({ mjx: popup.mathJaxIndex })
+					: popup.mathJaxIndexes.length > 0
+					? JSON.stringify({ mjx_list: popup.mathJaxIndexes })
 					: null;
 
 			// 選択内容をコンソールに出力してデバッグしやすくする
@@ -689,13 +1276,16 @@ const LessonPage = () => {
 					exact_text: popup.exactText,
 					text_prefix: popup.textPrefix,
 					text_suffix: popup.textSuffix,
-					color: "yellow",
+					color: selectedMarkerColor,
 					note: notePayload,
 				},
 			) as { data: TextbookMarkerType };
 
 			console.log("[marker] createMarker response", res.data);
-			setMarkers((prev) => [...prev, res.data]);
+			setMarkers((prev) => {
+				if (prev.some((m) => m.id === res.data.id)) return prev;
+				return [...prev, res.data];
+			});
 			setPopup(null);
 			window.getSelection()?.removeAllRanges();
 		} catch (err) {
@@ -717,37 +1307,44 @@ const LessonPage = () => {
 		}
 	};
 
-	const deleteMarker = async (id: number) => {
-		try {
-			await axios.delete(`/textbook-markers/${id}`);
-			setMarkers((prev) => prev.filter((m) => m.id !== id));
-		} catch {
-			setMarkerMessage("マーカーの削除に失敗しました。");
-		}
-	};
-
 	// ----------------------------------------------------------------
-	// ハイライト部分をクリックして削除（トグル）
+	// ハイライト部分を右クリックで削除メニュー表示
 	// ----------------------------------------------------------------
-	const handleContainerClick = useCallback(
-			(e: ReactMouseEvent<HTMLDivElement>) => {
+	const handleContainerContextMenu = useCallback(
+		(e: ReactMouseEvent<HTMLDivElement>) => {
 			if (!markerMode) return;
 			const target = e.target as HTMLElement | null;
 			if (!target) return;
 			const span = target.closest(
 				"span[data-textbook-marker]",
 			) as HTMLSpanElement | null;
-			if (!span) return;
+			const math = target.closest(
+				"[data-textbook-marker-math='true']",
+			) as HTMLElement | null;
+			const markerEl = span ?? math;
+			if (!markerEl) return;
 
-			const idAttr = span.getAttribute("data-marker-id");
+			const idAttr = markerEl.getAttribute("data-marker-id");
 			const id = idAttr ? Number(idAttr) : NaN;
 			if (!id || Number.isNaN(id)) return;
 
 			e.preventDefault();
 			e.stopPropagation();
-			void deleteMarker(id);
+			const menuWidth = 140;
+			const menuHeight = 44;
+			const left = Math.min(
+				Math.max(8, e.clientX),
+				window.innerWidth - menuWidth - 8,
+			);
+			const top = Math.min(
+				Math.max(8, e.clientY),
+				window.innerHeight - menuHeight - 8,
+			);
+
+			setContextMenu({ markerId: id, left, top });
+			setPopup(null);
 		},
-		[deleteMarker, markerMode],
+		[markerMode],
 	);
 
 	const totalPages = pages.length;
@@ -808,7 +1405,7 @@ const LessonPage = () => {
 						<div className="flex items-start gap-2">
 							<div>
 								<p>テキストを選択するとマーカーを追加できます。</p>
-								<p>付いたハイライトをクリックすると削除できます。</p>
+								<p>付いたハイライトを右クリックすると削除できます。</p>
 							</div>
 							<button
 								type="button"
@@ -856,9 +1453,31 @@ const LessonPage = () => {
 				{popup && (
 					<div
 						ref={popupRef}
-						className="fixed z-50 flex items-center gap-1 rounded-md border bg-white px-2 py-1 shadow-md"
+						className="fixed z-50 rounded-md border bg-white px-2 py-2 shadow-md"
 						style={{ top: popup.top, left: popup.left }}
 					>
+						<div className="mb-2 text-xs text-gray-500">色を選択</div>
+						<div className="mb-2 flex items-center gap-1">
+							{MARKER_COLOR_OPTIONS.map((opt) => {
+								const isActive = selectedMarkerColor === opt.value;
+								return (
+									<button
+										key={opt.value}
+										type="button"
+										className={`h-6 w-6 rounded-full border transition ${
+											isActive
+												? "ring-2 ring-offset-1 ring-blue-500 border-gray-700"
+												: "border-gray-300 hover:scale-105"
+										}`}
+										style={{ backgroundColor: opt.hex }}
+										onClick={() => setSelectedMarkerColor(opt.value)}
+										aria-label={`マーカー色: ${opt.label}`}
+										title={`マーカー色: ${opt.label}`}
+									/>
+								);
+							})}
+						</div>
+						<div className="flex items-center gap-1">
 						<Button
 							size="sm"
 							variant="outline"
@@ -880,6 +1499,30 @@ const LessonPage = () => {
 						>
 							✕
 						</Button>
+						</div>
+					</div>
+				)}
+
+				{contextMenu && (
+					<div
+						ref={contextMenuRef}
+						className="fixed z-50 rounded-md border bg-white p-1 shadow-md"
+						style={{ top: contextMenu.top, left: contextMenu.left }}
+					>
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-8 w-full justify-start px-2 text-sm"
+							disabled={deletingMarkerIds.includes(contextMenu.markerId)}
+							onClick={() => {
+								void deleteMarker(contextMenu.markerId);
+								setContextMenu(null);
+							}}
+						>
+							{deletingMarkerIds.includes(contextMenu.markerId)
+								? "削除中..."
+								: "削除"}
+						</Button>
 					</div>
 				)}
 
@@ -887,7 +1530,7 @@ const LessonPage = () => {
 				<div
 					ref={containerRef}
 					onMouseUp={handleMouseUp}
-					onClick={handleContainerClick}
+					onContextMenu={handleContainerContextMenu}
 					suppressHydrationWarning
 				>
 					<TextbookContent text={content} />
@@ -903,18 +1546,47 @@ const LessonPage = () => {
 							<div key={m.id} className="flex items-center gap-2 text-sm">
 								<span
 									className="inline-block h-3 w-4 shrink-0 rounded-sm"
-									style={{ backgroundColor: m.color || "yellow" }}
+									style={{ backgroundColor: resolveMarkerColor(m.color) }}
 								/>
 								<span className="flex-1 truncate text-muted-foreground">
 									{m.exact_text}
 								</span>
+								<div className="flex items-center gap-1">
+									{MARKER_COLOR_OPTIONS.map((opt) => (
+										<button
+											key={`${m.id}-${opt.value}`}
+											type="button"
+											disabled={updatingMarkerIds.includes(m.id)}
+											className={`h-4 w-4 rounded-full border transition ${
+												m.color === opt.value
+													? "ring-2 ring-offset-1 ring-blue-500 border-gray-700"
+													: "border-gray-300 hover:scale-105"
+											} disabled:opacity-60`}
+											style={{ backgroundColor: opt.hex }}
+											onClick={() => {
+												setSelectedMarkerColor(opt.value);
+												void updateMarkerColor(m.id, opt.value);
+											}}
+											aria-label={`「${m.exact_text}」の色を${opt.label}に変更`}
+											title={`色を${opt.label}に変更`}
+										/>
+									))}
+								</div>
 								<Button
 									variant="ghost"
 									size="sm"
 									className="shrink-0 text-xs"
+									disabled={
+										deletingMarkerIds.includes(m.id) ||
+										updatingMarkerIds.includes(m.id)
+									}
 									onClick={() => deleteMarker(m.id)}
 								>
-									削除
+									{deletingMarkerIds.includes(m.id)
+										? "削除中..."
+										: updatingMarkerIds.includes(m.id)
+										? "更新中..."
+										: "削除"}
 								</Button>
 							</div>
 						))}

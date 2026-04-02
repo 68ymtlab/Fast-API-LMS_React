@@ -259,6 +259,30 @@ class LessonRepository(BaseRepository):
         await self.db.refresh(db_obj)
         return db_obj
 
+    async def update_textbook_marker_color_by_id_and_user(
+        self,
+        *,
+        marker_id: int,
+        user_id: int,
+        color: str,
+    ) -> Optional[lessons_model.TextbookMarkers]:
+        """指定ユーザーが所有する教科書マーカーの色を更新します。"""
+        stmt = (
+            select(lessons_model.TextbookMarkers)
+            .where(lessons_model.TextbookMarkers.id == marker_id)
+            .where(lessons_model.TextbookMarkers.user_id == user_id)
+        )
+        marker = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not marker:
+            return None
+
+        marker.color = color
+        marker.updated_at = func.now()
+        self.db.add(marker)
+        await self.db.flush()
+        await self.db.refresh(marker)
+        return marker
+
     async def delete_textbook_marker_by_id_and_user(self, *, marker_id: int, user_id: int) -> bool:
         """指定ユーザーが所有する教科書マーカーを削除します。"""
         stmt = (

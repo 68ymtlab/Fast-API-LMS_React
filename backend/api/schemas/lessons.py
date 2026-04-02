@@ -151,6 +151,11 @@ class TextbookMarkerCreate(BaseModel):
     note: Optional[str] = Field(None, description="メモ")
 
 
+class TextbookMarkerColorUpdate(BaseModel):
+    """教科書マーカー色変更入力"""
+    color: str = Field(..., min_length=1, max_length=20, description="マーカー色")
+
+
 class TextbookMarkerResponse(TextbookMarkerBase):
     """教科書マーカー返却スキーマ"""
     id: int = Field(..., description="マーカーID")
