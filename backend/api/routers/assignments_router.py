@@ -18,6 +18,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter, Depends, File, HTTPException, Query,
@@ -58,6 +59,88 @@ def _safe_path_component(value: str) -> str:
     cleaned = re.sub(r'[\\/:*?"<>|]+', "_", value).strip()
     cleaned = re.sub(r"\s+", " ", cleaned)
     return (cleaned[:80] or "untitled")
+
+
+ZIP_NAME_MODES = {
+    "legacy",
+    "assignment_title",
+    "lesson_assignment_title",
+}
+
+INNER_FILE_NAME_MODES = {
+    "student_number_name",
+    "class_roster_name",
+}
+
+
+def _resolve_student_labels(sub: AssignmentSubmissions) -> Dict[str, str]:
+    student_display = (
+        sub.student.display_name
+        if sub.student and sub.student.display_name
+        else f"user_{sub.student_user_id}"
+    )
+    student_number = (
+        sub.student.student.student_number
+        if sub.student and sub.student.student and sub.student.student.student_number
+        else f"user{sub.student_user_id}"
+    )
+    class_number = (
+        sub.student.student.class_number
+        if sub.student and sub.student.student and sub.student.student.class_number
+        else "class_unknown"
+    )
+    class_roster_number = (
+        sub.student.student.class_roster_number
+        if sub.student and sub.student.student and sub.student.student.class_roster_number
+        else f"user{sub.student_user_id}"
+    )
+    return {
+        "student_display": _safe_path_component(student_display),
+        "student_number": _safe_path_component(student_number),
+        "class_number": _safe_path_component(class_number),
+        "class_roster_number": _safe_path_component(class_roster_number),
+    }
+
+
+def _build_submission_file_stem(sub: AssignmentSubmissions, mode: str) -> str:
+    labels = _resolve_student_labels(sub)
+    if mode == "class_roster_name":
+        return (
+            f"{labels['class_number']}_{labels['class_roster_number']}_"
+            f"{labels['student_display']}"
+        )
+    return f"{labels['student_number']}_{labels['student_display']}"
+
+
+def _build_export_zip_filename(
+    assignment: Assignments,
+    lesson_number: int,
+    mode: str,
+) -> str:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if mode == "assignment_title":
+        base = f"{_safe_path_component(assignment.title)}_{assignment.id}_submissions"
+    elif mode == "lesson_assignment_title":
+        base = (
+            f"lesson{lesson_number:02d}_"
+            f"{_safe_path_component(assignment.title)}_{assignment.id}_submissions"
+        )
+    else:
+        base = f"assignment_{assignment.id}_submissions"
+    return f"{base}_{timestamp}.zip"
+
+
+def _build_content_disposition(filename: str) -> str:
+    # filename は ASCII フォールバック、filename* は UTF-8 を使う
+    ascii_fallback = re.sub(r"[^\x20-\x7E]+", "_", filename)
+    ascii_fallback = re.sub(r'[\\/:*?"<>|;]+', "_", ascii_fallback).strip()
+    ascii_fallback = re.sub(r"\s+", "_", ascii_fallback)
+    if not ascii_fallback:
+        ascii_fallback = "export.zip"
+    return (
+        f'attachment; filename="{ascii_fallback}"; '
+        f"filename*=UTF-8''{quote(filename)}"
+    )
 
 
 async def _get_assignment_or_404(
@@ -484,12 +567,31 @@ async def download_submission(
 )
 async def export_assignment_submissions_zip(
     assignment_id: int,
+    zip_name_mode: str = Query(
+        "legacy",
+        description="ZIP名の命名規則（legacy / assignment_title / lesson_assignment_title）",
+    ),
+    inner_file_name_mode: str = Query(
+        "student_number_name",
+        description="ZIP内ファイル名の命名規則（student_number_name / class_roster_name）",
+    ),
     current_user: users_model.Users = Depends(require_teacher_or_higher),
     db: AsyncSession = Depends(get_db),
 ):
     """
     指定課題の情報と提出ファイルを ZIP で一括エクスポートします。
     """
+    if zip_name_mode not in ZIP_NAME_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"zip_name_mode が不正です: {zip_name_mode}",
+        )
+    if inner_file_name_mode not in INNER_FILE_NAME_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"inner_file_name_mode が不正です: {inner_file_name_mode}",
+        )
+
     assignment = await _get_assignment_or_404(assignment_id, db)
     lesson = (await db.execute(
         select(CourseLessons).where(CourseLessons.id == assignment.lesson_id)
@@ -515,6 +617,7 @@ async def export_assignment_submissions_zip(
 
     buffer = io.BytesIO()
     missing_files: List[Dict[str, Any]] = []
+    used_arc_names: set[str] = set()
 
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         assignment_dir = (
@@ -552,23 +655,17 @@ async def export_assignment_submissions_zip(
 
         for sub in submissions:
             file_path = Path(sub.file_path)
-            student_display = (
-                sub.student.display_name
-                if sub.student and sub.student.display_name
-                else f"user_{sub.student_user_id}"
-            )
-            student_number = (
-                sub.student.student.student_number
-                if sub.student and sub.student.student and sub.student.student.student_number
-                else f"user{sub.student_user_id}"
-            )
             original_name = Path(sub.original_filename).name
             safe_original = _safe_path_component(original_name)
-            submission_arcname = (
-                f"{assignment_dir}/"
-                f"{_safe_path_component(student_number)}_{_safe_path_component(student_display)}/"
-                f"{safe_original}"
-            )
+            stem = _build_submission_file_stem(sub, inner_file_name_mode)
+            submission_filename = f"{stem}_{safe_original}"
+            submission_arcname = f"{assignment_dir}/{submission_filename}"
+
+            if submission_arcname in used_arc_names:
+                stem_with_id = f"{stem}_sub{sub.id}"
+                submission_filename = f"{stem_with_id}_{safe_original}"
+                submission_arcname = f"{assignment_dir}/{submission_filename}"
+            used_arc_names.add(submission_arcname)
 
             if file_path.exists():
                 zf.write(file_path, submission_arcname)
@@ -577,6 +674,7 @@ async def export_assignment_submissions_zip(
                     "assignment_id": assignment.id,
                     "submission_id": sub.id,
                     "file_path": str(file_path),
+                    "expected_arcname": submission_arcname,
                 })
 
         manifest = {
@@ -584,6 +682,8 @@ async def export_assignment_submissions_zip(
             "exported_at": _now_utc().isoformat(),
             "exported_by_user_id": current_user.id,
             "submission_count": len(submissions),
+            "zip_name_mode": zip_name_mode,
+            "inner_file_name_mode": inner_file_name_mode,
             "missing_file_count": len(missing_files),
             "missing_files": missing_files,
         }
@@ -593,14 +693,11 @@ async def export_assignment_submissions_zip(
         )
 
     buffer.seek(0)
-    filename = (
-        f"assignment_{assignment.id}_submissions_"
-        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-    )
+    filename = _build_export_zip_filename(assignment, lesson_number, zip_name_mode)
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _build_content_disposition(filename)},
     )
 
 

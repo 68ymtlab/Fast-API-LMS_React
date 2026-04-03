@@ -54,16 +54,164 @@ type CourseImage = {
 	original_name?: string | null;
 };
 
+type McqChoice = {
+	choice_id: string;
+	choice_text: string;
+};
+
+type MultipleNumericBlank = {
+	blank_id: string;
+	label: string;
+	answers: number[];
+	tolerance?: number;
+};
+
+const parseNumberList = (value: string): number[] => {
+	return value
+		.split(",")
+		.map((item) => item.trim())
+		.filter((item) => item.length > 0)
+		.map((item) => Number.parseFloat(item))
+		.filter((num) => !Number.isNaN(num));
+};
+
+const toOptionalNumber = (value: unknown): number | undefined => {
+	if (value === undefined || value === null) return undefined;
+	const num = Number(value);
+	return Number.isNaN(num) ? undefined : num;
+};
+
+const toNumberListText = (values: unknown): string => {
+	if (!Array.isArray(values)) return "";
+	return values
+		.map((v) => Number(v))
+		.filter((v) => !Number.isNaN(v))
+		.join(", ");
+};
+
+const toQuestionContent = (
+	questionType: string,
+	contentDataText: string,
+): Record<string, unknown> => {
+	let parsed: Record<string, unknown> = {};
+	try {
+		parsed = JSON.parse(contentDataText) as Record<string, unknown>;
+	} catch {
+		parsed = {};
+	}
+
+	if (questionType === "mcq") {
+		const rawChoices = Array.isArray(parsed.choices)
+			? parsed.choices
+			: [];
+		const choices: McqChoice[] = rawChoices.map((choice, index) => {
+			if (typeof choice === "string") {
+				return { choice_id: (index + 1).toString(), choice_text: choice };
+			}
+			if (choice && typeof choice === "object") {
+				const obj = choice as Record<string, unknown>;
+				return {
+					choice_id: String(obj.choice_id ?? index + 1),
+					choice_text: String(
+						obj.choice_text ?? obj.text ?? obj.content ?? "",
+					),
+				};
+			}
+			return { choice_id: (index + 1).toString(), choice_text: "" };
+		});
+
+		const answerRaw = parsed.answer;
+		const answer =
+			typeof answerRaw === "string"
+				? answerRaw
+				: typeof answerRaw === "number"
+					? String(answerRaw)
+					: "";
+
+		return {
+			...parsed,
+			question: typeof parsed.question === "string" ? parsed.question : "",
+			choices:
+				choices.length > 0
+					? choices
+					: [{ choice_id: "1", choice_text: "" }],
+			answer,
+			hint: typeof parsed.hint === "string" ? parsed.hint : "",
+			answer_comment:
+				typeof parsed.answer_comment === "string" ? parsed.answer_comment : "",
+		};
+	}
+
+	if (questionType === "numeric") {
+		return {
+			...parsed,
+			question: typeof parsed.question === "string" ? parsed.question : "",
+			answers: Array.isArray(parsed.answers)
+				? parsed.answers.map((v) => Number(v)).filter((v) => !Number.isNaN(v))
+				: [],
+			tolerance: toOptionalNumber(parsed.tolerance),
+			hint: typeof parsed.hint === "string" ? parsed.hint : "",
+			answer_comment:
+				typeof parsed.answer_comment === "string" ? parsed.answer_comment : "",
+		};
+	}
+
+	if (questionType === "multiple_numeric") {
+		const rawBlanks = Array.isArray(parsed.blanks)
+			? parsed.blanks
+			: [];
+		const blanks: MultipleNumericBlank[] = rawBlanks.map((blank, index) => {
+			const obj =
+				blank && typeof blank === "object"
+					? (blank as Record<string, unknown>)
+					: {};
+			return {
+				blank_id: String(obj.blank_id ?? `blank${index + 1}`),
+				label: typeof obj.label === "string" ? obj.label : "",
+				answers: Array.isArray(obj.answers)
+					? obj.answers.map((v) => Number(v)).filter((v) => !Number.isNaN(v))
+					: [],
+				tolerance: toOptionalNumber(obj.tolerance),
+			};
+		});
+
+		return {
+			...parsed,
+			question: typeof parsed.question === "string" ? parsed.question : "",
+			blanks:
+				blanks.length > 0
+					? blanks
+					: [{ blank_id: "blank1", label: "", answers: [], tolerance: 0 }],
+			hint: typeof parsed.hint === "string" ? parsed.hint : "",
+			answer_comment:
+				typeof parsed.answer_comment === "string" ? parsed.answer_comment : "",
+		};
+	}
+
+	if (questionType === "descriptive") {
+		return {
+			...parsed,
+			question: typeof parsed.question === "string" ? parsed.question : "",
+			answer: typeof parsed.answer === "string" ? parsed.answer : "",
+			hint: typeof parsed.hint === "string" ? parsed.hint : "",
+			answer_comment:
+				typeof parsed.answer_comment === "string" ? parsed.answer_comment : "",
+		};
+	}
+
+	return parsed;
+};
+
 const getDefaultContentData = (questionType: string): string => {
 	switch (questionType) {
 		case "mcq":
-			return '{\n  "question": "",\n  "choices": [],\n  "answer": ""\n}';
+			return '{\n  "question": "",\n  "choices": [\n    {\n      "choice_id": "1",\n      "choice_text": ""\n    }\n  ],\n  "answer": "",\n  "hint": "",\n  "answer_comment": ""\n}';
 		case "numeric":
-			return '{\n  "question": "",\n  "answers": [0]\n}';
+			return '{\n  "question": "",\n  "answers": [0],\n  "tolerance": 0,\n  "hint": "",\n  "answer_comment": ""\n}';
 		case "multiple_numeric":
-			return '{\n  "question": "",\n  "blanks": [\n    {\n      "blank_id": "blank1",\n      "label": "",\n      "answers": [0]\n    }\n  ],\n  "hint": "",\n  "answer_comment": ""\n}';
+			return '{\n  "question": "",\n  "blanks": [\n    {\n      "blank_id": "blank1",\n      "label": "",\n      "answers": [0],\n      "tolerance": 0\n    }\n  ],\n  "hint": "",\n  "answer_comment": ""\n}';
 		case "descriptive":
-			return '{\n  "question": "",\n  "answer": "",\n  "hint": ""\n}';
+			return '{\n  "question": "",\n  "answer": "",\n  "hint": "",\n  "answer_comment": ""\n}';
 		default:
 			return '{\n  "question": ""\n}';
 	}
@@ -106,6 +254,8 @@ function TeacherExercisesPage() {
 	const [createState, setCreateState] = useState(emptyCreateState);
 	const [selectedQuestionId, setSelectedQuestionId] = useState<string>("");
 	const [updateState, setUpdateState] = useState(emptyCreateState);
+	const [showRawCreateJson, setShowRawCreateJson] = useState(false);
+	const [showRawUpdateJson, setShowRawUpdateJson] = useState(false);
 
 	const selectedQuestion = useMemo(
 		() => questions.find((q) => q.id === Number.parseInt(selectedQuestionId)),
@@ -374,6 +524,372 @@ function TeacherExercisesPage() {
 			tag_names: tagNames,
 			is_active: state.isActive,
 		};
+	};
+
+	const setContentDataForTarget = (
+		target: "create" | "update",
+		updater: (content: Record<string, unknown>) => Record<string, unknown>,
+	) => {
+		if (target === "create") {
+			setCreateState((prev) => {
+				const content = toQuestionContent(prev.questionType, prev.contentDataText);
+				const nextContent = updater(content);
+				return {
+					...prev,
+					contentDataText: JSON.stringify(nextContent, null, 2),
+				};
+			});
+			return;
+		}
+		setUpdateState((prev) => {
+			const content = toQuestionContent(prev.questionType, prev.contentDataText);
+			const nextContent = updater(content);
+			return {
+				...prev,
+				contentDataText: JSON.stringify(nextContent, null, 2),
+			};
+		});
+	};
+
+	const renderContentDataEditor = (
+		target: "create" | "update",
+		state: typeof emptyCreateState,
+		disabled = false,
+	) => {
+		const content = toQuestionContent(state.questionType, state.contentDataText);
+		const inputClassName = disabled ? "opacity-60" : "";
+
+		return (
+			<div className="space-y-4">
+				<div>
+					<label className="text-sm font-medium mb-1 block">問題文</label>
+					<Textarea
+						value={(content.question as string) ?? ""}
+						onChange={(e) =>
+							setContentDataForTarget(target, (prev) => ({
+								...prev,
+								question: e.target.value,
+							}))
+						}
+						className={`min-h-[120px] ${inputClassName}`}
+						disabled={disabled}
+					/>
+				</div>
+
+				{state.questionType === "mcq" && (
+					<div className="space-y-3">
+						<label className="text-sm font-medium block">選択肢</label>
+						{((content.choices as McqChoice[]) ?? []).map((choice, index) => (
+							<div key={`mcq-choice-${index}`} className="grid grid-cols-12 gap-2">
+								<Input
+									value={choice.choice_id ?? ""}
+									onChange={(e) =>
+										setContentDataForTarget(target, (prev) => {
+											const choices = ((prev.choices as McqChoice[]) ?? []).map((c, i) =>
+												i === index ? { ...c, choice_id: e.target.value } : c,
+											);
+											return { ...prev, choices };
+										})
+									}
+									placeholder="ID"
+									className={`col-span-3 md:col-span-2 ${inputClassName}`}
+									disabled={disabled}
+								/>
+								<Input
+									value={choice.choice_text ?? ""}
+									onChange={(e) =>
+										setContentDataForTarget(target, (prev) => {
+											const choices = ((prev.choices as McqChoice[]) ?? []).map((c, i) =>
+												i === index ? { ...c, choice_text: e.target.value } : c,
+											);
+											return { ...prev, choices };
+										})
+									}
+									placeholder="選択肢テキスト"
+									className={`col-span-8 md:col-span-9 ${inputClassName}`}
+									disabled={disabled}
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="icon"
+									onClick={() =>
+										setContentDataForTarget(target, (prev) => {
+											const choices = ((prev.choices as McqChoice[]) ?? []).filter(
+												(_, i) => i !== index,
+											);
+											return {
+												...prev,
+												choices:
+													choices.length > 0
+														? choices
+														: [{ choice_id: "1", choice_text: "" }],
+											};
+										})
+									}
+									disabled={disabled}
+									className="col-span-1"
+								>
+									<Trash2 className="h-4 w-4" />
+								</Button>
+							</div>
+						))}
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() =>
+								setContentDataForTarget(target, (prev) => {
+									const choices = (prev.choices as McqChoice[]) ?? [];
+									return {
+										...prev,
+										choices: [
+											...choices,
+											{
+												choice_id: String(choices.length + 1),
+												choice_text: "",
+											},
+										],
+									};
+								})
+							}
+							disabled={disabled}
+						>
+							<Plus className="h-4 w-4 mr-1" />
+							選択肢を追加
+						</Button>
+						<div>
+							<label className="text-sm font-medium mb-1 block">正解の選択肢ID</label>
+							<Input
+								value={(content.answer as string) ?? ""}
+								onChange={(e) =>
+									setContentDataForTarget(target, (prev) => ({
+										...prev,
+										answer: e.target.value,
+									}))
+								}
+								placeholder="例: 2"
+								className={inputClassName}
+								disabled={disabled}
+							/>
+						</div>
+					</div>
+				)}
+
+				{state.questionType === "numeric" && (
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+						<div>
+							<label className="text-sm font-medium mb-1 block">正解候補（カンマ区切り）</label>
+							<Input
+								value={toNumberListText(content.answers)}
+								onChange={(e) =>
+									setContentDataForTarget(target, (prev) => ({
+										...prev,
+										answers: parseNumberList(e.target.value),
+									}))
+								}
+								placeholder="例: 3.14, 2"
+								className={inputClassName}
+								disabled={disabled}
+							/>
+						</div>
+						<div>
+							<label className="text-sm font-medium mb-1 block">許容誤差（任意）</label>
+							<Input
+								value={
+									content.tolerance === undefined || content.tolerance === null
+										? ""
+										: String(content.tolerance)
+								}
+								onChange={(e) =>
+									setContentDataForTarget(target, (prev) => ({
+										...prev,
+										tolerance: toOptionalNumber(e.target.value.trim()),
+									}))
+								}
+								placeholder="例: 0.01"
+								className={inputClassName}
+								disabled={disabled}
+							/>
+						</div>
+					</div>
+				)}
+
+				{state.questionType === "multiple_numeric" && (
+					<div className="space-y-3">
+						<label className="text-sm font-medium block">空欄ごとの設定</label>
+						{((content.blanks as MultipleNumericBlank[]) ?? []).map((blank, index) => (
+							<div
+								key={`blank-${index}`}
+								className={`border rounded-md p-3 space-y-2 ${inputClassName}`}
+							>
+								<div className="text-xs text-muted-foreground">
+									空欄ID: {blank.blank_id}（自動管理）
+								</div>
+								<Input
+									value={blank.label ?? ""}
+									onChange={(e) =>
+										setContentDataForTarget(target, (prev) => {
+											const blanks = ((prev.blanks as MultipleNumericBlank[]) ?? []).map(
+												(b, i) => (i === index ? { ...b, label: e.target.value } : b),
+											);
+											return { ...prev, blanks };
+										})
+									}
+									placeholder={`表示ラベル（例: 空欄${index + 1}）`}
+									disabled={disabled}
+								/>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+									<Input
+										value={toNumberListText(blank.answers)}
+										onChange={(e) =>
+											setContentDataForTarget(target, (prev) => {
+												const blanks = ((prev.blanks as MultipleNumericBlank[]) ?? []).map(
+													(b, i) =>
+														i === index
+															? { ...b, answers: parseNumberList(e.target.value) }
+															: b,
+												);
+												return { ...prev, blanks };
+											})
+										}
+										placeholder="正解候補（例: 3, 4）"
+										disabled={disabled}
+									/>
+									<Input
+										value={
+											blank.tolerance === undefined || blank.tolerance === null
+												? ""
+												: String(blank.tolerance)
+										}
+										onChange={(e) =>
+											setContentDataForTarget(target, (prev) => {
+												const blanks = ((prev.blanks as MultipleNumericBlank[]) ?? []).map(
+													(b, i) =>
+														i === index
+															? {
+																	...b,
+																	tolerance: toOptionalNumber(e.target.value.trim()),
+																}
+															: b,
+												);
+												return { ...prev, blanks };
+											})
+										}
+										placeholder="許容誤差（例: 0.1）"
+										disabled={disabled}
+									/>
+								</div>
+								<div className="flex justify-end">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											setContentDataForTarget(target, (prev) => {
+												const blanks = ((prev.blanks as MultipleNumericBlank[]) ?? []).filter(
+													(_, i) => i !== index,
+												);
+												return {
+													...prev,
+													blanks:
+														blanks.length > 0
+															? blanks
+															: [
+																	{
+																		blank_id: "blank1",
+																		label: "",
+																		answers: [],
+																		tolerance: 0,
+																	},
+																],
+												};
+											})
+										}
+										disabled={disabled}
+									>
+										<Trash2 className="h-4 w-4 mr-1" />
+										空欄を削除
+									</Button>
+								</div>
+							</div>
+						))}
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() =>
+								setContentDataForTarget(target, (prev) => {
+									const blanks = (prev.blanks as MultipleNumericBlank[]) ?? [];
+									return {
+										...prev,
+										blanks: [
+											...blanks,
+											{
+												blank_id: `blank${blanks.length + 1}`,
+												label: "",
+												answers: [],
+												tolerance: 0,
+											},
+										],
+									};
+								})
+							}
+							disabled={disabled}
+						>
+							<Plus className="h-4 w-4 mr-1" />
+							空欄を追加
+						</Button>
+					</div>
+				)}
+
+				{state.questionType === "descriptive" && (
+					<div>
+						<label className="text-sm font-medium mb-1 block">模範解答</label>
+						<Textarea
+							value={(content.answer as string) ?? ""}
+							onChange={(e) =>
+								setContentDataForTarget(target, (prev) => ({
+									...prev,
+									answer: e.target.value,
+								}))
+							}
+							className={`min-h-[100px] ${inputClassName}`}
+							disabled={disabled}
+						/>
+					</div>
+				)}
+
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+					<div>
+						<label className="text-sm font-medium mb-1 block">ヒント（任意）</label>
+						<Textarea
+							value={(content.hint as string) ?? ""}
+							onChange={(e) =>
+								setContentDataForTarget(target, (prev) => ({
+									...prev,
+									hint: e.target.value,
+								}))
+							}
+							className={`min-h-[80px] ${inputClassName}`}
+							disabled={disabled}
+						/>
+					</div>
+					<div>
+						<label className="text-sm font-medium mb-1 block">解説（任意）</label>
+						<Textarea
+							value={(content.answer_comment as string) ?? ""}
+							onChange={(e) =>
+								setContentDataForTarget(target, (prev) => ({
+									...prev,
+									answer_comment: e.target.value,
+								}))
+							}
+							className={`min-h-[80px] ${inputClassName}`}
+							disabled={disabled}
+						/>
+					</div>
+				</div>
+			</div>
+		);
 	};
 
 	const appendTagToInput = (target: "create" | "update", tagName: string) => {
@@ -1037,33 +1553,43 @@ function TeacherExercisesPage() {
 									</p>
 								</div>
 							</div>
-							<div>
+							<div className="space-y-3">
 								<label className="text-sm font-medium mb-1 block">
-									content_data（JSON）
+									問題内容入力
 								</label>
-								<Textarea
-									value={createState.contentDataText}
-									onChange={(e) =>
-										setCreateState((prev) => {
-											const next = {
-												...prev,
-												contentDataText: e.target.value,
-											};
-											// タイトル未入力時のみ、自動補完する
-											if (!prev.title.trim()) {
-												const inferred = inferTitleFromContent(
-													next.contentDataText,
-													next.questionType,
-												);
-												if (inferred) {
-													next.title = inferred;
+								{renderContentDataEditor("create", createState)}
+								<div className="flex justify-end">
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => setShowRawCreateJson((prev) => !prev)}
+									>
+										{showRawCreateJson ? "JSON編集を閉じる" : "JSONを直接編集"}
+									</Button>
+								</div>
+								{showRawCreateJson && (
+									<Textarea
+										value={createState.contentDataText}
+										onChange={(e) =>
+											setCreateState((prev) => {
+												const next = {
+													...prev,
+													contentDataText: e.target.value,
+												};
+												if (!prev.title.trim()) {
+													const inferred = inferTitleFromContent(
+														next.contentDataText,
+														next.questionType,
+													);
+													if (inferred) next.title = inferred;
 												}
-											}
-											return next;
-										})
-									}
-									className="min-h-[220px] font-mono text-xs"
-								/>
+												return next;
+											})
+										}
+										className="min-h-[220px] font-mono text-xs"
+									/>
+								)}
 							</div>
 							<div className="flex items-center gap-2">
 								<input
@@ -1140,6 +1666,7 @@ function TeacherExercisesPage() {
 											setUpdateState((prev) => ({
 												...prev,
 												questionType: value,
+												contentDataText: getDefaultContentData(value),
 											}));
 										}}
 										disabled={!selectedQuestionId}
@@ -1244,21 +1771,35 @@ function TeacherExercisesPage() {
 									</p>
 								</div>
 							</div>
-							<div>
+							<div className="space-y-3">
 								<label className="text-sm font-medium mb-1 block">
-									content_data（JSON）
+									問題内容入力
 								</label>
-								<Textarea
-									value={updateState.contentDataText}
-									onChange={(e) =>
-										setUpdateState((prev) => ({
-											...prev,
-											contentDataText: e.target.value,
-										}))
-									}
-									className="min-h-[220px] font-mono text-xs"
-									disabled={!selectedQuestionId}
-								/>
+								{renderContentDataEditor("update", updateState, !selectedQuestionId)}
+								<div className="flex justify-end">
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => setShowRawUpdateJson((prev) => !prev)}
+										disabled={!selectedQuestionId}
+									>
+										{showRawUpdateJson ? "JSON編集を閉じる" : "JSONを直接編集"}
+									</Button>
+								</div>
+								{showRawUpdateJson && (
+									<Textarea
+										value={updateState.contentDataText}
+										onChange={(e) =>
+											setUpdateState((prev) => ({
+												...prev,
+												contentDataText: e.target.value,
+											}))
+										}
+										className="min-h-[220px] font-mono text-xs"
+										disabled={!selectedQuestionId}
+									/>
+								)}
 							</div>
 							<div className="flex items-center gap-2">
 								<input

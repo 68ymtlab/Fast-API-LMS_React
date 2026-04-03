@@ -91,6 +91,49 @@ function fmtFileSize(bytes: number | null): string {
 	return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+async function extractAxiosErrorMessage(error: unknown): Promise<string> {
+	const fallback = "課題の一括エクスポートに失敗しました";
+	if (
+		!error ||
+		typeof error !== "object" ||
+		!("response" in error) ||
+		!(error as any).response
+	) {
+		return fallback;
+	}
+	const response = (error as any).response;
+	const status = response?.status;
+	const data = response?.data;
+
+	try {
+		if (data instanceof Blob) {
+			const text = await data.text();
+			if (text) {
+				try {
+					const parsed = JSON.parse(text);
+					const detail = parsed?.detail ?? parsed?.message;
+					if (typeof detail === "string" && detail.trim()) {
+						return `${fallback} (HTTP ${status}): ${detail}`;
+					}
+				} catch {
+					const short = text.slice(0, 200).trim();
+					if (short) return `${fallback} (HTTP ${status}): ${short}`;
+				}
+			}
+		}
+		if (typeof data?.detail === "string" && data.detail.trim()) {
+			return `${fallback} (HTTP ${status}): ${data.detail}`;
+		}
+		if (typeof data?.message === "string" && data.message.trim()) {
+			return `${fallback} (HTTP ${status}): ${data.message}`;
+		}
+	} catch (parseError) {
+		console.error("エラー詳細の解析に失敗:", parseError);
+	}
+
+	return status ? `${fallback} (HTTP ${status})` : fallback;
+}
+
 // ── メインコンポーネント ──────────────────────────────
 export default function AssignmentsPage() {
 	const params = useParams();
@@ -105,6 +148,14 @@ export default function AssignmentsPage() {
 	const [exportingAssignmentId, setExportingAssignmentId] = useState<number | null>(
 		null,
 	);
+	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [exportTarget, setExportTarget] = useState<Assignment | null>(null);
+	const [exportZipNameMode, setExportZipNameMode] = useState<
+		"legacy" | "assignment_title" | "lesson_assignment_title"
+	>("assignment_title");
+	const [exportInnerFileNameMode, setExportInnerFileNameMode] = useState<
+		"student_number_name" | "class_roster_name"
+	>("student_number_name");
 
 	// 課題作成・編集ダイアログ
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -317,13 +368,32 @@ export default function AssignmentsPage() {
 		}
 	};
 
-	const handleExportAssignment = async (assignment: Assignment) => {
-		setExportingAssignmentId(assignment.id);
+	const openExportDialog = (assignment: Assignment) => {
+		setExportTarget(assignment);
+		setExportDialogOpen(true);
+	};
+
+	const handleExportAssignment = async () => {
+		if (!exportTarget) return;
+		setExportingAssignmentId(exportTarget.id);
 		try {
-			const res = await axios.get(`/assignments/${assignment.id}/export`, {
-				responseType: "blob",
-			});
-			const disposition = res.headers?.["content-disposition"] as
+			let res;
+			try {
+				res = await axios.get(`/assignments/${exportTarget.id}/export`, {
+					responseType: "blob",
+					params: {
+						zip_name_mode: exportZipNameMode,
+						inner_file_name_mode: exportInnerFileNameMode,
+					},
+				});
+			} catch (firstError) {
+				// 新オプション付きで失敗した場合は、互換のため従来API呼び出しを試す
+				res = await axios.get(`/assignments/${exportTarget.id}/export`, {
+					responseType: "blob",
+				});
+			}
+			const typedRes = res as { data: Blob; headers?: Record<string, string> };
+			const disposition = typedRes.headers?.["content-disposition"] as
 				| string
 				| undefined;
 			const matched = disposition?.match(
@@ -331,9 +401,9 @@ export default function AssignmentsPage() {
 			);
 			const filename = matched
 				? decodeURIComponent(matched[1] ?? matched[2])
-				: `assignment_${assignment.id}_submissions.zip`;
+				: `assignment_${exportTarget.id}_submissions.zip`;
 
-			const url = window.URL.createObjectURL(new Blob([res.data]));
+			const url = window.URL.createObjectURL(new Blob([typedRes.data]));
 			const link = document.createElement("a");
 			link.href = url;
 			link.setAttribute("download", filename);
@@ -342,8 +412,11 @@ export default function AssignmentsPage() {
 			link.remove();
 			window.URL.revokeObjectURL(url);
 		} catch (e) {
-			alert("課題の一括エクスポートに失敗しました");
+			console.error("課題一括エクスポート失敗:", e);
+			const message = await extractAxiosErrorMessage(e);
+			alert(message);
 		} finally {
+			setExportDialogOpen(false);
 			setExportingAssignmentId(null);
 		}
 	};
@@ -510,7 +583,7 @@ export default function AssignmentsPage() {
 																<Button
 																	size="sm"
 																	variant="outline"
-																	onClick={() => handleExportAssignment(a)}
+																	onClick={() => openExportDialog(a)}
 																	disabled={exportingAssignmentId === a.id}
 																	title="課題の一括エクスポート"
 																>
@@ -765,6 +838,102 @@ export default function AssignmentsPage() {
 								<Loader2 className="w-4 h-4 animate-spin mr-2" />
 							) : null}
 							{editTarget ? "更新する" : "作成する"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── 一括エクスポート設定ダイアログ ── */}
+			<Dialog
+				open={exportDialogOpen}
+				onOpenChange={(o) => {
+					if (!o && exportingAssignmentId === null) {
+						setExportDialogOpen(false);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-[540px]">
+					<DialogHeader>
+						<DialogTitle className="text-xl font-bold">
+							一括エクスポート設定
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4 py-2">
+						<p className="text-sm text-gray-600">
+							対象: {exportTarget?.title ?? "—"}
+						</p>
+						<div className="space-y-2">
+							<Label htmlFor="zip-name-mode">ZIPファイル名</Label>
+							<select
+								id="zip-name-mode"
+								value={exportZipNameMode}
+								onChange={(e) =>
+									setExportZipNameMode(
+										e.target.value as
+											| "legacy"
+											| "assignment_title"
+											| "lesson_assignment_title",
+									)
+								}
+								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+								disabled={exportingAssignmentId !== null}
+							>
+								<option value="assignment_title">
+									課題名 + 課題ID + 日時（推奨）
+								</option>
+								<option value="lesson_assignment_title">
+									授業回 + 課題名 + 課題ID + 日時
+								</option>
+								<option value="legacy">
+									従来形式（assignment_ID_submissions_日時）
+								</option>
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="inner-file-name-mode">ZIP内ファイル名</Label>
+							<select
+								id="inner-file-name-mode"
+								value={exportInnerFileNameMode}
+								onChange={(e) =>
+									setExportInnerFileNameMode(
+										e.target.value as
+											| "student_number_name"
+											| "class_roster_name",
+									)
+								}
+								className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+								disabled={exportingAssignmentId !== null}
+							>
+								<option value="student_number_name">
+									学籍番号 + 氏名 + 元ファイル名
+								</option>
+								<option value="class_roster_name">
+									クラス番号 + 出席番号 + 氏名 + 元ファイル名
+								</option>
+							</select>
+							<p className="text-xs text-gray-500">
+								提出者を識別する部分だけを変更します。拡張子は元ファイルを保持します。
+							</p>
+						</div>
+					</div>
+					<DialogFooter className="gap-3">
+						<Button
+							variant="outline"
+							onClick={() => setExportDialogOpen(false)}
+							disabled={exportingAssignmentId !== null}
+						>
+							キャンセル
+						</Button>
+						<Button
+							onClick={handleExportAssignment}
+							disabled={exportingAssignmentId !== null || !exportTarget}
+						>
+							{exportingAssignmentId !== null ? (
+								<Loader2 className="w-4 h-4 animate-spin mr-2" />
+							) : (
+								<Download className="w-4 h-4 mr-2" />
+							)}
+							ダウンロード
 						</Button>
 					</DialogFooter>
 				</DialogContent>
