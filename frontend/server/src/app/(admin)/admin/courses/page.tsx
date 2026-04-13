@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +65,15 @@ type Course = {
 	end_date_time: string;
 	is_active: boolean;
 	subject_id: number | null;
+};
+
+type CourseDuplicateResult = {
+	course: Course;
+	copied_permissions: number;
+	copied_enrollments: number;
+	copied_lessons: number;
+	copied_lesson_items: number;
+	copied_lesson_pages: number;
 };
 
 const toInputDateTime = (raw: string) => {
@@ -164,6 +173,22 @@ const AdminCoursesPage = () => {
 		is_active: true,
 	});
 	const [courseSaving, setCourseSaving] = useState(false);
+
+	const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+	const [duplicatingCourse, setDuplicatingCourse] = useState<Course | null>(null);
+	const [duplicateForm, setDuplicateForm] = useState({
+		new_course_name: "",
+		start_date_time: "",
+		end_date_time: "",
+		is_active: true,
+		include_teacher_permissions: true,
+		include_enrollments: false,
+		include_lessons_and_materials: true,
+		include_inactive_lessons: false,
+	});
+	const [duplicateSaving, setDuplicateSaving] = useState(false);
+	const [duplicateError, setDuplicateError] = useState<string | null>(null);
+	const [duplicateSuccess, setDuplicateSuccess] = useState<string | null>(null);
 
 	const selectedSubject = useMemo(
 		() => subjects.find((s) => s.id === selectedSubjectId) ?? null,
@@ -597,6 +622,66 @@ const AdminCoursesPage = () => {
 		setCourseDialogOpen(true);
 	};
 
+	const openCourseDuplicate = (course: Course) => {
+		setDuplicatingCourse(course);
+		setDuplicateForm({
+			new_course_name: `${course.course_name}（複製）`,
+			start_date_time: toInputDateTime(course.start_date_time),
+			end_date_time: toInputDateTime(course.end_date_time),
+			is_active: course.is_active,
+			include_teacher_permissions: true,
+			include_enrollments: false,
+			include_lessons_and_materials: true,
+			include_inactive_lessons: false,
+		});
+		setDuplicateError(null);
+		setDuplicateSuccess(null);
+		setDuplicateDialogOpen(true);
+	};
+
+	const duplicateCourse = async () => {
+		if (!duplicatingCourse || selectedSubjectId === null) return;
+		if (!duplicateForm.new_course_name.trim()) {
+			setDuplicateError("複製後のコース名を入力してください");
+			return;
+		}
+
+		setDuplicateSaving(true);
+		setDuplicateError(null);
+		setDuplicateSuccess(null);
+		try {
+			const response = await axios.post<CourseDuplicateResult>(
+				`/admin/courses/${duplicatingCourse.id}/duplicate`,
+				{
+					new_course_name: duplicateForm.new_course_name.trim(),
+					start_date_time: duplicateForm.start_date_time
+						? `${duplicateForm.start_date_time}:00`
+						: null,
+					end_date_time: duplicateForm.end_date_time
+						? `${duplicateForm.end_date_time}:00`
+						: null,
+					is_active: duplicateForm.is_active,
+					include_teacher_permissions: duplicateForm.include_teacher_permissions,
+					include_enrollments: duplicateForm.include_enrollments,
+					include_lessons_and_materials:
+						duplicateForm.include_lessons_and_materials,
+					include_inactive_lessons: duplicateForm.include_inactive_lessons,
+				},
+				{ withCredentials: true },
+			);
+
+			setDuplicateDialogOpen(false);
+			await fetchCoursesBySubject(selectedSubjectId);
+			setDuplicateSuccess(
+				`コースを複製しました（レッスン: ${response.data.copied_lessons}件 / 履修者: ${response.data.copied_enrollments}件）`,
+			);
+		} catch (_error) {
+			setDuplicateError("コースの複製に失敗しました");
+		} finally {
+			setDuplicateSaving(false);
+		}
+	};
+
 	const saveCourse = async () => {
 		if (!editingCourse || selectedSubjectId === null) return;
 		setCourseSaving(true);
@@ -656,6 +741,9 @@ const AdminCoursesPage = () => {
 			</div>
 
 			{error ? <p className="text-sm text-red-500">{error}</p> : null}
+			{duplicateSuccess ? (
+				<p className="text-sm text-emerald-600">{duplicateSuccess}</p>
+			) : null}
 
 			<div className="grid gap-6 lg:grid-cols-3">
 				<Card className="lg:col-span-1">
@@ -773,13 +861,23 @@ const AdminCoursesPage = () => {
 												{course.is_active ? "公開中" : "非公開"}
 											</p>
 										</div>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => openCourseEdit(course)}
-										>
-											<Pencil className="h-4 w-4" />
-										</Button>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												title="このコースを複製"
+												onClick={() => openCourseDuplicate(course)}
+											>
+												<Copy className="h-4 w-4" />
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={() => openCourseEdit(course)}
+											>
+												<Pencil className="h-4 w-4" />
+											</Button>
+										</div>
 									</div>
 								</div>
 							))
@@ -1288,6 +1386,162 @@ const AdminCoursesPage = () => {
 							</Button>
 						</div>
 					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>コース複製</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						{duplicatingCourse ? (
+							<p className="text-xs text-muted-foreground">
+								複製元: {duplicatingCourse.course_name}
+							</p>
+						) : null}
+						<div className="space-y-2">
+							<Label htmlFor="duplicate_course_name">複製後のコース名</Label>
+							<Input
+								id="duplicate_course_name"
+								value={duplicateForm.new_course_name}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										new_course_name: e.target.value,
+									}))
+								}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-2">
+								<Label htmlFor="duplicate_course_start">開始日時</Label>
+								<Input
+									id="duplicate_course_start"
+									type="datetime-local"
+									value={duplicateForm.start_date_time}
+									onChange={(e) =>
+										setDuplicateForm((prev) => ({
+											...prev,
+											start_date_time: e.target.value,
+										}))
+									}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="duplicate_course_end">終了日時</Label>
+								<Input
+									id="duplicate_course_end"
+									type="datetime-local"
+									value={duplicateForm.end_date_time}
+									onChange={(e) =>
+										setDuplicateForm((prev) => ({
+											...prev,
+											end_date_time: e.target.value,
+										}))
+									}
+								/>
+							</div>
+						</div>
+
+						<div className="flex items-center gap-2">
+							<input
+								id="duplicate_course_active"
+								type="checkbox"
+								checked={duplicateForm.is_active}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										is_active: e.target.checked,
+									}))
+								}
+							/>
+							<Label htmlFor="duplicate_course_active">複製後コースを有効にする</Label>
+						</div>
+
+						<hr />
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+							複製範囲
+						</p>
+
+						<div className="flex items-center gap-2">
+							<input
+								id="duplicate_lessons"
+								type="checkbox"
+								checked={duplicateForm.include_lessons_and_materials}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										include_lessons_and_materials: e.target.checked,
+										include_inactive_lessons: e.target.checked
+											? prev.include_inactive_lessons
+											: false,
+									}))
+								}
+							/>
+							<Label htmlFor="duplicate_lessons">レッスン・教材を複製する</Label>
+						</div>
+
+						<div className="flex items-center gap-2 pl-6">
+							<input
+								id="duplicate_inactive_lessons"
+								type="checkbox"
+								checked={duplicateForm.include_inactive_lessons}
+								disabled={!duplicateForm.include_lessons_and_materials}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										include_inactive_lessons: e.target.checked,
+									}))
+								}
+							/>
+							<Label htmlFor="duplicate_inactive_lessons">
+								非アクティブなレッスン・教材も含める
+							</Label>
+						</div>
+
+						<div className="flex items-center gap-2">
+							<input
+								id="duplicate_permissions"
+								type="checkbox"
+								checked={duplicateForm.include_teacher_permissions}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										include_teacher_permissions: e.target.checked,
+									}))
+								}
+							/>
+							<Label htmlFor="duplicate_permissions">教師権限を複製する</Label>
+						</div>
+
+						<div className="flex items-center gap-2">
+							<input
+								id="duplicate_enrollments"
+								type="checkbox"
+								checked={duplicateForm.include_enrollments}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										include_enrollments: e.target.checked,
+									}))
+								}
+							/>
+							<Label htmlFor="duplicate_enrollments">履修者を複製する</Label>
+						</div>
+
+						{duplicateError ? (
+							<p className="text-sm text-red-500">{duplicateError}</p>
+						) : null}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+							キャンセル
+						</Button>
+						<Button onClick={duplicateCourse} disabled={duplicateSaving}>
+							{duplicateSaving ? "複製中..." : "複製を実行"}
+						</Button>
+					</DialogFooter>
 				</DialogContent>
 			</Dialog>
 

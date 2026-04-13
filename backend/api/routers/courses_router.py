@@ -263,6 +263,25 @@ async def get_admin_courses_by_subject(
         subject_id=subject_id, include_inactive=include_inactive
     )
 
+
+@courses_router.post(
+    "/admin/courses/{course_id}/duplicate",
+    response_model=courses_schema.CourseDuplicateResult,
+    summary="（管理者向け）コース複製",
+)
+async def duplicate_course_for_admin(
+    course_id: int,
+    duplicate_in: courses_schema.CourseDuplicateRequest,
+    current_user: users_model.Users = Depends(require_admin),
+    course_service: CourseService = Depends(get_course_service),
+):
+    """管理者がコースを複製します。履修者・権限・教材の複製範囲を選択できます。"""
+    return await course_service.duplicate_course(
+        source_course_id=course_id,
+        duplicate_in=duplicate_in,
+        current_user=current_user,
+    )
+
 #
 # Course Content Permission Endpoints
 #

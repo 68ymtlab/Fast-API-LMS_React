@@ -56,6 +56,28 @@ class CourseWithLessons(Course):
     # レッスン情報をネストして含める
     lessons: List[Lesson] = []
 
+
+class CourseDuplicateRequest(BaseModel):
+    """コース複製時の入力スキーマ"""
+    new_course_name: str = Field(..., description="複製後のコース名", min_length=1, max_length=255)
+    start_date_time: Optional[datetime] = Field(None, description="複製後コースの開始日時")
+    end_date_time: Optional[datetime] = Field(None, description="複製後コースの終了日時")
+    is_active: bool = Field(True, description="複製後コースの公開フラグ")
+    include_teacher_permissions: bool = Field(True, description="教師権限を複製するか")
+    include_enrollments: bool = Field(False, description="履修者を複製するか")
+    include_lessons_and_materials: bool = Field(True, description="レッスン・教材を複製するか")
+    include_inactive_lessons: bool = Field(False, description="非アクティブなレッスン・教材も複製するか")
+
+
+class CourseDuplicateResult(BaseModel):
+    """コース複製結果"""
+    course: Course
+    copied_permissions: int = Field(..., description="複製した教師権限件数")
+    copied_enrollments: int = Field(..., description="複製した履修者件数")
+    copied_lessons: int = Field(..., description="複製したレッスン件数")
+    copied_lesson_items: int = Field(..., description="複製したレッスン項目件数")
+    copied_lesson_pages: int = Field(..., description="複製したレッスンページ件数")
+
 #
 # Course Enrollment Schemas (コース履修関連)
 #

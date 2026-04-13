@@ -4,12 +4,16 @@
 このモジュールでは、コースに関連するビジネスルールをカプセル化した
 サービスクラスを定義します。
 """
-from typing import List, Optional
+from copy import deepcopy
+from typing import Dict, List, Optional
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from api.repositories.courses_repo import CourseRepository
 from api.repositories.users_repo import UserRepository # 追加
-from api.models import courses_model, users_model
+from api.models import contents_model, courses_model, lessons_model, users_model
 import api.schemas.courses as courses_schema
 
 class CourseService:
@@ -281,6 +285,280 @@ class CourseService:
                     pass
         await self.course_repo.db.commit()
         return True
+
+    async def _clone_content_for_course_duplicate(
+        self,
+        *,
+        source_content_id: Optional[int],
+        current_user_id: int,
+        content_id_map: Dict[int, int],
+    ) -> Optional[int]:
+        """コース複製時にコンテンツ実体を複製し、新しいcontent_idを返します。"""
+        if source_content_id is None:
+            return None
+
+        if source_content_id in content_id_map:
+            return content_id_map[source_content_id]
+
+        stmt = select(contents_model.Contents).where(contents_model.Contents.id == source_content_id)
+        source_content = (await self.course_repo.db.execute(stmt)).scalar_one_or_none()
+        if source_content is None:
+            return None
+
+        duplicated_content = contents_model.Contents(
+            content_body=source_content.content_body,
+            format_type=source_content.format_type,
+            created_by_user_id=current_user_id,
+            version_notes=source_content.version_notes,
+        )
+        self.course_repo.db.add(duplicated_content)
+        await self.course_repo.db.flush()
+
+        content_id_map[source_content_id] = duplicated_content.id
+        return duplicated_content.id
+
+    async def _duplicate_lessons_and_materials(
+        self,
+        *,
+        source_course_id: int,
+        duplicated_course_id: int,
+        current_user_id: int,
+        include_inactive_lessons: bool,
+    ) -> Dict[str, int]:
+        """コース配下のレッスン・教材を複製し、複製件数を返します。"""
+        stmt = (
+            select(lessons_model.CourseLessons)
+            .where(lessons_model.CourseLessons.course_id == source_course_id)
+            .options(
+                selectinload(lessons_model.CourseLessons.lesson_items),
+                selectinload(lessons_model.CourseLessons.lesson_pages),
+            )
+            .order_by(
+                lessons_model.CourseLessons.lesson_number,
+                lessons_model.CourseLessons.display_order,
+                lessons_model.CourseLessons.id,
+            )
+        )
+        source_lessons = (await self.course_repo.db.execute(stmt)).scalars().unique().all()
+
+        content_id_map: Dict[int, int] = {}
+        copied_lessons = 0
+        copied_lesson_items = 0
+        copied_lesson_pages = 0
+
+        for source_lesson in source_lessons:
+            if not include_inactive_lessons and not source_lesson.is_active:
+                continue
+
+            duplicated_lesson = lessons_model.CourseLessons(
+                course_id=duplicated_course_id,
+                title=source_lesson.title,
+                lesson_number=source_lesson.lesson_number,
+                description=source_lesson.description,
+                display_order=source_lesson.display_order,
+                is_active=source_lesson.is_active,
+                created_by_user_id=current_user_id,
+                updated_by_user_id=current_user_id,
+                deleted_at=source_lesson.deleted_at if include_inactive_lessons else None,
+            )
+            self.course_repo.db.add(duplicated_lesson)
+            await self.course_repo.db.flush()
+            copied_lessons += 1
+
+            page_id_map: Dict[int, int] = {}
+            source_pages = sorted(
+                source_lesson.lesson_pages,
+                key=lambda page: (page.page_number, page.id),
+            )
+            for source_page in source_pages:
+                if not include_inactive_lessons and not source_page.is_active:
+                    continue
+
+                duplicated_raw_content_id = await self._clone_content_for_course_duplicate(
+                    source_content_id=source_page.raw_content_id,
+                    current_user_id=current_user_id,
+                    content_id_map=content_id_map,
+                )
+                duplicated_rendered_content_id = await self._clone_content_for_course_duplicate(
+                    source_content_id=source_page.rendered_content_id,
+                    current_user_id=current_user_id,
+                    content_id_map=content_id_map,
+                )
+
+                duplicated_page = lessons_model.LessonPages(
+                    lesson_id=duplicated_lesson.id,
+                    page_number=source_page.page_number,
+                    title=source_page.title,
+                    raw_content_id=duplicated_raw_content_id,
+                    rendered_content_id=duplicated_rendered_content_id,
+                    visibility_start_date_time=source_page.visibility_start_date_time,
+                    visibility_end_date_time=source_page.visibility_end_date_time,
+                    is_always_visible=source_page.is_always_visible,
+                    is_active=source_page.is_active,
+                    created_by_user_id=current_user_id,
+                    updated_by_user_id=current_user_id,
+                    deleted_at=source_page.deleted_at if include_inactive_lessons else None,
+                )
+                self.course_repo.db.add(duplicated_page)
+                await self.course_repo.db.flush()
+
+                page_id_map[source_page.id] = duplicated_page.id
+                copied_lesson_pages += 1
+
+            source_items = sorted(
+                source_lesson.lesson_items,
+                key=lambda item: (item.display_order, item.id),
+            )
+            for source_item in source_items:
+                if not include_inactive_lessons and not source_item.is_active:
+                    continue
+
+                duplicated_item_resource_id = source_item.item_resource_id
+                if source_item.item_content_type == "textbook" and source_item.item_resource_id:
+                    duplicated_item_resource_id = page_id_map.get(
+                        source_item.item_resource_id,
+                    )
+
+                duplicated_item = lessons_model.LessonItems(
+                    lesson_id=duplicated_lesson.id,
+                    title=source_item.title,
+                    description=source_item.description,
+                    item_content_type=source_item.item_content_type,
+                    item_resource_id=duplicated_item_resource_id,
+                    item_url=source_item.item_url,
+                    display_order=source_item.display_order,
+                    item_data_details=deepcopy(source_item.item_data_details)
+                    if source_item.item_data_details is not None
+                    else None,
+                    is_active=source_item.is_active,
+                    created_by_user_id=current_user_id,
+                    updated_by_user_id=current_user_id,
+                    deleted_at=source_item.deleted_at if include_inactive_lessons else None,
+                )
+                self.course_repo.db.add(duplicated_item)
+                await self.course_repo.db.flush()
+                copied_lesson_items += 1
+
+        return {
+            "lessons": copied_lessons,
+            "lesson_items": copied_lesson_items,
+            "lesson_pages": copied_lesson_pages,
+        }
+
+    async def duplicate_course(
+        self,
+        *,
+        source_course_id: int,
+        duplicate_in: courses_schema.CourseDuplicateRequest,
+        current_user: users_model.Users,
+    ) -> courses_schema.CourseDuplicateResult:
+        """既存コースを複製し、指定オプションに応じて配下データも複製します。"""
+        source_course = await self.course_repo.get_course_by_id(course_id=source_course_id)
+        if source_course is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+
+        new_course_name = duplicate_in.new_course_name.strip()
+        if not new_course_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="new_course_name must not be empty.",
+            )
+
+        start_date_time = duplicate_in.start_date_time or source_course.start_date_time
+        end_date_time = duplicate_in.end_date_time or source_course.end_date_time
+        if start_date_time >= end_date_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="start_date_time must be earlier than end_date_time.",
+            )
+
+        copied_permissions = 0
+        copied_enrollments = 0
+        copied_lessons = 0
+        copied_lesson_items = 0
+        copied_lesson_pages = 0
+
+        async with self.course_repo.db.begin_nested():
+            duplicated_course = courses_model.Courses(
+                subject_id=source_course.subject_id,
+                course_name=new_course_name,
+                description=source_course.description,
+                session_count=source_course.session_count,
+                target_audience=source_course.target_audience,
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+                is_active=duplicate_in.is_active,
+                created_by_user_id=current_user.id,
+                updated_by_user_id=current_user.id,
+            )
+            self.course_repo.db.add(duplicated_course)
+            await self.course_repo.db.flush()
+
+            if duplicate_in.include_teacher_permissions:
+                stmt_permissions = select(courses_model.CourseContentPermissions).where(
+                    courses_model.CourseContentPermissions.course_id == source_course_id
+                )
+                source_permissions = (await self.course_repo.db.execute(stmt_permissions)).scalars().all()
+
+                for source_permission in source_permissions:
+                    duplicated_permission = courses_model.CourseContentPermissions(
+                        teacher_user_id=source_permission.teacher_user_id,
+                        course_id=duplicated_course.id,
+                        start_date_time=source_permission.start_date_time,
+                        end_date_time=source_permission.end_date_time,
+                        can_read_content=source_permission.can_read_content,
+                        can_update_content=source_permission.can_update_content,
+                        can_delete_content=source_permission.can_delete_content,
+                        created_by_user_id=current_user.id,
+                    )
+                    self.course_repo.db.add(duplicated_permission)
+
+                copied_permissions = len(source_permissions)
+
+            if duplicate_in.include_enrollments:
+                stmt_enrollments = select(courses_model.CourseEnrollments).where(
+                    courses_model.CourseEnrollments.course_id == source_course_id
+                )
+                source_enrollments = (await self.course_repo.db.execute(stmt_enrollments)).scalars().all()
+
+                for source_enrollment in source_enrollments:
+                    duplicated_enrollment = courses_model.CourseEnrollments(
+                        user_id=source_enrollment.user_id,
+                        course_id=duplicated_course.id,
+                        last_accessed_at=None,
+                    )
+                    self.course_repo.db.add(duplicated_enrollment)
+
+                copied_enrollments = len(source_enrollments)
+
+            if duplicate_in.include_lessons_and_materials:
+                copied_counts = await self._duplicate_lessons_and_materials(
+                    source_course_id=source_course_id,
+                    duplicated_course_id=duplicated_course.id,
+                    current_user_id=current_user.id,
+                    include_inactive_lessons=duplicate_in.include_inactive_lessons,
+                )
+                copied_lessons = copied_counts["lessons"]
+                copied_lesson_items = copied_counts["lesson_items"]
+                copied_lesson_pages = copied_counts["lesson_pages"]
+
+        await self.course_repo.db.commit()
+
+        duplicated_course_data = await self.course_repo.get_course_by_id(course_id=duplicated_course.id)
+        if duplicated_course_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load duplicated course.",
+            )
+
+        return courses_schema.CourseDuplicateResult(
+            course=duplicated_course_data,
+            copied_permissions=copied_permissions,
+            copied_enrollments=copied_enrollments,
+            copied_lessons=copied_lessons,
+            copied_lesson_items=copied_lesson_items,
+            copied_lesson_pages=copied_lesson_pages,
+        )
 
     async def update_course(
         self, *, course_id: int, course_in: courses_schema.CourseUpdate, current_user: users_model.Users
