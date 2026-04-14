@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from api.core.password import SecurityManager
 from api.repositories.courses_repo import CourseRepository
 from api.repositories.users_repo import UserRepository # 追加
 from api.models import contents_model, courses_model, lessons_model, users_model
@@ -636,3 +637,18 @@ class CourseService:
         await self.course_repo.soft_delete_course(course=course)
         await self.course_repo.db.commit()
         return True
+
+    async def delete_course_by_admin(
+        self,
+        *,
+        course_id: int,
+        current_user: users_model.Users,
+        admin_password: str,
+    ) -> bool:
+        """管理者パスワード確認付きでコースを論理削除します。"""
+        if not SecurityManager.verify_password(admin_password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect admin password",
+            )
+        return await self.delete_course(course_id=course_id, current_user=current_user)

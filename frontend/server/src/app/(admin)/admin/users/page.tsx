@@ -6,6 +6,7 @@ import {
 	Loader2,
 	Pencil,
 	RefreshCw,
+	Trash2,
 	Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -94,6 +95,12 @@ export default function AdminUsersPage() {
 	const [editRoleId, setEditRoleId] = useState("3");
 	const [editStatus, setEditStatus] = useState<"active" | "disabled">("active");
 	const [editAdminPassword, setEditAdminPassword] = useState("");
+
+	const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+	const [deleteAdminPassword, setDeleteAdminPassword] = useState("");
+	const [deleteLoading, setDeleteLoading] = useState(false);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+	const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
 	useEffect(() => {
 		setMounted(true);
@@ -280,6 +287,50 @@ export default function AdminUsersPage() {
 		}
 	};
 
+	const openDeleteDialog = (user: AdminUser) => {
+		setDeletingUser(user);
+		setDeleteAdminPassword("");
+		setDeleteError(null);
+		setDeleteSuccess(null);
+	};
+
+	const closeDeleteDialog = () => {
+		setDeletingUser(null);
+		setDeleteAdminPassword("");
+		setDeleteError(null);
+	};
+
+	const submitDelete = async () => {
+		if (!deletingUser) return;
+		if (deleteAdminPassword.length < 4) {
+			setDeleteError("管理者パスワードを入力してください。");
+			return;
+		}
+
+		setDeleteLoading(true);
+		setDeleteError(null);
+		try {
+			await axios.delete(`/admin/users/${deletingUser.id}`, {
+				withCredentials: true,
+				data: {
+					admin_password: deleteAdminPassword,
+				},
+			});
+			setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
+			setDeleteSuccess("ユーザーを削除しました。");
+			setTimeout(() => {
+				closeDeleteDialog();
+			}, 900);
+		} catch (e: any) {
+			const detail = e?.response?.data?.detail;
+			setDeleteError(
+				typeof detail === "string" ? detail : "ユーザー削除に失敗しました。",
+			);
+		} finally {
+			setDeleteLoading(false);
+		}
+	};
+
 	if (!mounted) {
 		return null;
 	}
@@ -394,6 +445,14 @@ export default function AdminUsersPage() {
 												>
 													<KeyRound className="h-4 w-4" />
 													パスワード再設定
+												</Button>
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => openDeleteDialog(u)}
+												>
+													<Trash2 className="h-4 w-4" />
+													削除
 												</Button>
 											</div>
 										</td>
@@ -566,6 +625,62 @@ export default function AdminUsersPage() {
 									</>
 								) : (
 									"保存"
+								)}
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={!!deletingUser}
+				onOpenChange={(open) => !open && closeDeleteDialog()}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>ユーザー削除</DialogTitle>
+						<DialogDescription>
+							対象: {deletingUser?.email}
+							<br />
+							この操作には、管理者パスワードの再入力が必要です。
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3">
+						<Input
+							type="password"
+							placeholder="管理者パスワード（確認）"
+							value={deleteAdminPassword}
+							onChange={(e) => setDeleteAdminPassword(e.target.value)}
+							autoComplete="current-password"
+							disabled={deleteLoading}
+						/>
+						{deleteError ? (
+							<Alert variant="destructive">
+								<AlertCircle className="h-4 w-4" />
+								<AlertDescription>{deleteError}</AlertDescription>
+							</Alert>
+						) : null}
+						{deleteSuccess ? (
+							<Alert>
+								<AlertDescription>{deleteSuccess}</AlertDescription>
+							</Alert>
+						) : null}
+						<div className="flex justify-end gap-2">
+							<Button
+								variant="outline"
+								onClick={closeDeleteDialog}
+								disabled={deleteLoading}
+							>
+								キャンセル
+							</Button>
+							<Button onClick={submitDelete} disabled={deleteLoading}>
+								{deleteLoading ? (
+									<>
+										<Loader2 className="h-4 w-4 animate-spin" />
+										削除中...
+									</>
+								) : (
+									"削除する"
 								)}
 							</Button>
 						</div>

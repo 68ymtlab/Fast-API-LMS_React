@@ -14,7 +14,10 @@ class UserRepository(BaseRepository):
         stmt = (
             select(user_model.Users)
             .options(selectinload(user_model.Users.role))
-            .where(user_model.Users.email == email)
+            .where(
+                user_model.Users.email == email,
+                user_model.Users.deleted_at.is_(None),
+            )
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
@@ -23,7 +26,10 @@ class UserRepository(BaseRepository):
         stmt = (
             select(user_model.Users)
             .options(selectinload(user_model.Users.role), selectinload(user_model.Users.student))
-            .where(user_model.Users.id == user_id)
+            .where(
+                user_model.Users.id == user_id,
+                user_model.Users.deleted_at.is_(None),
+            )
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
@@ -60,6 +66,16 @@ class UserRepository(BaseRepository):
         await self.db.refresh(user)
         return user
 
+    async def soft_delete(self, *, user: user_model.Users) -> user_model.Users:
+        """ユーザーを論理削除します。"""
+        user.is_disabled = True
+        user.deleted_at = func.now()
+        user.updated_at = func.now()
+        self.db.add(user)
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
+
     async def touch_last_login(self, *, user_id: int) -> None:
         """最終ログイン日時を現在時刻で更新します。"""
         stmt = update(user_model.Users).where(user_model.Users.id == user_id).values(last_login_at=func.now())
@@ -70,6 +86,7 @@ class UserRepository(BaseRepository):
         stmt = (
             select(user_model.Users)
             .options(selectinload(user_model.Users.role))
+            .where(user_model.Users.deleted_at.is_(None))
             .order_by(user_model.Users.id)
         )
 
@@ -96,7 +113,10 @@ class UserRepository(BaseRepository):
         stmt = (
             select(user_model.Users)
             .options(selectinload(user_model.Users.student))
-            .where(user_model.Users.role_id == 3)
+            .where(
+                user_model.Users.role_id == 3,
+                user_model.Users.deleted_at.is_(None),
+            )
             .order_by(user_model.Users.id)
         )
         res = await self.db.execute(stmt)

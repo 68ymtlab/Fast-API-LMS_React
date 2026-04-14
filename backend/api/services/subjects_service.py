@@ -1,5 +1,9 @@
 from typing import List, Optional
 
+from fastapi import HTTPException, status
+
+from api.core.password import SecurityManager
+from api.models import users_model
 from api.repositories.subjects_repo import SubjectRepository
 import api.schemas.subjects as subject_schema
 import api.models.subjects_model as subject_model
@@ -45,6 +49,21 @@ class SubjectService:
         """科目を論理削除します（非アクティブ化）。"""
         await self.subject_repo.delete(subject_id=subject_id, updated_by_user_id=user_id)
         await self.subject_repo.db.commit()
+
+    async def delete_subject_by_admin(
+        self,
+        *,
+        subject_id: int,
+        admin_user: users_model.Users,
+        admin_password: str,
+    ) -> None:
+        """管理者パスワード確認付きで科目を論理削除します。"""
+        if not SecurityManager.verify_password(admin_password, admin_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect admin password",
+            )
+        await self.delete_subject(subject_id=subject_id, user_id=admin_user.id)
 
     async def get_semesters(self) -> List[subject_model.Semesters]:
         """学期マスタの一覧を取得します。"""

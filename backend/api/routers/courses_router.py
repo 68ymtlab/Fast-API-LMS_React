@@ -22,6 +22,7 @@ from api.services.courses_service import CourseService
 from api.services.lessons_service import LessonService
 import api.schemas.courses as courses_schema
 import api.schemas.lessons as lessons_schema # New import
+import api.schemas.users as user_schema
 
 
 courses_router = APIRouter(tags=["コース管理"])
@@ -281,6 +282,28 @@ async def duplicate_course_for_admin(
         duplicate_in=duplicate_in,
         current_user=current_user,
     )
+
+
+@courses_router.delete(
+    "/admin/courses/{course_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="（管理者向け）コースの論理削除（管理者パスワード確認）",
+)
+async def delete_course_by_admin(
+    course_id: int,
+    delete_in: user_schema.AdminPasswordConfirm,
+    current_user: users_model.Users = Depends(require_admin),
+    course_service: CourseService = Depends(get_course_service),
+):
+    """管理者パスワード確認のうえ、指定したコースを論理削除します。"""
+    success = await course_service.delete_course_by_admin(
+        course_id=course_id,
+        current_user=current_user,
+        admin_password=delete_in.admin_password,
+    )
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+    return
 
 #
 # Course Content Permission Endpoints

@@ -10,10 +10,11 @@ from typing import List
 
 from api.db.session import get_db
 from api.models import users_model
-from api.core.security import require_teacher_or_higher, get_current_active_user
+from api.core.security import require_teacher_or_higher, get_current_active_user, require_admin
 from api.repositories.subjects_repo import SubjectRepository
 from api.services.subjects_service import SubjectService
 import api.schemas.subjects as subject_schema
+import api.schemas.users as user_schema
 
 subjects_router = APIRouter(tags=["科目管理"])
 
@@ -192,4 +193,28 @@ async def delete_subject(
     if subject is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
     await service.delete_subject(subject_id=subject_id, user_id=current_user.id)
+    return
+
+
+@subjects_router.delete(
+    "/admin/subjects/{subject_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="科目削除（管理者パスワード確認）",
+)
+async def delete_subject_by_admin(
+    subject_id: int,
+    delete_in: user_schema.AdminPasswordConfirm,
+    service: SubjectService = Depends(get_subject_service),
+    current_user: users_model.Users = Depends(require_admin),
+):
+    """（管理者権限）管理者パスワード確認のうえ、指定した科目を論理削除します。"""
+    subject = await service.get_by_id(subject_id)
+    if subject is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
+
+    await service.delete_subject_by_admin(
+        subject_id=subject_id,
+        admin_user=current_user,
+        admin_password=delete_in.admin_password,
+    )
     return
