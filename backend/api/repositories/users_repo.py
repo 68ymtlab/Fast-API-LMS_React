@@ -2,6 +2,7 @@ from sqlalchemy import select, update, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Sequence
+import uuid
 
 from api.repositories.base import BaseRepository
 import api.models.users_model as user_model
@@ -69,6 +70,8 @@ class UserRepository(BaseRepository):
     async def soft_delete(self, *, user: user_model.Users) -> user_model.Users:
         """ユーザーを論理削除します。"""
         user.is_disabled = True
+        # users.email は UNIQUE 制約のため、論理削除時に退避メールへ置き換えて再利用可能にする
+        user.email = f"deleted+{user.id}+{uuid.uuid4().hex}@example.invalid"
         user.deleted_at = func.now()
         user.updated_at = func.now()
         self.db.add(user)
