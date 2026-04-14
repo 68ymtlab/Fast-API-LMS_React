@@ -107,6 +107,11 @@ class AdminPasswordReset(BaseModel):
     new_password: str = Field(..., min_length=4, max_length=50, description="新しいパスワード")
 
 
+class AdminPasswordConfirm(BaseModel):
+    """管理者パスワード確認のみを受け取る共通スキーマ"""
+    admin_password: str = Field(..., min_length=4, max_length=50, description="操作実行者（管理者）の現在パスワード")
+
+
 class AdminUserUpdate(BaseModel):
     """管理者によるユーザー情報更新用スキーマ（管理者パスワード再入力必須）"""
     admin_password: str = Field(..., min_length=4, max_length=50, description="操作実行者（管理者）の現在パスワード")

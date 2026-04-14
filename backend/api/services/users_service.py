@@ -6,7 +6,7 @@ from api.core.password import SecurityManager
 from api.repositories.users_repo import UserRepository
 import api.schemas.users as user_schema
 import api.models.users_model as user_model
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 class UserService:
     def __init__(self, user_repo: UserRepository):
@@ -218,3 +218,28 @@ class UserService:
         await self.user_repo.db.commit()
         updated_user = await self.user_repo.get_by_id(user_id=user_id)
         return updated_user or user_to_update
+
+    async def delete_user_by_admin(
+        self,
+        *,
+        admin_user: user_model.Users,
+        user_id: int,
+        delete_in: user_schema.AdminPasswordConfirm,
+    ) -> bool:
+        """管理者がユーザーを論理削除します（管理者パスワード再入力必須）。"""
+        if not SecurityManager.verify_password(delete_in.admin_password, admin_user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect admin password")
+
+        if admin_user.id == user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot delete your own account",
+            )
+
+        user_to_delete = await self.user_repo.get_by_id(user_id=user_id)
+        if not user_to_delete:
+            return False
+
+        await self.user_repo.soft_delete(user=user_to_delete)
+        await self.user_repo.db.commit()
+        return True

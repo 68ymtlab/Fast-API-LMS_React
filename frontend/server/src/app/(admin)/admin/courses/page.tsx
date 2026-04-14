@@ -76,6 +76,12 @@ type CourseDuplicateResult = {
 	copied_lesson_pages: number;
 };
 
+type DeleteTarget = {
+	kind: "subject" | "course";
+	id: number;
+	name: string;
+};
+
 const toInputDateTime = (raw: string) => {
 	if (!raw) return "";
 	const date = new Date(raw);
@@ -189,6 +195,12 @@ const AdminCoursesPage = () => {
 	const [duplicateSaving, setDuplicateSaving] = useState(false);
 	const [duplicateError, setDuplicateError] = useState<string | null>(null);
 	const [duplicateSuccess, setDuplicateSuccess] = useState<string | null>(null);
+
+	const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+	const [deleteAdminPassword, setDeleteAdminPassword] = useState("");
+	const [deleteLoading, setDeleteLoading] = useState(false);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+	const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
 	const selectedSubject = useMemo(
 		() => subjects.find((s) => s.id === selectedSubjectId) ?? null,
@@ -713,6 +725,74 @@ const AdminCoursesPage = () => {
 		}
 	};
 
+	const openDeleteDialog = (target: DeleteTarget) => {
+		setDeleteTarget(target);
+		setDeleteAdminPassword("");
+		setDeleteError(null);
+	};
+
+	const closeDeleteDialog = () => {
+		setDeleteTarget(null);
+		setDeleteAdminPassword("");
+		setDeleteError(null);
+	};
+
+	const submitDelete = async () => {
+		if (!deleteTarget) return;
+		if (deleteAdminPassword.length < 4) {
+			setDeleteError("管理者パスワードを入力してください。");
+			return;
+		}
+
+		setDeleteLoading(true);
+		setDeleteError(null);
+		try {
+			if (deleteTarget.kind === "subject") {
+				const deletingSelectedSubject = selectedSubjectId === deleteTarget.id;
+				if (deletingSelectedSubject) {
+					setSelectedSubjectId(null);
+					setCourses([]);
+				}
+
+				await axios.delete(`/admin/subjects/${deleteTarget.id}`, {
+					withCredentials: true,
+					data: {
+						admin_password: deleteAdminPassword,
+					},
+				});
+
+				await fetchSubjects();
+				if (!deletingSelectedSubject && selectedSubjectId !== null) {
+					await fetchCoursesBySubject(selectedSubjectId);
+				}
+				setDeleteSuccess("科目を削除しました。");
+			} else {
+				await axios.delete(`/admin/courses/${deleteTarget.id}`, {
+					withCredentials: true,
+					data: {
+						admin_password: deleteAdminPassword,
+					},
+				});
+
+				if (selectedSubjectId !== null) {
+					await fetchCoursesBySubject(selectedSubjectId);
+				}
+				setDeleteSuccess("コースを削除しました。");
+			}
+
+			setTimeout(() => {
+				closeDeleteDialog();
+			}, 900);
+		} catch (e: any) {
+			const detail = e?.response?.data?.detail;
+			setDeleteError(
+				typeof detail === "string" ? detail : "削除に失敗しました。",
+			);
+		} finally {
+			setDeleteLoading(false);
+		}
+	};
+
 	return (
 		<div className="p-6 space-y-6">
 			<div className="flex items-center justify-between gap-4">
@@ -743,6 +823,9 @@ const AdminCoursesPage = () => {
 			{error ? <p className="text-sm text-red-500">{error}</p> : null}
 			{duplicateSuccess ? (
 				<p className="text-sm text-emerald-600">{duplicateSuccess}</p>
+			) : null}
+			{deleteSuccess ? (
+				<p className="text-sm text-emerald-600">{deleteSuccess}</p>
 			) : null}
 
 			<div className="grid gap-6 lg:grid-cols-3">
@@ -796,27 +879,13 @@ const AdminCoursesPage = () => {
 											<Button
 												variant="outline"
 												size="sm"
-												onClick={async () => {
-													if (
-														!window.confirm(
-															"この科目を削除しますか？（コースやシラバスも利用できなくなります）",
-														)
-													) {
-														return;
-													}
-													try {
-														await axios.delete(`/subjects/${subject.id}`, {
-															withCredentials: true,
-														});
-														await fetchSubjects();
-														if (selectedSubjectId === subject.id) {
-															setSelectedSubjectId(null);
-															setCourses([]);
-														}
-													} catch (_error) {
-														setError("科目の削除に失敗しました");
-													}
-												}}
+												onClick={() =>
+													openDeleteDialog({
+														kind: "subject",
+														id: subject.id,
+														name: subject.subject_name,
+													})
+												}
 											>
 												<Trash2 className="h-4 w-4" />
 											</Button>
@@ -876,6 +945,20 @@ const AdminCoursesPage = () => {
 												onClick={() => openCourseEdit(course)}
 											>
 												<Pencil className="h-4 w-4" />
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												title="このコースを削除"
+												onClick={() =>
+													openDeleteDialog({
+														kind: "course",
+														id: course.id,
+														name: course.course_name,
+													})
+												}
+											>
+												<Trash2 className="h-4 w-4" />
 											</Button>
 										</div>
 									</div>
@@ -1383,6 +1466,51 @@ const AdminCoursesPage = () => {
 							>
 								<Trash2 className="mr-1 h-3 w-3" />
 								選択中の区分を削除
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={!!deleteTarget}
+				onOpenChange={(open) => !open && closeDeleteDialog()}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>
+							{deleteTarget?.kind === "subject"
+								? "科目削除"
+								: "コース削除"}
+						</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-3">
+						<p className="text-sm text-muted-foreground">
+							対象: {deleteTarget?.name}
+							<br />
+							この操作には管理者パスワードの再入力が必要です。
+						</p>
+						<Input
+							type="password"
+							placeholder="管理者パスワード（確認）"
+							value={deleteAdminPassword}
+							onChange={(e) => setDeleteAdminPassword(e.target.value)}
+							autoComplete="current-password"
+							disabled={deleteLoading}
+						/>
+						{deleteError ? (
+							<p className="text-sm text-red-500">{deleteError}</p>
+						) : null}
+						<div className="flex justify-end gap-2">
+							<Button
+								variant="outline"
+								onClick={closeDeleteDialog}
+								disabled={deleteLoading}
+							>
+								キャンセル
+							</Button>
+							<Button onClick={submitDelete} disabled={deleteLoading}>
+								{deleteLoading ? "削除中..." : "削除する"}
 							</Button>
 						</div>
 					</div>

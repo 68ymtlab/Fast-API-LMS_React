@@ -320,6 +320,28 @@ async def update_user_by_admin(
     return updated_user
 
 
+@users_router.delete(
+    "/admin/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="ユーザー削除（管理者向け・管理者パスワード確認）",
+)
+async def delete_user_by_admin(
+    user_id: int,
+    delete_in: user_schema.AdminPasswordConfirm,
+    current_user: user_model.Users = Depends(require_admin),
+    service: UserService = Depends(get_user_service),
+):
+    """（管理者権限）管理者パスワード確認のうえ、指定ユーザーを論理削除します。"""
+    success = await service.delete_user_by_admin(
+        admin_user=current_user,
+        user_id=user_id,
+        delete_in=delete_in,
+    )
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return
+
+
 @users_router.get(
     "/admin/access-histories",
     response_model=List[user_schema.AdminAccessHistoryResponse],
