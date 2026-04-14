@@ -53,6 +53,7 @@ services:
       - ./db/init/02-progress-migration.sql:/docker-entrypoint-initdb.d/02-progress-migration.sql:ro
       - ./db/init/03-students-columns-migration.sql:/docker-entrypoint-initdb.d/03-students-columns-migration.sql:ro
       - ./db/init/02-assignments.sql:/docker-entrypoint-initdb.d/04-assignments.sql:ro
+      - ./db/init/05-soft-delete-email-migration.sql:/docker-entrypoint-initdb.d/05-soft-delete-email-migration.sql:ro
       - ${DB_VOLUME_NAME}:/var/lib/postgresql/data
 
 volumes:
