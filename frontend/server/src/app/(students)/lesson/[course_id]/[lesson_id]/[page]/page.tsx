@@ -27,6 +27,16 @@ const MARKER_COLOR_MAP: Record<string, string> = {
 	orange: "#ffe4bf",
 };
 
+const STUDENT_RESUME_KEY = "student-last-learning-v1";
+
+type StudentResumeSnapshot = {
+	courseId: number;
+	lessonItemId: number;
+	page: number;
+	href: string;
+	savedAt: string;
+};
+
 function resolveMarkerColor(color: string | null | undefined): string {
 	if (!color) return MARKER_COLOR_MAP.yellow;
 	return MARKER_COLOR_MAP[color] ?? color;
@@ -738,7 +748,30 @@ const LessonPage = () => {
 		if (typeof window === "undefined") return;
 		window.sessionStorage.setItem("currentCourseId", course_id);
 		window.sessionStorage.setItem("currentLessonId", lesson_item_id);
-	}, [course_id, lesson_item_id]);
+
+		const parsedCourseId = Number.parseInt(course_id, 10);
+		const parsedLessonItemId = Number.parseInt(lesson_item_id, 10);
+		const parsedPage = Number.parseInt(page, 10);
+		if (
+			Number.isNaN(parsedCourseId) ||
+			Number.isNaN(parsedLessonItemId) ||
+			Number.isNaN(parsedPage) ||
+			parsedCourseId <= 0 ||
+			parsedLessonItemId <= 0 ||
+			parsedPage <= 0
+		) {
+			return;
+		}
+
+		const snapshot: StudentResumeSnapshot = {
+			courseId: parsedCourseId,
+			lessonItemId: parsedLessonItemId,
+			page: parsedPage,
+			href: `/lesson/${parsedCourseId}/${parsedLessonItemId}/${parsedPage}`,
+			savedAt: new Date().toISOString(),
+		};
+		window.localStorage.setItem(STUDENT_RESUME_KEY, JSON.stringify(snapshot));
+	}, [course_id, lesson_item_id, page]);
 
 	// レッスン項目情報とページ一覧を取得
 	useEffect(() => {

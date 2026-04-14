@@ -3,13 +3,14 @@
 import {
 	AlertCircle,
 	Award,
+	BookMarked,
 	BookOpen,
 	Calendar,
 	Hash,
 	Target,
 } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import TcAccessTime from "@/components/tc_access_time";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +34,21 @@ interface SyllabusInfo {
 }
 
 function SyllabusPage() {
-	const router = useRouter();
 	const params = useParams();
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [syllabusInfo, setSyllabusInfo] = useState<SyllabusInfo | null>(null);
+
+	const keywords = useMemo(() => {
+		if (!syllabusInfo?.subject_keyword) {
+			return [];
+		}
+		return syllabusInfo.subject_keyword
+			.split(",")
+			.map((keyword) => keyword.trim())
+			.filter(Boolean);
+	}, [syllabusInfo]);
+
 	useEffect(() => {
 		if (params.course_id) {
 			fetchSyllabusInfo();
@@ -62,212 +73,176 @@ function SyllabusPage() {
 	return (
 		<>
 			<TcAccessTime page="student_course_syllabus" />
-			<div className="container mx-auto py-8 px-4 max-w-6xl">
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-2xl flex items-center gap-2">
-							<BookOpen className="h-6 w-6" />
-							シラバス情報
-						</CardTitle>
-						<CardDescription>
-							科目の詳細情報と学習目標を確認できます
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						{errorMessage && (
-							<Alert variant="destructive" className="mb-6">
-								<AlertCircle className="h-4 w-4" />
-								<AlertDescription>{errorMessage}</AlertDescription>
-							</Alert>
-						)}
+			<div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-cyan-50/30">
+				<main className="mx-auto w-full max-w-6xl px-4 pb-8 pt-16 sm:px-6">
+					<Card className="border-slate-200/80 bg-white/95 shadow-sm">
+						<CardHeader className="space-y-2">
+							<CardTitle className="flex items-center gap-2 text-2xl text-slate-900">
+								<BookMarked className="h-6 w-6 text-cyan-700" />
+								シラバス照会
+							</CardTitle>
+							<CardDescription className="text-sm text-slate-600">
+								科目の基本情報と学習目標を読みやすく確認できます。
+							</CardDescription>
+						</CardHeader>
+						{syllabusInfo ? (
+							<CardContent className="pt-0">
+								<div className="flex flex-wrap items-center gap-2">
+									<Badge
+										variant="outline"
+										className="border-slate-300 bg-white text-slate-700"
+									>
+										{syllabusInfo.subject_code}
+									</Badge>
+									<Badge
+										variant="outline"
+										className="border-slate-300 bg-white text-slate-700"
+									>
+										{syllabusInfo.subject_credit}単位
+									</Badge>
+									<Badge
+										variant="outline"
+										className="border-slate-300 bg-white text-slate-700"
+									>
+										{syllabusInfo.subject_period}
+									</Badge>
+								</div>
+							</CardContent>
+						) : null}
+					</Card>
 
-						{!syllabusInfo ? (
-							<Card>
-								<CardContent className="text-center py-8">
-									<BookOpen className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-									<p className="text-gray-500">シラバス情報がありません</p>
-								</CardContent>
-							</Card>
-						) : (
-							<div className="space-y-8">
-								{/* 基本情報 */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-lg flex items-center gap-2">
-											<Award className="h-5 w-5" />
+					{errorMessage ? (
+						<Alert variant="destructive" className="mt-5">
+							<AlertCircle className="h-4 w-4" />
+							<AlertDescription>{errorMessage}</AlertDescription>
+						</Alert>
+					) : null}
+
+					{loading ? (
+						<Card className="mt-5 border-slate-200 bg-white/90">
+							<CardContent className="py-12 text-center text-sm text-slate-500">
+								シラバス情報を読み込み中です...
+							</CardContent>
+						</Card>
+					) : !syllabusInfo ? (
+						<Card className="mt-5 border-slate-200 bg-white/90">
+							<CardContent className="py-12 text-center">
+								<BookOpen className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+								<p className="text-base font-medium text-slate-700">
+									シラバス情報がありません
+								</p>
+								<p className="mt-1 text-sm text-slate-500">
+									科目情報が登録されるとここに表示されます。
+								</p>
+							</CardContent>
+						</Card>
+					) : (
+						<div className="mt-5 space-y-5">
+							<div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+								<Card className="border-slate-200 bg-white/95 lg:col-span-2">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+											<Award className="h-5 w-5 text-cyan-700" />
 											授業科目基本情報
 										</CardTitle>
 									</CardHeader>
 									<CardContent>
-										<div className="overflow-x-auto">
-											<table className="w-full border-collapse border border-gray-300">
-												<thead>
-													<tr className="bg-primary text-white">
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															授業科目区分
-														</th>
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															科目名
-														</th>
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															単位数
-														</th>
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															科目コード
-														</th>
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															開講時期
-														</th>
-													</tr>
-												</thead>
-												<tbody>
-													<tr className="bg-white">
-														<td className="border border-gray-300 px-4 py-3 text-center">
-															<Badge variant="outline">
-																{syllabusInfo.subject_class}
-															</Badge>
-														</td>
-														<td className="border border-gray-300 px-4 py-3 text-center font-semibold">
-															{syllabusInfo.subject_name}
-														</td>
-														<td className="border border-gray-300 px-4 py-3 text-center">
-															<Badge>{syllabusInfo.subject_credit}単位</Badge>
-														</td>
-														<td className="border border-gray-300 px-4 py-3 text-center font-mono">
-															{syllabusInfo.subject_code}
-														</td>
-														<td className="border border-gray-300 px-4 py-3 text-center">
-															<div className="flex items-center justify-center gap-1">
-																<Calendar className="h-4 w-4" />
-																{syllabusInfo.subject_period}
-															</div>
-														</td>
-													</tr>
-												</tbody>
-											</table>
+										<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+											<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+												<p className="text-xs font-medium text-slate-500">
+													科目名
+												</p>
+												<p className="mt-1 text-sm font-semibold text-slate-900">
+													{syllabusInfo.subject_name}
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+												<p className="text-xs font-medium text-slate-500">
+													授業科目区分
+												</p>
+												<p className="mt-1 text-sm font-semibold text-slate-900">
+													{syllabusInfo.subject_class}
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+												<p className="text-xs font-medium text-slate-500">
+													科目コード
+												</p>
+												<p className="mt-1 text-sm font-semibold text-slate-900">
+													{syllabusInfo.subject_code}
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+												<p className="text-xs font-medium text-slate-500">
+													単位数
+												</p>
+												<p className="mt-1 text-sm font-semibold text-slate-900">
+													{syllabusInfo.subject_credit}単位
+												</p>
+											</div>
+											<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 sm:col-span-2">
+												<p className="text-xs font-medium text-slate-500">
+													開講時期
+												</p>
+												<div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+													<Calendar className="h-4 w-4 text-cyan-700" />
+													{syllabusInfo.subject_period}
+												</div>
+											</div>
 										</div>
 									</CardContent>
 								</Card>
 
-								{/* 学習・教育目標 */}
-								<Card>
-									<CardHeader>
-										<CardTitle className="text-lg flex items-center gap-2">
-											<Target className="h-5 w-5" />
-											授業科目の学習・教育目標
+								<Card className="border-slate-200 bg-white/95">
+									<CardHeader className="pb-3">
+										<CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+											<Hash className="h-5 w-5 text-cyan-700" />
+											キーワード
 										</CardTitle>
 									</CardHeader>
 									<CardContent>
-										<div className="overflow-x-auto">
-											<table className="w-full border-collapse border border-gray-300">
-												<thead>
-													<tr className="bg-primary text-white">
-														<th
-															colSpan={2}
-															className="border border-gray-300 px-4 py-3 text-center"
-														>
-															授業科目の学習・教育目標
-														</th>
-													</tr>
-													<tr className="bg-primary text-white">
-														<th className="border border-gray-300 px-4 py-3 text-center w-1/3">
-															<div className="flex items-center justify-center gap-2">
-																<Hash className="h-4 w-4" />
-																キーワード
-															</div>
-														</th>
-														<th className="border border-gray-300 px-4 py-3 text-center">
-															<div className="flex items-center justify-center gap-2">
-																<Target className="h-4 w-4" />
-																学習・教育目標
-															</div>
-														</th>
-													</tr>
-												</thead>
-												<tbody>
-													<tr className="bg-white">
-														<td className="border border-gray-300 px-4 py-6 align-top">
-															<div className="space-y-2">
-																{syllabusInfo.subject_keyword
-																	.split(",")
-																	.map((keyword, index) => (
-																		<div
-																			key={index}
-																			className="flex items-start gap-2"
-																		>
-																			<span className="text-sm text-gray-600 min-w-[1.5rem]">
-																				{index + 1}.
-																			</span>
-																			<Badge
-																				variant="secondary"
-																				className="text-sm"
-																			>
-																				{keyword.trim()}
-																			</Badge>
-																		</div>
-																	))}
-															</div>
-														</td>
-														<td className="border border-gray-300 px-4 py-6 align-top">
-															<div className="text-sm leading-relaxed whitespace-pre-wrap">
-																{syllabusInfo.subject_goals}
-															</div>
-														</td>
-													</tr>
-												</tbody>
-											</table>
-										</div>
+										{keywords.length > 0 ? (
+											<div className="flex flex-wrap gap-2">
+												{keywords.map((keyword) => (
+													<Badge
+														key={keyword}
+														variant="secondary"
+														className="bg-cyan-100/70 text-cyan-800"
+													>
+														{keyword}
+													</Badge>
+												))}
+											</div>
+										) : (
+											<p className="text-sm text-slate-500">
+												キーワード情報がありません。
+											</p>
+										)}
 									</CardContent>
 								</Card>
-
-								{/* 追加情報カード */}
-								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-									<Card className="border-l-4 border-l-blue-500">
-										<CardHeader className="pb-2">
-											<CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-												<Award className="h-4 w-4" />
-												授業形態
-											</CardTitle>
-										</CardHeader>
-										<CardContent>
-											<div className="text-lg font-semibold text-blue-600">
-												{syllabusInfo.subject_class}
-											</div>
-										</CardContent>
-									</Card>
-
-									<Card className="border-l-4 border-l-green-500">
-										<CardHeader className="pb-2">
-											<CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-												<Hash className="h-4 w-4" />
-												キーワード数
-											</CardTitle>
-										</CardHeader>
-										<CardContent>
-											<div className="text-lg font-semibold text-green-600">
-												{syllabusInfo.subject_keyword.split(",").length}個
-											</div>
-										</CardContent>
-									</Card>
-
-									<Card className="border-l-4 border-l-purple-500">
-										<CardHeader className="pb-2">
-											<CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-												<Calendar className="h-4 w-4" />
-												開講時期
-											</CardTitle>
-										</CardHeader>
-										<CardContent>
-											<div className="text-lg font-semibold text-purple-600">
-												{syllabusInfo.subject_period}
-											</div>
-										</CardContent>
-									</Card>
-								</div>
 							</div>
-						)}
-					</CardContent>
-				</Card>
+
+							<Card className="border-slate-200 bg-white/95">
+								<CardHeader className="pb-3">
+									<CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+										<Target className="h-5 w-5 text-cyan-700" />
+										授業科目の学習・教育目標
+									</CardTitle>
+									<CardDescription className="text-slate-600">
+										学習時に意識する到達目標を確認できます。
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									<div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+										<p className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+											{syllabusInfo.subject_goals}
+										</p>
+									</div>
+								</CardContent>
+							</Card>
+						</div>
+					)}
+				</main>
 			</div>
 		</>
 	);

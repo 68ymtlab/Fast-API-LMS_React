@@ -231,3 +231,47 @@ html[data-theme="theme9"] {
 		transform: rotateY(360deg);
 	}
 }
+
+@keyframes studentHelpFloat {
+	0%,
+	100% {
+		transform: translateY(0px);
+	}
+	50% {
+		transform: translateY(-8px);
+	}
+}
+
+@keyframes studentHelpNod {
+	0%,
+	100% {
+		transform: translateX(-50%) rotate(0deg);
+	}
+	50% {
+		transform: translateX(-50%) rotate(-8deg);
+	}
+}
+
+@keyframes studentHelpBlink {
+	0%,
+	44%,
+	100% {
+		transform: scaleY(1);
+	}
+	46%,
+	48% {
+		transform: scaleY(0.15);
+	}
+}
+
+@keyframes studentHelpTwinkle {
+	0%,
+	100% {
+		opacity: 0.55;
+		transform: scale(0.9) rotate(0deg);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.1) rotate(10deg);
+	}
+}

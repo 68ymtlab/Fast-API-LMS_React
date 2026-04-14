@@ -33,7 +33,7 @@ const sidebarGroups: SidebarGroups[] = [
 		],
 	},
 	{
-		groupLabel: "ユーザー設定",
+		groupLabel: "アカウント",
 		groupItems: [
 			{
 				title: "アカウント設定",
@@ -43,13 +43,12 @@ const sidebarGroups: SidebarGroups[] = [
 		],
 	},
 	{
-		groupLabel: undefined,
+		groupLabel: "サポート",
 		groupItems: [
 			{
 				title: "ヘルプ",
-				externalUrl: "/manuals/teacher_manual.pdf",
+				url: "/help",
 				icon: ShieldQuestion,
-				newTab: true,
 			},
 		],
 	},

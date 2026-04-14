@@ -58,8 +58,9 @@ function StudentSettingsPage() {
 	return (
 		<>
 			<TcAccessTime page="student_settings" />
-			<div className="container mx-auto py-8 px-4 max-w-4xl">
-				<Card>
+			<main className="min-h-screen bg-slate-100">
+				<div className="container mx-auto max-w-4xl px-4 pb-8 pt-16 sm:pt-20">
+					<Card>
 					<CardHeader>
 						<CardTitle className="text-2xl">ユーザー設定</CardTitle>
 						<CardDescription>
@@ -180,8 +181,9 @@ function StudentSettingsPage() {
 							</div>
 						</div>
 					</CardContent>
-				</Card>
-			</div>
+					</Card>
+				</div>
+			</main>
 		</>
 	);
 }
