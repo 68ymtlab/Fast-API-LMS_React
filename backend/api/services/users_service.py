@@ -7,6 +7,7 @@ from api.repositories.users_repo import UserRepository
 import api.schemas.users as user_schema
 import api.models.users_model as user_model
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 
 class UserService:
     def __init__(self, user_repo: UserRepository):
@@ -79,12 +80,18 @@ class UserService:
             raise ValueError("User with this email already exists")
 
         hashed_password = SecurityManager.hash_password(user_in.password)
-        
-        async with self.user_repo.db.begin_nested(): # トランザクション管理
-            created_user = await self.user_repo.create(user_in=user_in, hashed_password=hashed_password)
-            
-            if user_in.student_info:
-                await self.user_repo.create_student_details(user_id=created_user.id, student_in=user_in.student_info)
+
+        try:
+            async with self.user_repo.db.begin_nested(): # トランザクション管理
+                created_user = await self.user_repo.create(user_in=user_in, hashed_password=hashed_password)
+
+                if user_in.student_info:
+                    await self.user_repo.create_student_details(user_id=created_user.id, student_in=user_in.student_info)
+        except IntegrityError as e:
+            error_text = str(e).lower()
+            if "users_email_key" in error_text or "duplicate key value violates unique constraint" in error_text:
+                raise ValueError("User with this email already exists") from e
+            raise ValueError("Failed to create user due to database constraint") from e
 
         # get_db() は自動コミットしないため、ここで明示的にコミットする
         # （コミットしないとリクエスト終了時にロールバックされ、DBに残らない）

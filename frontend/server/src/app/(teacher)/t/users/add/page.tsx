@@ -103,7 +103,55 @@ type BulkCreateResponse = {
 	}>;
 };
 
+type UserCreatePayload = {
+	username: string;
+	display_name: string;
+	email: string;
+	password: string;
+	role_id: number;
+	student_info?: {
+		grade?: number;
+		department?: string;
+		class_number?: string;
+		student_number?: string;
+		class_roster_number?: string;
+	};
+};
+
 const userTypes = ["学生", "教師"];
+const userTypeSet = new Set(userTypes);
+const emailSchema = z.string().email();
+
+const normalizeCsvCell = (value?: string): string =>
+	(value ?? "")
+		.replace(/\uFEFF/g, "")
+		.replace(/\r/g, "")
+		.replace(/^[\s\"'`「『]+|[\s\"'`」』]+$/g, "")
+		.trim();
+
+const normalizeOptionalText = (value?: string): string | undefined => {
+	const cleaned = normalizeCsvCell(value);
+	return cleaned || undefined;
+};
+
+const normalizeUserType = (value: string): string => {
+	const cleaned = normalizeCsvCell(value);
+
+	const lowered = cleaned.toLowerCase();
+	if (cleaned === "学生" || lowered === "student") {
+		return "学生";
+	}
+	if (cleaned === "教師" || lowered === "teacher") {
+		return "教師";
+	}
+
+	return cleaned;
+};
+
+const normalizeStudentGrade = (value?: string): string | undefined => {
+	const cleaned = normalizeCsvCell(value);
+	return cleaned || undefined;
+};
 
 function AddUserPage() {
 	const router = useRouter();
@@ -114,6 +162,11 @@ function AddUserPage() {
 	const [users, setUsers] = useState<ExistingUserForValidation[]>([]);
 	const [fileUsers, setFileUsers] = useState<User[]>([]);
 	const [isFileUpload, setIsFileUpload] = useState(false);
+	const [showBulkConfirmDialog, setShowBulkConfirmDialog] = useState(false);
+	const [pendingBulkPayload, setPendingBulkPayload] = useState<UserCreatePayload[]>([]);
+	const [pendingExistingCount, setPendingExistingCount] = useState(0);
+	const [pendingNewCount, setPendingNewCount] = useState(0);
+	const [pendingCsvDuplicateCount, setPendingCsvDuplicateCount] = useState(0);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const form = useForm<FormData>({
@@ -170,8 +223,15 @@ function AddUserPage() {
 	const validateUser = (
 		userData: User,
 		isFileUpload: boolean = false,
+		options?: {
+			skipDuplicateCheck?: boolean;
+		},
 	): string[] => {
 		const errors: string[] = [];
+		const normalizedKindName = normalizeUserType(userData.kind_name);
+		const normalizedGrade = normalizeStudentGrade(userData.student_grade);
+		const normalizedEmail = normalizeCsvCell(userData.email);
+		const normalizedPassword = normalizeCsvCell(userData.password);
 
 		if (!userData.username) {
 			errors.push(
@@ -186,6 +246,12 @@ function AddUserPage() {
 					? "メールアドレスが入力されていない箇所があります"
 					: "メールアドレスを入力してください",
 			);
+		} else if (!emailSchema.safeParse(normalizedEmail).success) {
+			errors.push(
+				isFileUpload
+					? `${userData.email}: 有効なメールアドレス形式で入力してください`
+					: "有効なメールアドレスを入力してください",
+			);
 		}
 		if (!userData.password) {
 			errors.push(
@@ -193,23 +259,29 @@ function AddUserPage() {
 					? "パスワードが入力されていない箇所があります"
 					: "パスワードを入力してください",
 			);
+		} else if (normalizedPassword.length < 4 || normalizedPassword.length > 50) {
+			errors.push(
+				isFileUpload
+					? `${userData.email}: パスワードは4〜50文字で指定してください`
+					: "パスワードは4〜50文字で入力してください",
+			);
 		}
-		if (!userData.kind_name) {
+		if (!normalizedKindName) {
 			errors.push(
 				isFileUpload
 					? "ユーザー種別が入力されていない箇所があります"
 					: "ユーザー種別を選択してください",
 			);
 		}
-		if (!userTypes.includes(userData.kind_name)) {
+		if (!userTypeSet.has(normalizedKindName)) {
 			errors.push(
 				isFileUpload
 					? `ユーザー種別は「学生」または「教師」を指定してください: ${userData.kind_name}`
 					: "ユーザー種別が不正です",
 			);
 		}
-		if (userData.kind_name === "学生" && userData.student_grade) {
-			const grade = Number.parseInt(userData.student_grade, 10);
+		if (normalizedKindName === "学生" && normalizedGrade) {
+			const grade = Number.parseInt(normalizedGrade, 10);
 			if (Number.isNaN(grade) || grade < 1) {
 				errors.push(
 					isFileUpload
@@ -221,13 +293,103 @@ function AddUserPage() {
 
 		// 重複チェック
 		if (
+			!options?.skipDuplicateCheck &&
 			users.length > 0 &&
-			users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())
+			users.some((u) => u.email.toLowerCase() === normalizedEmail.toLowerCase())
 		) {
 			errors.push(`${userData.email}：すでに登録されています`);
 		}
 
 		return errors;
+	};
+
+	const buildUserCreatePayload = (u: User): UserCreatePayload => {
+		const normalizedKindName = normalizeUserType(u.kind_name);
+		const normalizedGrade = normalizeStudentGrade(u.student_grade);
+		return {
+			username: u.username,
+			display_name: u.username,
+			email: u.email,
+			password: u.password,
+			role_id: getRoleId(normalizedKindName),
+			student_info:
+				normalizedKindName === "学生"
+					? {
+							grade: normalizedGrade
+								? Number.parseInt(normalizedGrade, 10)
+								: undefined,
+							department: u.student_department || undefined,
+							class_number: u.student_class_number || undefined,
+							student_number: u.student_number || undefined,
+							class_roster_number: u.class_roster_number || undefined,
+						}
+					: undefined,
+		};
+	};
+
+	const resetBulkConfirmState = () => {
+		setShowBulkConfirmDialog(false);
+		setPendingBulkPayload([]);
+		setPendingExistingCount(0);
+		setPendingNewCount(0);
+		setPendingCsvDuplicateCount(0);
+	};
+
+	const submitBulkUploadConfirmed = async () => {
+		if (pendingBulkPayload.length === 0) {
+			resetBulkConfirmState();
+			return;
+		}
+
+		setLoading(true);
+		setErrorMessages([]);
+
+		try {
+			const response = await axios.post<BulkCreateResponse>("/users/bulk", pendingBulkPayload);
+			const result = response.data;
+
+			const errors = result.results
+				.filter((r) => r.status === "failed")
+				.map((r) => `${r.email}: ${r.message || "登録に失敗しました"}`);
+
+			if (errors.length > 0) setErrorMessages(errors);
+			if (result.created_count > 0) {
+				setSuccessMessage(`${result.created_count}件のユーザーを登録しました`);
+				setShowSuccessDialog(true);
+				setFileUsers([]);
+				if (fileInputRef.current) {
+					fileInputRef.current.value = "";
+				}
+				await fetchUsers();
+				setTimeout(() => setShowSuccessDialog(false), 3000);
+			}
+		} catch (error: any) {
+			console.error("Error adding users:", error);
+			if (error.response?.status === 422) {
+				const detail = error.response?.data?.detail;
+				if (Array.isArray(detail) && detail.length > 0) {
+					setErrorMessages(
+						detail.map((d: any) => {
+							const msg = d?.msg || "入力形式が不正です";
+							const loc = Array.isArray(d?.loc) ? d.loc.join(".") : "payload";
+							return `${loc}: ${msg}`;
+						}),
+					);
+				} else {
+					setErrorMessages([
+						"入力形式が不正です。CSVのメールアドレス、パスワード、ユーザー種別、学年を確認してください",
+					]);
+				}
+			} else {
+				const detail = error.response?.data?.detail;
+				setErrorMessages([
+					typeof detail === "string" ? detail : "ユーザーの一括登録に失敗しました",
+				]);
+			}
+		} finally {
+			setLoading(false);
+			resetBulkConfirmState();
+		}
 	};
 
 	const onSubmit = async (data: FormData) => {
@@ -236,16 +398,18 @@ function AddUserPage() {
 		setIsFileUpload(false);
 
 		try {
+			const normalizedUserType = normalizeUserType(data.userType);
+			const normalizedGrade = normalizeStudentGrade(data.studentGrade);
 			const userData: User = {
-				username: data.username,
-				email: data.email,
-				password: data.password,
-				kind_name: data.userType,
-				student_grade: data.studentGrade?.trim() || undefined,
-				student_department: data.studentDepartment?.trim() || undefined,
-				student_class_number: data.studentClassNumber?.trim() || undefined,
-				student_number: data.studentNumber?.trim() || undefined,
-				class_roster_number: data.classRosterNumber?.trim() || undefined,
+				username: normalizeCsvCell(data.username),
+				email: normalizeCsvCell(data.email),
+				password: normalizeCsvCell(data.password),
+				kind_name: normalizedUserType,
+				student_grade: normalizedGrade,
+				student_department: normalizeOptionalText(data.studentDepartment),
+				student_class_number: normalizeOptionalText(data.studentClassNumber),
+				student_number: normalizeOptionalText(data.studentNumber),
+				class_roster_number: normalizeOptionalText(data.classRosterNumber),
 			};
 
 			const validationErrors = validateUser(userData);
@@ -256,10 +420,10 @@ function AddUserPage() {
 			}
 
 			const studentInfo =
-				data.userType === "学生"
+				userData.kind_name === "学生"
 					? {
 							grade: userData.student_grade
-								? Number.parseInt(userData.student_grade, 10)
+								? Number.parseInt(normalizeStudentGrade(userData.student_grade) ?? "", 10)
 								: undefined,
 							department: userData.student_department || undefined,
 							class_number: userData.student_class_number || undefined,
@@ -271,6 +435,7 @@ function AddUserPage() {
 			// 新バックエンド POST /users (UserCreate スキーマ)
 			await axios.post("/users", {
 				username: userData.username,
+				display_name: userData.username,
 				email: userData.email,
 				password: userData.password,
 				role_id: getRoleId(userData.kind_name),
@@ -298,6 +463,7 @@ function AddUserPage() {
 
 		setErrorMessages([]);
 		setFileUsers([]);
+		resetBulkConfirmState();
 
 		const reader = new FileReader();
 		reader.onload = (e) => {
@@ -314,19 +480,35 @@ function AddUserPage() {
 					return;
 				}
 
+				const c0 = normalizeCsvCell(parts[0]).toLowerCase();
+				const c1 = normalizeCsvCell(parts[1]).toLowerCase();
+				const c3 = normalizeCsvCell(parts[3]).toLowerCase();
+				const isHeaderRow =
+					(c0 === "ユーザー名" || c0 === "username") &&
+					(c1 === "メールアドレス" || c1 === "email" || c1 === "e-mail") &&
+					(c3 === "ユーザー種別" || c3 === "kind_name" || c3 === "role");
+				if (isHeaderRow) {
+					continue;
+				}
+
 				const userData: User = {
-					username: parts[0].trim(),
-					email: parts[1].trim(),
-					password: parts[2].trim(),
-					kind_name: parts[3].replace("\r", "").trim(),
-					student_grade: parts[4]?.trim(),
-					student_department: parts[5]?.trim(),
-					student_class_number: parts[6]?.replace("\r", "").trim(),
-					student_number: parts[7]?.trim(),
-					class_roster_number: parts[8]?.replace("\r", "").trim(),
+					username: normalizeCsvCell(parts[0]),
+					email: normalizeCsvCell(parts[1]),
+					password: normalizeCsvCell(parts[2]),
+					kind_name: normalizeUserType(parts[3]),
+					student_grade: normalizeStudentGrade(parts[4]),
+					student_department: normalizeOptionalText(parts[5]),
+					student_class_number: normalizeOptionalText(parts[6]),
+					student_number: normalizeOptionalText(parts[7]),
+					class_roster_number: normalizeOptionalText(parts[8]),
 				};
 
 				newFileUsers.push(userData);
+			}
+
+			if (newFileUsers.length === 0) {
+				setErrorMessages(["CSVに登録対象データがありません（ヘッダー行のみの可能性があります）"]);
+				return;
 			}
 
 			setFileUsers(newFileUsers);
@@ -341,78 +523,65 @@ function AddUserPage() {
 			return;
 		}
 
-		setLoading(true);
 		setErrorMessages([]);
 		setIsFileUpload(true);
 
-		try {
-			const validUsers: User[] = [];
-			const allErrors: string[] = [];
+		const validUsers: User[] = [];
+		const allErrors: string[] = [];
+		const existingEmailSet = new Set(users.map((u) => normalizeCsvCell(u.email).toLowerCase()));
+		const existingMatchedEmailSet = new Set<string>();
+		const csvSeenEmailSet = new Set<string>();
+		let csvDuplicateCount = 0;
 
-			for (const userData of fileUsers) {
-				const validationErrors = validateUser(userData, true);
-				if (validationErrors.length > 0) {
-					allErrors.push(...validationErrors);
-				} else {
-					validUsers.push(userData);
-				}
+		for (const userData of fileUsers) {
+			const validationErrors = validateUser(userData, true, {
+				skipDuplicateCheck: true,
+			});
+			if (validationErrors.length > 0) {
+				allErrors.push(...validationErrors);
+				continue;
 			}
 
-			if (allErrors.length > 0) {
-				setErrorMessages(allErrors);
-				setLoading(false);
-				return;
+			const normalizedEmail = normalizeCsvCell(userData.email).toLowerCase();
+			if (existingEmailSet.has(normalizedEmail)) {
+				existingMatchedEmailSet.add(normalizedEmail);
+				continue;
 			}
 
-			if (validUsers.length === 0) {
-				setErrorMessages(["有効なユーザーデータがありません"]);
-				setLoading(false);
-				return;
+			if (csvSeenEmailSet.has(normalizedEmail)) {
+				csvDuplicateCount += 1;
+				continue;
 			}
 
-			const payload = validUsers.map((u) => ({
-				username: u.username,
-				email: u.email,
-				password: u.password,
-				role_id: getRoleId(u.kind_name),
-				student_info:
-					u.kind_name === "学生"
-						? {
-								grade: u.student_grade
-									? Number.parseInt(u.student_grade, 10)
-									: undefined,
-								department: u.student_department || undefined,
-								class_number: u.student_class_number || undefined,
-								student_number: u.student_number || undefined,
-								class_roster_number: u.class_roster_number || undefined,
-							}
-						: undefined,
-			}));
-
-			const response = await axios.post<BulkCreateResponse>("/users/bulk", payload);
-			const result = response.data;
-
-			const errors = result.results
-				.filter((r) => r.status === "failed")
-				.map((r) => `${r.email}: ${r.message || "登録に失敗しました"}`);
-
-			if (errors.length > 0) setErrorMessages(errors);
-			if (result.created_count > 0) {
-				setSuccessMessage(`${result.created_count}件のユーザーを登録しました`);
-				setShowSuccessDialog(true);
-				setFileUsers([]);
-				if (fileInputRef.current) {
-					fileInputRef.current.value = "";
-				}
-				await fetchUsers();
-				setTimeout(() => setShowSuccessDialog(false), 3000);
-			}
-		} catch (error: any) {
-			console.error("Error adding users:", error);
-			setErrorMessages(["ユーザーの一括登録に失敗しました"]);
-		} finally {
-			setLoading(false);
+			csvSeenEmailSet.add(normalizedEmail);
+			validUsers.push(userData);
 		}
+
+		if (allErrors.length > 0) {
+			setErrorMessages(allErrors);
+			return;
+		}
+
+		if (validUsers.length === 0) {
+			const messages: string[] = [];
+			if (existingMatchedEmailSet.size > 0) {
+				messages.push(
+					`登録済みユーザー: ${existingMatchedEmailSet.size}件（同メールのため除外）`,
+				);
+			}
+			if (csvDuplicateCount > 0) {
+				messages.push(`CSV内重複メール: ${csvDuplicateCount}件（除外）`);
+			}
+			messages.push("新規登録対象がありません");
+			setErrorMessages(messages);
+			return;
+		}
+
+		setPendingBulkPayload(validUsers.map(buildUserCreatePayload));
+		setPendingExistingCount(existingMatchedEmailSet.size);
+		setPendingNewCount(validUsers.length);
+		setPendingCsvDuplicateCount(csvDuplicateCount);
+		setShowBulkConfirmDialog(true);
 	};
 
 	useEffect(() => {
@@ -871,6 +1040,47 @@ function AddUserPage() {
 						<DialogTitle className="text-xl">登録完了</DialogTitle>
 						<DialogDescription>{successMessage}</DialogDescription>
 					</DialogHeader>
+				</DialogContent>
+			</Dialog>
+
+			{/* 一括登録確認ダイアログ */}
+			<Dialog
+				open={showBulkConfirmDialog}
+				onOpenChange={(open) => {
+					if (!open && !loading) {
+						resetBulkConfirmState();
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>一括登録の確認</DialogTitle>
+						<DialogDescription>
+							登録済みユーザー: {pendingExistingCount}件
+							<br />
+							新規登録ユーザー: {pendingNewCount}件
+							{pendingCsvDuplicateCount > 0 && (
+								<>
+									<br />
+									CSV内重複メール: {pendingCsvDuplicateCount}件（除外）
+								</>
+							)}
+							<br />
+							新規登録ユーザーのみ登録します。実行しますか？
+						</DialogDescription>
+					</DialogHeader>
+					<div className="flex justify-end gap-2">
+						<Button
+							variant="outline"
+							onClick={resetBulkConfirmState}
+							disabled={loading}
+						>
+							キャンセル
+						</Button>
+						<Button onClick={submitBulkUploadConfirmed} disabled={loading}>
+							{loading ? "登録中..." : "新規ユーザーを登録する"}
+						</Button>
+					</div>
 				</DialogContent>
 			</Dialog>
 		</div>

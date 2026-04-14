@@ -26,6 +26,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -96,7 +97,8 @@ export default function AdminUsersPage() {
 	const [editStatus, setEditStatus] = useState<"active" | "disabled">("active");
 	const [editAdminPassword, setEditAdminPassword] = useState("");
 
-	const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+	const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+	const [deletingUsers, setDeletingUsers] = useState<AdminUser[]>([]);
 	const [deleteAdminPassword, setDeleteAdminPassword] = useState("");
 	const [deleteLoading, setDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -126,6 +128,13 @@ export default function AdminUsersPage() {
 		void fetchUsers();
 	}, [mounted]);
 
+	useEffect(() => {
+		setSelectedUserIds((prev) => {
+			const userIdSet = new Set(users.map((u) => u.id));
+			return prev.filter((id) => userIdSet.has(id));
+		});
+	}, [users]);
+
 	const filteredUsers = useMemo(() => {
 		const q = query.trim().toLowerCase();
 		return users.filter((u) => {
@@ -144,6 +153,32 @@ export default function AdminUsersPage() {
 			return matchQuery && matchRole && matchStatus;
 		});
 	}, [users, query, roleFilter, statusFilter]);
+
+	const filteredUserIds = useMemo(() => filteredUsers.map((u) => u.id), [filteredUsers]);
+	const allFilteredSelected =
+		filteredUserIds.length > 0 &&
+		filteredUserIds.every((id) => selectedUserIds.includes(id));
+	const someFilteredSelected = filteredUserIds.some((id) => selectedUserIds.includes(id));
+
+	const toggleUserSelection = (userId: number, checked: boolean) => {
+		setSelectedUserIds((prev) => {
+			if (checked) {
+				return prev.includes(userId) ? prev : [...prev, userId];
+			}
+			return prev.filter((id) => id !== userId);
+		});
+	};
+
+	const toggleSelectAllFiltered = (checked: boolean) => {
+		setSelectedUserIds((prev) => {
+			if (checked) {
+				const merged = new Set([...prev, ...filteredUserIds]);
+				return Array.from(merged);
+			}
+			const filteredSet = new Set(filteredUserIds);
+			return prev.filter((id) => !filteredSet.has(id));
+		});
+	};
 
 	const matchesActiveFilters = (u: AdminUser) => {
 		const q = query.trim().toLowerCase();
@@ -288,20 +323,29 @@ export default function AdminUsersPage() {
 	};
 
 	const openDeleteDialog = (user: AdminUser) => {
-		setDeletingUser(user);
+		setDeletingUsers([user]);
+		setDeleteAdminPassword("");
+		setDeleteError(null);
+		setDeleteSuccess(null);
+	};
+
+	const openBulkDeleteDialog = () => {
+		const targets = users.filter((u) => selectedUserIds.includes(u.id));
+		if (targets.length === 0) return;
+		setDeletingUsers(targets);
 		setDeleteAdminPassword("");
 		setDeleteError(null);
 		setDeleteSuccess(null);
 	};
 
 	const closeDeleteDialog = () => {
-		setDeletingUser(null);
+		setDeletingUsers([]);
 		setDeleteAdminPassword("");
 		setDeleteError(null);
 	};
 
 	const submitDelete = async () => {
-		if (!deletingUser) return;
+		if (deletingUsers.length === 0) return;
 		if (deleteAdminPassword.length < 4) {
 			setDeleteError("管理者パスワードを入力してください。");
 			return;
@@ -310,17 +354,47 @@ export default function AdminUsersPage() {
 		setDeleteLoading(true);
 		setDeleteError(null);
 		try {
-			await axios.delete(`/admin/users/${deletingUser.id}`, {
-				withCredentials: true,
-				data: {
-					admin_password: deleteAdminPassword,
-				},
-			});
-			setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
-			setDeleteSuccess("ユーザーを削除しました。");
-			setTimeout(() => {
-				closeDeleteDialog();
-			}, 900);
+			const successIds: number[] = [];
+			const failedMessages: string[] = [];
+
+			for (const target of deletingUsers) {
+				try {
+					await axios.delete(`/admin/users/${target.id}`, {
+						withCredentials: true,
+						data: {
+							admin_password: deleteAdminPassword,
+						},
+					});
+					successIds.push(target.id);
+				} catch (e: any) {
+					const detail = e?.response?.data?.detail;
+					failedMessages.push(
+						`${target.email}: ${typeof detail === "string" ? detail : "ユーザー削除に失敗しました。"}`,
+					);
+				}
+			}
+
+			if (successIds.length > 0) {
+				const successSet = new Set(successIds);
+				setUsers((prev) => prev.filter((u) => !successSet.has(u.id)));
+				setSelectedUserIds((prev) => prev.filter((id) => !successSet.has(id)));
+			}
+
+			if (failedMessages.length === 0) {
+				setDeleteSuccess(
+					deletingUsers.length === 1
+						? "ユーザーを削除しました。"
+						: `${successIds.length}件のユーザーを削除しました。`,
+				);
+				setTimeout(() => {
+					closeDeleteDialog();
+				}, 900);
+			} else {
+				if (successIds.length > 0) {
+					setDeleteSuccess(`${successIds.length}件を削除しました。`);
+				}
+				setDeleteError(failedMessages.join(" / "));
+			}
 		} catch (e: any) {
 			const detail = e?.response?.data?.detail;
 			setDeleteError(
@@ -391,10 +465,18 @@ export default function AdminUsersPage() {
 							)}
 							再読込
 						</Button>
+						<Button
+							variant="destructive"
+							onClick={openBulkDeleteDialog}
+							disabled={selectedUserIds.length === 0 || loading}
+						>
+							<Trash2 className="h-4 w-4" />
+							選択したユーザーを削除
+						</Button>
 					</div>
 
 					<p className="text-xs text-muted-foreground">
-						表示件数: {filteredUsers.length} / 全 {users.length}
+						表示件数: {filteredUsers.length} / 全 {users.length} ・ 選択中: {selectedUserIds.length}
 					</p>
 
 					{error ? (
@@ -408,6 +490,21 @@ export default function AdminUsersPage() {
 						<table className="w-full min-w-[980px] text-sm">
 							<thead className="bg-gray-50">
 								<tr>
+									<th className="px-3 py-2 text-center">
+										<Checkbox
+											aria-label="表示中ユーザーを全選択"
+											checked={
+												allFilteredSelected
+													? true
+													: someFilteredSelected
+														? "indeterminate"
+														: false
+											}
+											onCheckedChange={(checked) =>
+												toggleSelectAllFiltered(checked === true)
+											}
+										/>
+									</th>
 									<th className="px-3 py-2 text-left">ID</th>
 									<th className="px-3 py-2 text-left">表示名</th>
 									<th className="px-3 py-2 text-left">ユーザー名</th>
@@ -420,6 +517,15 @@ export default function AdminUsersPage() {
 							<tbody>
 								{filteredUsers.map((u) => (
 									<tr key={u.id} className="border-t">
+										<td className="px-3 py-2 text-center">
+											<Checkbox
+												aria-label={`${u.email} を選択`}
+												checked={selectedUserIds.includes(u.id)}
+												onCheckedChange={(checked) =>
+													toggleUserSelection(u.id, checked === true)
+												}
+											/>
+										</td>
 										<td className="px-3 py-2">{u.id}</td>
 										<td className="px-3 py-2">{u.display_name || "-"}</td>
 										<td className="px-3 py-2">{u.username || "-"}</td>
@@ -462,7 +568,7 @@ export default function AdminUsersPage() {
 									<tr>
 										<td
 											className="px-3 py-6 text-center text-muted-foreground"
-											colSpan={7}
+											colSpan={8}
 										>
 											対象ユーザーが見つかりません。
 										</td>
@@ -633,14 +739,19 @@ export default function AdminUsersPage() {
 			</Dialog>
 
 			<Dialog
-				open={!!deletingUser}
+				open={deletingUsers.length > 0}
 				onOpenChange={(open) => !open && closeDeleteDialog()}
 			>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle>ユーザー削除</DialogTitle>
 						<DialogDescription>
-							対象: {deletingUser?.email}
+							対象: {deletingUsers.length === 1
+								? deletingUsers[0].email
+								: `${deletingUsers.length}件（${deletingUsers
+										.slice(0, 3)
+										.map((u) => u.email)
+										.join("、")}${deletingUsers.length > 3 ? " ほか" : ""}）`}
 							<br />
 							この操作には、管理者パスワードの再入力が必要です。
 						</DialogDescription>
@@ -680,7 +791,9 @@ export default function AdminUsersPage() {
 										削除中...
 									</>
 								) : (
-									"削除する"
+									deletingUsers.length > 1
+										? `${deletingUsers.length}件を削除する`
+										: "削除する"
 								)}
 							</Button>
 						</div>
