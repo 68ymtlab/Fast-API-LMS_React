@@ -610,6 +610,9 @@ function CoursePage() {
 		setErrorMessage([]);
 	};
 
+	const isDefaultLessonTitle = (lesson: Lesson) =>
+		lesson.title?.trim() === `第${lesson.lesson_number}回`;
+
 	useEffect(() => {
 		if (course_id) {
 			getCourseInfo();
@@ -826,14 +829,40 @@ function CoursePage() {
 				{} as { [key: number]: Lesson[] },
 			);
 
+			const contentCountByLesson = contents.reduce(
+				(acc, item) => {
+					acc[item.lesson_id] = (acc[item.lesson_id] ?? 0) + 1;
+					return acc;
+				},
+				{} as { [lessonId: number]: number },
+			);
+
 			for (const numKey in groups) {
 				groups[numKey].sort((a, b) => a.display_order - b.display_order);
+
+				const hasAnyContent = groups[numKey].some(
+					(lesson) => (contentCountByLesson[lesson.id] ?? 0) > 0,
+				);
+
+				if (hasAnyContent) {
+					groups[numKey] = groups[numKey].filter((lesson) => {
+						const hasContent = (contentCountByLesson[lesson.id] ?? 0) > 0;
+						if (hasContent) {
+							return true;
+						}
+						return !isDefaultLessonTitle(lesson);
+					});
+				}
+
+				if (groups[numKey].length === 0) {
+					delete groups[numKey];
+				}
 			}
 			setGroupedLessonsByNum(groups);
 		} else {
 			setGroupedLessonsByNum({});
 		}
-	}, [lessons]);
+	}, [lessons, contents]);
 
 	const handleToggleLessonNumber = (lessonNum: number) => {
 		const newExpanded = new Set(expandedLessonNumbers);

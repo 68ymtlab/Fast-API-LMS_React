@@ -68,6 +68,25 @@ class LessonRepository(BaseRepository):
         result = await self.db.execute(stmt)
         return result.scalars().unique().all()
 
+    async def list_lessons_by_course_and_number(
+        self,
+        *,
+        course_id: int,
+        lesson_number: int,
+        include_inactive: bool = False,
+    ) -> List[lessons_model.CourseLessons]:
+        """指定 course_id / lesson_number のレッスン一覧を取得します。"""
+        stmt = (
+            select(lessons_model.CourseLessons)
+            .where(lessons_model.CourseLessons.course_id == course_id)
+            .where(lessons_model.CourseLessons.lesson_number == lesson_number)
+            .order_by(lessons_model.CourseLessons.display_order.asc(), lessons_model.CourseLessons.id.asc())
+        )
+        if not include_inactive:
+            stmt = stmt.where(lessons_model.CourseLessons.is_active == True)  # noqa: E712
+        result = await self.db.execute(stmt)
+        return result.scalars().unique().all()
+
     async def list_lessons_with_items_by_course_id(self, *, course_id: int, include_inactive: bool = False) -> List[lessons_model.CourseLessons]:
         """指定されたコースのレッスン一覧を取得します（レッスン項目含む）。"""
         stmt = select(lessons_model.CourseLessons).where(lessons_model.CourseLessons.course_id == course_id)
@@ -121,6 +140,23 @@ class LessonRepository(BaseRepository):
         await self.db.flush()
         await self.db.refresh(item)
         return item
+
+    async def list_lesson_items_by_lesson_id(
+        self,
+        *,
+        lesson_id: int,
+        item_content_type: Optional[str] = None,
+        include_inactive: bool = False,
+    ) -> List[lessons_model.LessonItems]:
+        """指定 lesson_id のレッスン項目一覧を取得します。"""
+        stmt = select(lessons_model.LessonItems).where(lessons_model.LessonItems.lesson_id == lesson_id)
+        if item_content_type is not None:
+            stmt = stmt.where(lessons_model.LessonItems.item_content_type == item_content_type)
+        if not include_inactive:
+            stmt = stmt.where(lessons_model.LessonItems.is_active == True)  # noqa: E712
+        stmt = stmt.order_by(lessons_model.LessonItems.display_order.asc(), lessons_model.LessonItems.id.asc())
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     #
     # Lesson Page Methods

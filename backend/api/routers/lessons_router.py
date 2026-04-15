@@ -249,7 +249,36 @@ async def delete_lesson_item(
     if not item:
         raise HTTPException(status_code=404, detail="該当するレッスン項目が見つかりません")
 
-    await lesson_repo.soft_delete_lesson_item(item=item)
+    # 旧データでは textbook が複数 item に分割されていることがあるため、
+    # 1件削除時に同一 lesson の textbook 項目もまとめて削除する。
+    if item.item_content_type == "textbook":
+        textbook_items = await lesson_repo.list_lesson_items_by_lesson_id(
+            lesson_id=item.lesson_id,
+            item_content_type="textbook",
+            include_inactive=False,
+        )
+        for textbook_item in textbook_items:
+            await lesson_repo.soft_delete_lesson_item(item=textbook_item)
+    else:
+        await lesson_repo.soft_delete_lesson_item(item=item)
+
+    # 削除後にこの lesson が空になっており、同じ回に他の lesson が存在する場合は
+    # 空レッスン行が残らないよう親 lesson も論理削除する。
+    parent_lesson = await lesson_repo.get_lesson_by_id(lesson_id=item.lesson_id)
+    if parent_lesson:
+        remaining_items = await lesson_repo.list_lesson_items_by_lesson_id(
+            lesson_id=parent_lesson.id,
+            include_inactive=False,
+        )
+        sibling_lessons = await lesson_repo.list_lessons_by_course_and_number(
+            course_id=parent_lesson.course_id,
+            lesson_number=parent_lesson.lesson_number,
+            include_inactive=False,
+        )
+        has_other_active_siblings = any(lesson.id != parent_lesson.id for lesson in sibling_lessons)
+        if len(remaining_items) == 0 and has_other_active_siblings:
+            await lesson_repo.soft_delete_lesson(lesson=parent_lesson)
+
     await lesson_repo.db.commit()
     return
 

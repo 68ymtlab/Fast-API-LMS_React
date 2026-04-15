@@ -122,7 +122,8 @@ class LessonContentService:
             include_inactive=False,
         )
         for lesson in lessons:
-            if lesson.lesson_number == lesson_number and len(lesson.lesson_items or []) == 0:
+            active_items = [item for item in (lesson.lesson_items or []) if item.is_active]
+            if lesson.lesson_number == lesson_number and len(active_items) == 0:
                 return lesson
         return None
 
@@ -259,51 +260,74 @@ class LessonContentService:
         if 'blocks' not in directory_structure[root_directory]:
             return
 
-        display_order = 1
+        parsed_blocks: List[Dict[str, Any]] = []
         for block_file_name, block_file_content in directory_structure[root_directory]['blocks'].items():
             # include を解決
             resolved_content = self._resolve_includes(block_file_content, directory_structure, root_directory)
             block_yml_dict = yaml.safe_load(resolved_content)
+            parsed_blocks.append(
+                {
+                    "file_name": block_file_name,
+                    "page_number": block_yml_dict.get("page"),
+                    "title": block_yml_dict.get("title"),
+                    "raw_content_body": block_yml_dict.get("content", ""),
+                }
+            )
 
-            raw_content_body = block_yml_dict.get("content", "")
+        if not parsed_blocks:
+            return
 
-            # rendered_content_body の生成（画像リンクの置換）
-            rendered_content_body = self._replace_content_links(raw_content_body, image_map)
+        # page 指定がある場合は page 番号優先、同率はファイル名で安定ソート
+        parsed_blocks.sort(
+            key=lambda block: (
+                block["page_number"] if isinstance(block["page_number"], int) else 10**9,
+                block["file_name"],
+            )
+        )
+
+        first_page_id: Optional[int] = None
+        for index, block in enumerate(parsed_blocks, start=1):
+            rendered_content_body = self._replace_content_links(block["raw_content_body"], image_map)
 
             db_raw_content = await self.content_repo.create_content(
-                content_in=contents_schema.ContentCreate(content_body=raw_content_body, format_type="yaml_source"),
-                created_by_user_id=created_by_user_id
+                content_in=contents_schema.ContentCreate(
+                    content_body=block["raw_content_body"],
+                    format_type="yaml_source",
+                ),
+                created_by_user_id=created_by_user_id,
             )
             db_rendered_content = await self.content_repo.create_content(
-                content_in=contents_schema.ContentCreate(content_body=rendered_content_body, format_type="html_rendered"),
-                created_by_user_id=created_by_user_id
+                content_in=contents_schema.ContentCreate(
+                    content_body=rendered_content_body,
+                    format_type="html_rendered",
+                ),
+                created_by_user_id=created_by_user_id,
             )
 
-            # LessonPage の作成
             lesson_page_in = lessons_schema.LessonPageCreate(
                 lesson_id=lesson_id,
-                page_number=block_yml_dict.get("page", display_order),
+                page_number=block["page_number"] if isinstance(block["page_number"], int) else index,
                 raw_content_id=db_raw_content.id,
                 rendered_content_id=db_rendered_content.id,
-                title=block_yml_dict.get("title"),
+                title=block["title"],
             )
             db_lesson_page = await self.lesson_repo.create_lesson_page(
                 page_in=lesson_page_in, created_by_user_id=created_by_user_id
             )
+            if first_page_id is None:
+                first_page_id = db_lesson_page.id
 
-            # LessonItems の作成（教科書タイプ）
-            lesson_item_in = lessons_schema.LessonItemCreate(
-                lesson_id=lesson_id,
-                title=block_yml_dict.get("title", f"Page {display_order}"),
-                item_content_type="textbook",
-                display_order=display_order,
-                item_resource_id=db_lesson_page.id,
-            )
-            await self.lesson_repo.create_lesson_item(
-                item_in=lesson_item_in, created_by_user_id=created_by_user_id
-            )
-
-            display_order += 1
+        # 教科書コンテンツは lesson ごとに 1 つの lesson_item を作成する
+        lesson_item_in = lessons_schema.LessonItemCreate(
+            lesson_id=lesson_id,
+            title=(parsed_blocks[0].get("title") or "教科書コンテンツ"),
+            item_content_type="textbook",
+            display_order=1,
+            item_resource_id=first_page_id,
+        )
+        await self.lesson_repo.create_lesson_item(
+            item_in=lesson_item_in, created_by_user_id=created_by_user_id
+        )
 
     def _replace_content_links(self, content_body: str, image_map: Dict[str, int]) -> str:
         """コンテンツ内の画像リンクを解決し、置換します。"""

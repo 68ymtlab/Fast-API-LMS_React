@@ -169,7 +169,7 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 				title: data.lessonTitle,
 				lesson_number: data.lessonNumber,
 				description: parentLesson.description ?? null,
-				display_order: parentLesson.display_order,
+				display_order: data.order,
 				is_active: parentLesson.is_active ?? true,
 			};
 
