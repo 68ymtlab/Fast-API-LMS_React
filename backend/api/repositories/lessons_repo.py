@@ -178,6 +178,37 @@ class LessonRepository(BaseRepository):
         stmt = select(lessons_model.LessonPages).where(lessons_model.LessonPages.id == page_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
+    async def list_active_lesson_pages_by_lesson_id(
+        self,
+        *,
+        lesson_id: int,
+    ) -> List[lessons_model.LessonPages]:
+        """指定 lesson_id の有効なレッスンページ一覧をページ番号順で取得します。"""
+        stmt = (
+            select(lessons_model.LessonPages)
+            .where(lessons_model.LessonPages.lesson_id == lesson_id)
+            .where(lessons_model.LessonPages.is_active == True)  # noqa: E712
+            .order_by(lessons_model.LessonPages.page_number.asc(), lessons_model.LessonPages.id.asc())
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    async def update_lesson_page_number(
+        self,
+        *,
+        page: lessons_model.LessonPages,
+        page_number: int,
+        updated_by_user_id: int,
+    ) -> lessons_model.LessonPages:
+        """レッスンページのページ番号のみを更新します。"""
+        page.page_number = page_number
+        page.updated_at = func.now()
+        page.updated_by_user_id = updated_by_user_id
+        self.db.add(page)
+        await self.db.flush()
+        await self.db.refresh(page)
+        return page
+
     async def update_lesson_page(self, *, page: lessons_model.LessonPages, page_in: lessons_schema.LessonPageUpdate, updated_by_user_id: int) -> lessons_model.LessonPages:
         """レッスンページ情報を更新します。"""
         update_data = page_in.model_dump(exclude_unset=True)
@@ -213,7 +244,12 @@ class LessonRepository(BaseRepository):
             return []
         lesson_id = lesson_item.lesson_id
 
-        stmt = select(lessons_model.LessonPages).where(lessons_model.LessonPages.lesson_id == lesson_id)
+        stmt = (
+            select(lessons_model.LessonPages)
+            .where(lessons_model.LessonPages.lesson_id == lesson_id)
+            .where(lessons_model.LessonPages.is_active == True)  # noqa: E712
+            .order_by(lessons_model.LessonPages.page_number.asc(), lessons_model.LessonPages.id.asc())
+        )
         result = await self.db.execute(stmt)
         pages = result.scalars().all()
         results = []

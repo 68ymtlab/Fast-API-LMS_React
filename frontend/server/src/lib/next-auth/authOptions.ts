@@ -4,7 +4,8 @@ import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import qs from "qs";
 import type { LoginResponse } from "@/types/api/auth/user";
-import config from "../utils/config";
+
+const internalApiBaseUrl = process.env.INTERNAL_API_BASE_URL ?? "";
 
 const DEFAULT_ACCESS_TOKEN_TTL_MS = 5 * 60 * 1000;
 
@@ -55,7 +56,7 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 
 	try {
 		const response = await axios.post(
-			`${config.internalApiBaseUrl}/api/refresh`,
+			`${internalApiBaseUrl}/api/refresh`,
 			{ refresh_token: token.refreshToken },
 			{
 				headers: { "Content-Type": "application/json" },
@@ -112,7 +113,7 @@ export const authOptions: NextAuthOptions = {
 				if (!credentials) return null;
 				try {
 					const res = await axios.post<LoginResponse>(
-						`${config.internalApiBaseUrl}/api/login`,
+						`${internalApiBaseUrl}/api/login`,
 						qs.stringify({
 							username: credentials.username,
 							password: credentials.password,

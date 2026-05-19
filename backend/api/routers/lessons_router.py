@@ -191,6 +191,139 @@ async def list_lesson_pages_with_content_body_by_lesson_item(
     return pages
 
 
+@lessons_router.post(
+    "/lesson-items/{lesson_item_id}/lesson-pages",
+    response_model=lessons_schema.LessonPageWithContentBody,
+    status_code=status.HTTP_201_CREATED,
+    summary="教科書ページ追加",
+)
+async def create_lesson_page(
+    lesson_item_id: int,
+    body_in: lessons_schema.LessonPageCreateRequest,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    content_repo: ContentRepository = Depends(get_content_repo),
+):
+    """教科書ページを作成します。insert_after_page_number 指定時はその直後へ差し込みます。"""
+    lesson_item = await lesson_repo.get_lesson_item_by_id(item_id=lesson_item_id)
+    if not lesson_item:
+        raise HTTPException(status_code=404, detail="該当するレッスン項目が見つかりません")
+
+    active_pages = await lesson_repo.list_active_lesson_pages_by_lesson_id(
+        lesson_id=lesson_item.lesson_id,
+    )
+    page_numbers = {page.page_number for page in active_pages}
+
+    insert_after = body_in.insert_after_page_number
+    if insert_after is not None and insert_after not in page_numbers:
+        raise HTTPException(
+            status_code=400,
+            detail="指定された挿入位置のページ番号が存在しません",
+        )
+
+    if insert_after is None:
+        target_page_number = (max(page_numbers) + 1) if page_numbers else 1
+    else:
+        target_page_number = insert_after + 1
+        for page in sorted(
+            [p for p in active_pages if p.page_number >= target_page_number],
+            key=lambda p: p.page_number,
+            reverse=True,
+        ):
+            await lesson_repo.update_lesson_page_number(
+                page=page,
+                page_number=page.page_number + 1,
+                updated_by_user_id=current_user.id,
+            )
+
+    raw_content = await content_repo.create_content(
+        content_in=contents_schema.ContentCreate(content_body="", format_type="markdown"),
+        created_by_user_id=current_user.id,
+    )
+    rendered_content = await content_repo.create_content(
+        content_in=contents_schema.ContentCreate(content_body="", format_type="markdown"),
+        created_by_user_id=current_user.id,
+    )
+    created_page = await lesson_repo.create_lesson_page(
+        page_in=lessons_schema.LessonPageCreate(
+            lesson_id=lesson_item.lesson_id,
+            page_number=target_page_number,
+            raw_content_id=raw_content.id,
+            rendered_content_id=rendered_content.id,
+            title=body_in.title,
+            is_active=True,
+            is_always_visible=True,
+        ),
+        created_by_user_id=current_user.id,
+    )
+    await lesson_repo.db.commit()
+
+    return {
+        "id": created_page.id,
+        "lesson_id": created_page.lesson_id,
+        "page_number": created_page.page_number,
+        "raw_content_id": created_page.raw_content_id,
+        "rendered_content_id": created_page.rendered_content_id,
+        "is_active": created_page.is_active,
+        "title": created_page.title,
+        "visibility_start_date_time": created_page.visibility_start_date_time,
+        "visibility_end_date_time": created_page.visibility_end_date_time,
+        "is_always_visible": created_page.is_always_visible,
+        "created_at": created_page.created_at,
+        "created_by_user_id": created_page.created_by_user_id,
+        "updated_at": created_page.updated_at,
+        "updated_by_user_id": created_page.updated_by_user_id,
+        "deleted_at": created_page.deleted_at,
+        "raw_content_body": "",
+        "rendered_content_body": "",
+    }
+
+
+@lessons_router.put(
+    "/lesson-items/{lesson_item_id}/lesson-pages/reorder",
+    response_model=List[lessons_schema.LessonPageWithContentBody],
+    summary="教科書ページ並べ替え",
+)
+async def reorder_lesson_pages(
+    lesson_item_id: int,
+    body_in: lessons_schema.LessonPageReorderRequest,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+    lesson_service: LessonService = Depends(get_lesson_service),
+    content_repo: ContentRepository = Depends(get_content_repo),
+):
+    """教科書ページ順を指定ID順へ並べ替えます。"""
+    lesson_item = await lesson_repo.get_lesson_item_by_id(item_id=lesson_item_id)
+    if not lesson_item:
+        raise HTTPException(status_code=404, detail="該当するレッスン項目が見つかりません")
+
+    active_pages = await lesson_repo.list_active_lesson_pages_by_lesson_id(
+        lesson_id=lesson_item.lesson_id,
+    )
+    active_page_ids = [page.id for page in active_pages]
+    if set(body_in.page_ids) != set(active_page_ids) or len(body_in.page_ids) != len(active_page_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="並べ替え対象のページID一覧が現在のページ構成と一致しません",
+        )
+
+    page_by_id = {page.id: page for page in active_pages}
+    for index, page_id in enumerate(body_in.page_ids, start=1):
+        page = page_by_id[page_id]
+        if page.page_number != index:
+            await lesson_repo.update_lesson_page_number(
+                page=page,
+                page_number=index,
+                updated_by_user_id=current_user.id,
+            )
+
+    await lesson_repo.db.commit()
+    return await lesson_service.list_lesson_pages_with_content_body_by_lesson_item_id(
+        lesson_item_id=lesson_item_id,
+        content_repo=content_repo,
+    )
+
+
 @lessons_router.get("/lesson-items/{lesson_item_id}/flowpage-sets", response_model=List[lessons_schema.FlowpageSetWithQuestions], summary="レッスン項目に紐づく演習セット＋問題一覧取得")
 async def list_flowpage_sets_with_questions_by_lesson_item(
     lesson_item_id: int,
@@ -278,6 +411,43 @@ async def delete_lesson_item(
         has_other_active_siblings = any(lesson.id != parent_lesson.id for lesson in sibling_lessons)
         if len(remaining_items) == 0 and has_other_active_siblings:
             await lesson_repo.soft_delete_lesson(lesson=parent_lesson)
+
+    await lesson_repo.db.commit()
+    return
+
+
+@lessons_router.delete(
+    "/lesson-pages/{lesson_page_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="教科書ページ削除（論理削除）",
+)
+async def delete_lesson_page(
+    lesson_page_id: int,
+    current_user: users_model.Users = Depends(require_teacher_or_higher),
+    lesson_repo: LessonRepository = Depends(get_lesson_repo),
+):
+    """教科書ページを論理削除し、後続ページ番号を詰めます。"""
+    page = await lesson_repo.get_lesson_page_by_id(page_id=lesson_page_id)
+    if not page or not page.is_active:
+        raise HTTPException(status_code=404, detail="該当する教科書ページが見つかりません")
+
+    active_pages = await lesson_repo.list_active_lesson_pages_by_lesson_id(
+        lesson_id=page.lesson_id,
+    )
+    if len(active_pages) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="最後の1ページは削除できません",
+        )
+
+    deleted_page_number = page.page_number
+    await lesson_repo.soft_delete_lesson_page(page=page)
+    for remaining_page in [p for p in active_pages if p.id != page.id and p.page_number > deleted_page_number]:
+        await lesson_repo.update_lesson_page_number(
+            page=remaining_page,
+            page_number=remaining_page.page_number - 1,
+            updated_by_user_id=current_user.id,
+        )
 
     await lesson_repo.db.commit()
     return

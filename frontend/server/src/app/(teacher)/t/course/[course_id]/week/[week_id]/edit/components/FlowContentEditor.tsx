@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
-import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
+import { MathJaxContent, MathJaxGroup } from "@/components/shared/MathJax";
 
 interface CourseQuestion {
 	id: number;
@@ -64,7 +64,10 @@ interface FlowContentEditorProps {
 	weekId: string;
 }
 
-function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps) {
+function FlowContentEditor({
+	courseId,
+	weekId: _weekId,
+}: FlowContentEditorProps) {
 	const normalizeExerciseSet = (set: Partial<ExerciseSet>): ExerciseSet => ({
 		id: Number(set.id ?? 0),
 		title: set.title ?? "",
@@ -82,11 +85,14 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 	const [setDeleting, setSetDeleting] = useState<number | null>(null);
 	const [duplicating, setDuplicating] = useState(false);
-	const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(null);
+	const [draggingQuestionId, setDraggingQuestionId] = useState<number | null>(
+		null,
+	);
 	const [expandedQuestionIds, setExpandedQuestionIds] = useState<number[]>([]);
 
 	const [questionKeyword, setQuestionKeyword] = useState("");
 	const [questionDisplayLimit, setQuestionDisplayLimit] = useState(20);
+	const [questionDisplayOffset, setQuestionDisplayOffset] = useState(0);
 	const [questionViewMode, setQuestionViewMode] = useState<
 		"all" | "selected" | "unselected"
 	>("all");
@@ -129,7 +135,11 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 		if (!selectedSet) return;
 		setSetTitle(selectedSet.title ?? "");
 		setSetDescription(selectedSet.description ?? "");
-		setSetDueDate(selectedSet.due_date ? new Date(selectedSet.due_date).toISOString().slice(0, 16) : "");
+		setSetDueDate(
+			selectedSet.due_date
+				? new Date(selectedSet.due_date).toISOString().slice(0, 16)
+				: "",
+		);
 		setSelectedQuestionIds(selectedSet.question_ids ?? []);
 	}, [selectedSet]);
 
@@ -166,8 +176,25 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	}, [selectedQuestionIds, questionMap]);
 
 	const displayedQuestions = useMemo(
-		() => filteredQuestions.slice(0, questionDisplayLimit),
-		[filteredQuestions, questionDisplayLimit],
+		() =>
+			filteredQuestions.slice(
+				questionDisplayOffset,
+				questionDisplayOffset + questionDisplayLimit,
+			),
+		[filteredQuestions, questionDisplayOffset, questionDisplayLimit],
+	);
+
+	const prevDisplayCount = Math.min(
+		questionDisplayLimit,
+		questionDisplayOffset,
+	);
+	const nextDisplayCount = Math.min(
+		questionDisplayLimit,
+		Math.max(
+			filteredQuestions.length -
+				(questionDisplayOffset + displayedQuestions.length),
+			0,
+		),
 	);
 
 	const normalizeDueDateForInput = (dueDate: string | null | undefined) => {
@@ -239,13 +266,19 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	};
 
 	const handleSelectAllFiltered = () => {
-		const filteredIds = filteredQuestions.map((question) => question.id);
-		setSelectedQuestionIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+		const filteredIds = displayedQuestions.map((question) => question.id);
+		setSelectedQuestionIds((prev) =>
+			Array.from(new Set([...prev, ...filteredIds])),
+		);
 	};
 
 	const handleClearFiltered = () => {
-		const filteredIdSet = new Set(filteredQuestions.map((question) => question.id));
-		setSelectedQuestionIds((prev) => prev.filter((id) => !filteredIdSet.has(id)));
+		const filteredIdSet = new Set(
+			displayedQuestions.map((question) => question.id),
+		);
+		setSelectedQuestionIds((prev) =>
+			prev.filter((id) => !filteredIdSet.has(id)),
+		);
 	};
 
 	const moveSelectedQuestion = (sourceId: number, targetId: number) => {
@@ -264,9 +297,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 
 	const toggleQuestionPreview = (questionId: number) => {
 		setExpandedQuestionIds((prev) =>
-			prev.includes(questionId)
-				? prev.filter((id) => id !== questionId)
-				: [...prev, questionId],
+			prev.includes(questionId) ? [] : [questionId],
 		);
 	};
 
@@ -278,9 +309,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 					? contentData.prompt
 					: typeof contentData.statement === "string"
 						? contentData.statement
-					: typeof contentData.description === "string"
-						? contentData.description
-						: "";
+						: typeof contentData.description === "string"
+							? contentData.description
+							: "";
 
 		const choices = Array.isArray(contentData.choices)
 			? contentData.choices
@@ -290,7 +321,8 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							typeof choice === "object" &&
 							choice !== null &&
 							"choice_text" in choice &&
-							typeof (choice as { choice_text?: unknown }).choice_text === "string"
+							typeof (choice as { choice_text?: unknown }).choice_text ===
+								"string"
 						) {
 							return (choice as { choice_text: string }).choice_text;
 						}
@@ -317,7 +349,10 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 				question_ids: selectedSet.question_ids ?? [],
 				due_date: selectedSet.due_date ?? null,
 			};
-			const res = await axios.post(`/courses/${courseId}/exercise-sets`, payload);
+			const res = await axios.post(
+				`/courses/${courseId}/exercise-sets`,
+				payload,
+			);
 			const created = normalizeExerciseSet(res.data as ExerciseSet);
 			setSets((prev) => [created, ...prev]);
 			setSelectedSetId(created.id);
@@ -349,7 +384,10 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 				const updated = normalizeExerciseSet(res.data as ExerciseSet);
 				setSets((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
 			} else {
-				const res = await axios.post(`/courses/${courseId}/exercise-sets`, payload);
+				const res = await axios.post(
+					`/courses/${courseId}/exercise-sets`,
+					payload,
+				);
 				const created = normalizeExerciseSet(res.data as ExerciseSet);
 				setSets((prev) => [created, ...prev]);
 				setSelectedSetId(created.id);
@@ -368,7 +406,8 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 		if (selectedSetId == null) return;
 		const set = sets.find((s) => s.id === selectedSetId);
 		if (!set) return;
-		if (!confirm(`「${set.title}」を削除しますか？この操作は取り消せません。`)) return;
+		if (!confirm(`「${set.title}」を削除しますか？この操作は取り消せません。`))
+			return;
 		setSetDeleting(selectedSetId);
 		setErrorMessage("");
 		try {
@@ -398,8 +437,25 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 	}, [hasUnsavedChanges]);
 
 	useEffect(() => {
+		setQuestionDisplayOffset(0);
+	}, [questionKeyword, questionViewMode, questionDisplayLimit]);
+
+	useEffect(() => {
+		const maxOffset = Math.max(
+			filteredQuestions.length - questionDisplayLimit,
+			0,
+		);
+		if (questionDisplayOffset > maxOffset) {
+			setQuestionDisplayOffset(maxOffset);
+		}
+	}, [filteredQuestions.length, questionDisplayLimit, questionDisplayOffset]);
+
+	useEffect(() => {
 		if (selectedSetId == null) return;
-		editorSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+		editorSectionRef.current?.scrollIntoView({
+			behavior: "smooth",
+			block: "start",
+		});
 	}, [selectedSetId]);
 
 	if (initialLoading) {
@@ -432,7 +488,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 						<div className="rounded-lg border bg-slate-50/70 p-4 space-y-3">
 							<div className="flex items-center gap-2">
 								<FolderKanban className="h-4 w-4 text-slate-600" />
-								<h3 className="text-sm font-semibold text-gray-800">1. 問題セット選択</h3>
+								<h3 className="text-sm font-semibold text-gray-800">
+									1. 問題セット選択
+								</h3>
 							</div>
 							<p className="text-xs text-gray-500">
 								まず編集対象のセットを選びます。未作成なら新規作成モードに切り替えます。
@@ -441,7 +499,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 								<div className="space-y-1">
 									<p className="text-xs text-gray-500">編集するセット</p>
 									<Select
-										value={selectedSetId != null ? String(selectedSetId) : "__new__"}
+										value={
+											selectedSetId != null ? String(selectedSetId) : "__new__"
+										}
 										onValueChange={(value) => {
 											if (value === "__new__") {
 												handleCreateSet();
@@ -454,7 +514,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 											<SelectValue placeholder="問題セットを選択" />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="__new__">新しいセットを作成</SelectItem>
+											<SelectItem value="__new__">
+												新しいセットを作成
+											</SelectItem>
 											{sets.map((set) => (
 												<SelectItem key={set.id} value={String(set.id)}>
 													{set.title}（{set.question_ids?.length ?? 0}問）
@@ -474,7 +536,10 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							</div>
 						</div>
 
-						<div ref={editorSectionRef} className="rounded-lg border bg-white p-4 space-y-4">
+						<div
+							ref={editorSectionRef}
+							className="rounded-lg border bg-white p-4 space-y-4"
+						>
 							<div className="flex items-center gap-2">
 								<Settings2 className="h-4 w-4 text-slate-600" />
 								<h3 className="text-sm font-semibold text-gray-800">
@@ -527,7 +592,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							)}
 							<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 								<div>
-									<label className="text-sm font-medium mb-1 block">セット名</label>
+									<label className="text-sm font-medium mb-1 block">
+										セット名
+									</label>
 									<Input
 										value={setTitle ?? ""}
 										onChange={(e) => setSetTitle(e.target.value)}
@@ -535,7 +602,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 									/>
 								</div>
 								<div>
-									<label className="text-sm font-medium mb-1 block">回答期限 (任意)</label>
+									<label className="text-sm font-medium mb-1 block">
+										回答期限 (任意)
+									</label>
 									<Input
 										type="datetime-local"
 										value={setDueDate ?? ""}
@@ -566,12 +635,16 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							</p>
 							<div>
 								<div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-									<label className="text-sm font-medium">セットに含める問題</label>
+									<label className="text-sm font-medium">
+										セットに含める問題
+									</label>
 									<div className="flex items-center gap-2">
 										<Button
 											type="button"
 											size="sm"
-											variant={questionViewMode === "all" ? "default" : "outline"}
+											variant={
+												questionViewMode === "all" ? "default" : "outline"
+											}
 											onClick={() => setQuestionViewMode("all")}
 										>
 											すべて
@@ -590,7 +663,9 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 											type="button"
 											size="sm"
 											variant={
-												questionViewMode === "unselected" ? "default" : "outline"
+												questionViewMode === "unselected"
+													? "default"
+													: "outline"
 											}
 											onClick={() => setQuestionViewMode("unselected")}
 										>
@@ -628,17 +703,21 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 										</div>
 									</div>
 								</div>
-								<div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-gray-500">
-									<span>
-										選択中 {selectedQuestionIds.length} 件 / 一覧 {filteredQuestions.length} 件
-									</span>
-									<div className="flex items-center gap-2">
+								<div className="flex flex-col gap-2 mb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+									<p className="text-xs text-gray-500">
+										選択中 {selectedQuestionIds.length} 件 / 一覧{" "}
+										{filteredQuestions.length} 件
+										{displayedQuestions.length > 0
+											? `（表示 ${questionDisplayOffset + 1}-${questionDisplayOffset + displayedQuestions.length}）`
+											: ""}
+									</p>
+									<div className="flex flex-wrap items-center gap-2">
 										<Button
 											type="button"
 											size="sm"
 											variant="outline"
 											onClick={handleSelectAllFiltered}
-											disabled={filteredQuestions.length === 0}
+											disabled={displayedQuestions.length === 0}
 										>
 											表示中を全選択
 										</Button>
@@ -647,9 +726,35 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 											size="sm"
 											variant="outline"
 											onClick={handleClearFiltered}
-											disabled={filteredQuestions.length === 0}
+											disabled={displayedQuestions.length === 0}
 										>
 											表示中を解除
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() =>
+												setQuestionDisplayOffset((prev) =>
+													Math.max(prev - questionDisplayLimit, 0),
+												)
+											}
+											disabled={prevDisplayCount === 0}
+										>
+											前の{prevDisplayCount}件
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() =>
+												setQuestionDisplayOffset(
+													(prev) => prev + questionDisplayLimit,
+												)
+											}
+											disabled={nextDisplayCount === 0}
+										>
+											次の{nextDisplayCount}件
 										</Button>
 									</div>
 								</div>
@@ -670,14 +775,19 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 													onDrop={(event) => {
 														event.preventDefault();
 														if (draggingQuestionId == null) return;
-														moveSelectedQuestion(draggingQuestionId, question.id);
+														moveSelectedQuestion(
+															draggingQuestionId,
+															question.id,
+														);
 														setDraggingQuestionId(null);
 													}}
 													onDragEnd={() => setDraggingQuestionId(null)}
 													className="inline-flex items-center gap-1 rounded-full border bg-white px-2 py-1 text-xs hover:bg-gray-50"
 												>
 													<GripVertical className="h-3 w-3 text-gray-400" />
-													<span className="max-w-[180px] truncate">{question.title}</span>
+													<span className="max-w-[180px] truncate">
+														{question.title}
+													</span>
 													<span className="text-gray-400">×</span>
 												</button>
 											))}
@@ -686,21 +796,22 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 								)}
 								<div className="border rounded-md max-h-[640px] overflow-auto">
 									{displayedQuestions.length === 0 ? (
-										<div className="p-4 text-sm text-gray-500">該当する問題がありません。</div>
+										<div className="p-4 text-sm text-gray-500">
+											該当する問題がありません。
+										</div>
 									) : (
 										displayedQuestions.map((q) => {
 											const checked = selectedQuestionIds.includes(q.id);
 											const isPreviewOpen = expandedQuestionIds.includes(q.id);
 											const preview = getQuestionPreview(q.content_data ?? {});
 											return (
-												<div
-													key={q.id}
-													className="border-b last:border-b-0"
-												>
+												<div key={q.id} className="border-b last:border-b-0">
 													<div className="flex items-start gap-3 p-4 hover:bg-gray-50">
 														<Checkbox
 															checked={checked}
-															onCheckedChange={(value) => toggleQuestion(q.id, Boolean(value))}
+															onCheckedChange={(value) =>
+																toggleQuestion(q.id, Boolean(value))
+															}
 														/>
 														<div className="min-w-0 flex-1">
 															<div className="flex items-start justify-between gap-2">
@@ -732,7 +843,10 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 															</div>
 															<div className="flex gap-1 flex-wrap mt-1">
 																{q.tag_names.map((tag) => (
-																	<Badge key={`${q.id}-${tag}`} variant="secondary">
+																	<Badge
+																		key={`${q.id}-${tag}`}
+																		variant="secondary"
+																	>
 																		{tag}
 																	</Badge>
 																))}
@@ -740,14 +854,17 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 														</div>
 													</div>
 													{isPreviewOpen && (
-														<div className="px-3 pb-3 pl-10 text-sm text-gray-700 space-y-2">
-															<MathJaxSetup>
+														<div
+															key={`preview-${q.id}`}
+															className="px-3 pb-3 pl-10 text-sm text-gray-700 space-y-2"
+														>
+															<MathJaxGroup>
 																<div className="rounded-md bg-muted/40 p-3">
 																	<p className="text-xs font-semibold text-gray-500 mb-1">
 																		問題文
 																	</p>
 																	<div className="whitespace-pre-wrap break-words">
-																		<MathJax
+																		<MathJaxContent
 																			text={
 																				preview.questionText ||
 																				"問題文キーが見つからないため、下に content_data の要約を表示しています。"
@@ -776,13 +893,13 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 																					key={`${q.id}-choice-${idx}`}
 																					className="break-words"
 																				>
-																					<MathJax text={choice} />
+																					<MathJaxContent text={choice} />
 																				</li>
 																			))}
 																		</ul>
 																	</div>
 																)}
-															</MathJaxSetup>
+															</MathJaxGroup>
 														</div>
 													)}
 												</div>
@@ -792,7 +909,8 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 								</div>
 								{filteredQuestions.length > displayedQuestions.length && (
 									<p className="mt-2 text-xs text-muted-foreground">
-										表示件数により一部のみ表示中です（全 {filteredQuestions.length} 件）。
+										表示件数により一部のみ表示中です（全{" "}
+										{filteredQuestions.length} 件）。
 									</p>
 								)}
 							</div>
@@ -824,9 +942,7 @@ function FlowContentEditor({ courseId, weekId: _weekId }: FlowContentEditorProps
 							<CheckCircle className="h-16 w-16 text-green-500" />
 						</div>
 						<DialogTitle className="text-xl">保存完了</DialogTitle>
-						<DialogDescription>
-							演習セットを更新しました。
-						</DialogDescription>
+						<DialogDescription>演習セットを更新しました。</DialogDescription>
 					</DialogHeader>
 				</DialogContent>
 			</Dialog>

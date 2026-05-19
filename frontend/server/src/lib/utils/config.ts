@@ -6,7 +6,6 @@ export const config = {
 	 * APIのベースURL
 	 */
 	apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "",
-	internalApiBaseUrl: process.env.INTERNAL_API_BASE_URL ?? "",
 
 	/**
 	 * デバッグモード
@@ -33,19 +32,6 @@ export const config = {
 	disableAuthCheck:
 		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "true" ||
 		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "1",
-
-	/**
-	 * JWTのシークレットキー
-	 * 認証トークンの署名と検証に使用される
-	 */
-	secretKey: process.env.NEXTAUTH_SECRET ?? "",
-
-	/**
-	 * JWTのアルゴリズム
-	 * 認証トークンの署名と検証に使用されるアルゴリズム
-	 * HS256: HMAC using SHA-256 hash algorithm
-	 */
-	algorithm: process.env.JWT_ALGORITHM ?? "HS256",
 };
 
 export default config;
