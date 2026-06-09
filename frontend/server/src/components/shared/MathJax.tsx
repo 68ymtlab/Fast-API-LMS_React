@@ -12,7 +12,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -159,8 +159,9 @@ const normalizeImageUrls = (content: string): string => {
 	return normalized;
 };
 
-const markdownComponents = {
-	img: ({ src, alt, ...rest }: { src?: string; alt?: string }) => {
+const markdownComponents: Components = {
+	img: ({ src, alt, ...rest }) => {
+		const imageSrc = typeof src === "string" ? src : undefined;
 		const sizeMatch = alt?.match(/^(.*)\s*=(\d+)x(\d*)\s*$/);
 		if (sizeMatch) {
 			const cleanAlt = sizeMatch[1].trim();
@@ -169,7 +170,7 @@ const markdownComponents = {
 			return (
 				// eslint-disable-next-line @next/next/no-img-element
 				<img
-					src={src}
+					src={imageSrc}
 					alt={cleanAlt}
 					width={width}
 					height={height}
@@ -179,18 +180,24 @@ const markdownComponents = {
 			);
 		}
 		// eslint-disable-next-line @next/next/no-img-element
-		return <img src={src} alt={alt || ""} {...rest} />;
+		return <img src={imageSrc} alt={alt || ""} {...rest} />;
 	},
-	td: ({ node: _node, ...props }: { node?: unknown; vAlign?: string }) => {
-		const { vAlign: _vAlign, ...safeProps } = props;
+	td: ({ node: _node, ...props }) => {
+		const { vAlign: _vAlign, ...safeProps } = props as typeof props & {
+			vAlign?: string;
+		};
 		return <td {...safeProps} />;
 	},
-	th: ({ node: _node, ...props }: { node?: unknown; vAlign?: string }) => {
-		const { vAlign: _vAlign, ...safeProps } = props;
+	th: ({ node: _node, ...props }) => {
+		const { vAlign: _vAlign, ...safeProps } = props as typeof props & {
+			vAlign?: string;
+		};
 		return <th {...safeProps} />;
 	},
-	tr: ({ node: _node, ...props }: { node?: unknown; vAlign?: string }) => {
-		const { vAlign: _vAlign, ...safeProps } = props;
+	tr: ({ node: _node, ...props }) => {
+		const { vAlign: _vAlign, ...safeProps } = props as typeof props & {
+			vAlign?: string;
+		};
 		return <tr {...safeProps} />;
 	},
 };
@@ -236,7 +243,7 @@ export const DebouncedMathJax: FC<DebouncedMathJaxProps> = ({
 		return () => window.clearTimeout(timer);
 	}, [text, delayMs]);
 
-	return <MathJax text={debouncedText} dynamic />;
+	return <MathJax text={debouncedText} />;
 };
 
 export const MathJax: FC<MathJaxProps> = (props) => {

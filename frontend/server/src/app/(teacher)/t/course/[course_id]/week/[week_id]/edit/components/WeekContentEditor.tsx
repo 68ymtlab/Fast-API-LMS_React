@@ -624,45 +624,53 @@ function WeekContentEditor({
 										<p className="text-sm text-gray-600">
 											レンダリング表示です。編集したい段落を選ぶと、その部分だけ編集できます。
 										</p>
-										{editingBlockIndex === null ? (
-											<MathJaxGroup>
-												{blocks.map((block, index) => (
-													<button
-														key={`${page.id}-${index}`}
-														type="button"
-														onClick={() => startBlockEdit(index)}
-														className="w-full text-left p-4 hover:bg-gray-50 transition-colors rounded-lg border border-transparent hover:border-gray-200"
-													>
-														<MathJaxContent text={block} />
-													</button>
-												))}
-											</MathJaxGroup>
-										) : (
-											<div className="border border-gray-200 rounded-lg bg-white p-4 space-y-3">
-												<div className="space-y-2">
-													<p className="text-xs text-gray-500">プレビュー</p>
-													<div className="min-h-[180px] rounded-md border border-gray-200 bg-gray-50 p-3 overflow-auto">
-														<DebouncedMathJax text={blockDraft} />
-													</div>
+										<MathJaxGroup>
+											{blocks.map((block, index) => (
+												<div
+													key={`${page.id}-${index}`}
+													className={
+														editingBlockIndex === index
+															? "border border-gray-200 rounded-lg bg-white"
+															: "rounded-lg bg-white"
+													}
+												>
+													{editingBlockIndex === index ? (
+														<div className="p-4 space-y-3">
+															<div className="space-y-2">
+																<p className="text-xs text-gray-500">プレビュー</p>
+																<div className="min-h-[180px] rounded-md border border-gray-200 bg-gray-50 p-3 overflow-auto">
+																	<DebouncedMathJax text={blockDraft} />
+																</div>
+															</div>
+															<div className="space-y-2">
+																<p className="text-xs text-gray-500">編集</p>
+																<Textarea
+																	value={blockDraft}
+																	onChange={(e) => setBlockDraft(e.target.value)}
+																	className="min-h-[220px] font-mono text-sm"
+																/>
+															</div>
+															<div className="flex justify-end gap-2">
+																<Button variant="outline" onClick={cancelBlockEdit}>
+																	キャンセル
+																</Button>
+																<Button onClick={saveBlockEdit}>
+																	この部分を適用
+																</Button>
+															</div>
+														</div>
+													) : (
+														<button
+															type="button"
+															onClick={() => startBlockEdit(index)}
+															className="w-full text-left p-4 hover:bg-gray-50 transition-colors rounded-lg border border-transparent hover:border-gray-200"
+														>
+															<MathJaxContent text={block} />
+														</button>
+													)}
 												</div>
-												<div className="space-y-2">
-													<p className="text-xs text-gray-500">編集</p>
-													<Textarea
-														value={blockDraft}
-														onChange={(e) => setBlockDraft(e.target.value)}
-														className="min-h-[220px] font-mono text-sm"
-													/>
-												</div>
-												<div className="flex justify-end gap-2">
-													<Button variant="outline" onClick={cancelBlockEdit}>
-														キャンセル
-													</Button>
-													<Button onClick={saveBlockEdit}>
-														この部分を適用
-													</Button>
-												</div>
-											</div>
-										)}
+											))}
+										</MathJaxGroup>
 									</div>
 								)}
 								</>
