@@ -227,7 +227,7 @@ const LessonSelectTable = ({
 }) => (
 	<div className="bg-white rounded-lg shadow-sm border">
 		<div className="hidden md:block overflow-x-auto">
-			<table className="w-full table-layout-fixed">
+			<table className="w-full table-layout-fixed break-keep">
 				<colgroup>
 					<col className="w-1/5" />
 					<col className="w-2/5" />
@@ -243,7 +243,10 @@ const LessonSelectTable = ({
 							内容
 						</th>
 						<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-							教科書コンテンツ
+							{/* 狭い幅では「教科書コ/ンテンツ」と中途折返しになるため、語の区切りで改行する */}
+							教科書
+							<wbr />
+							コンテンツ
 						</th>
 						<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
 							演習問題

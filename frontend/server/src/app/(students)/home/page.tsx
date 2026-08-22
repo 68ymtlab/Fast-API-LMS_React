@@ -305,7 +305,7 @@ const StudentHome = () => {
 						</div>
 
 						{isCoursesLoading ? (
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+							<div className="grid grid-cols-1 gap-3 xl:grid-cols-2 lg:gap-4">
 								{Array.from({ length: 4 }).map((_, index) => (
 									<Card
 										key={`subject-skeleton-${index + 1}`}
@@ -342,7 +342,7 @@ const StudentHome = () => {
 								</CardContent>
 							</Card>
 						) : (
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+							<div className="grid grid-cols-1 gap-3 xl:grid-cols-2 lg:gap-4">
 								{subjects.map((subject, index) => (
 									<Card
 										key={subject.id}

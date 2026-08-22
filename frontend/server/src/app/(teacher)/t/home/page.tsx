@@ -98,7 +98,7 @@ function TeacherHome() {
 	return (
 		<>
 			<main>
-				<div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+				<div className="flex flex-col min-h-screen bg-gray-100">
 					<div className="container mx-auto px-8 py-12 max-w-7xl">
 						<div className="flex items-center justify-between mb-12">
 							<h2 className="text-3xl font-bold text-gray-800">科目一覧</h2>
