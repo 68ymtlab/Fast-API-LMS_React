@@ -45,9 +45,11 @@ def get_docs_user(credentials: HTTPBasicCredentials = Depends(docs_security)):
 
 # --- CORS Middleware ---
 # ALLOWED_ORIGINS: カンマ区切りで列挙。未設定時は開発用デフォルトを使用
+# （旧名 CORS_ORIGINS もフォールバックで受け付ける。過去に .env 側と名前が
+#   食い違い、本番設定が無視されて開発用デフォルトに落ちる事故があったため）
 import os
-_raw_origins = os.getenv(
-    "ALLOWED_ORIGINS",
+_raw_origins = os.getenv("ALLOWED_ORIGINS") or os.getenv(
+    "CORS_ORIGINS",
     "http://localhost:8080,http://localhost:8000,http://localhost:3000,http://localhost,http://127.0.0.1:8080,http://127.0.0.1:8000,http://127.0.0.1:3000"
 )
 origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
