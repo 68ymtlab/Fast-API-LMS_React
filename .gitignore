@@ -62,3 +62,5 @@ AGENTS.md
 
 # --- docs ---
 **/docs/
+# DB/アップロードのバックアップ（本番運用時に生成）
+db/backups/
