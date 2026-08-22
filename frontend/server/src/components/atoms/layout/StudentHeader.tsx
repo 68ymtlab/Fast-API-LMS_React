@@ -99,7 +99,7 @@ export const StudentHeader: FC = memo(() => {
 		<header className="fixed inset-x-0 flex h-12 pt-2 bg-gray-100/95 backdrop-blur supports-[backdrop-filter]:bg-gray-100/80 border-b border-gray-200/70 z-30 transition-colors duration-200">
 			{/* 左エリア：サイドバー幅に合わせた領域（≡ + システム名） */}
 			<div
-				className="shrink-0 flex items-center gap-2 px-2 sm:px-4 md:w-[var(--sidebar-width,16rem)]"
+				className="shrink-0 flex items-center gap-2 px-2 sm:px-4 lg:w-[var(--sidebar-width,16rem)]"
 			>
 				<Button
 					variant="ghost"
