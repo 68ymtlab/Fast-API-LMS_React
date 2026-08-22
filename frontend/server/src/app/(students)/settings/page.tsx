@@ -141,7 +141,7 @@ function StudentSettingsPage() {
 									セキュリティ設定
 								</h3>
 
-								<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+								<div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg">
 									<div className="flex items-center space-x-3">
 										<EyeOff className="h-5 w-5 text-gray-500" />
 										<div>

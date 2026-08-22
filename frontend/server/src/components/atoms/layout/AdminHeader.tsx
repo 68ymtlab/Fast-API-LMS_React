@@ -6,6 +6,7 @@ import { type FC, memo } from "react";
 import { TeacherBreadcrumb } from "@/components/atoms/layout/TeacherBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import { TextSizeMenu } from "./TextSizeMenu";
 
 export const AdminHeader: FC = memo(() => {
 	const { toggleSidebar } = useSidebar();
@@ -38,9 +39,12 @@ export const AdminHeader: FC = memo(() => {
 
 			<div className="flex-1 flex items-center justify-between gap-2 px-2 sm:px-4 min-w-0">
 				{showTeacherBreadcrumb ? <TeacherBreadcrumb /> : <div />}
-				<span className="text-xs font-medium text-gray-500 max-w-[120px] truncate">
-					管理者画面
-				</span>
+				<div className="flex items-center gap-3 shrink-0">
+					<TextSizeMenu />
+					<span className="text-xs font-medium text-gray-500 max-w-[120px] truncate">
+						管理者画面
+					</span>
+				</div>
 			</div>
 		</header>
 	);

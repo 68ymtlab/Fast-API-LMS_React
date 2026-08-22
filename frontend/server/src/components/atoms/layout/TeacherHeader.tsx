@@ -6,6 +6,7 @@ import { type FC, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { TeacherBreadcrumb } from "@/components/atoms/layout/TeacherBreadcrumb";
 import { useSidebar } from "@/components/ui/sidebar";
+import { TextSizeMenu } from "./TextSizeMenu";
 
 export const TeacherHeader: FC = memo(() => {
 	const { toggleSidebar } = useSidebar();
@@ -43,6 +44,7 @@ export const TeacherHeader: FC = memo(() => {
 
 				{/* 右側ラベル（学生側のユーザー情報枠と揃える） */}
 				<div className="flex items-center gap-3 shrink-0">
+					<TextSizeMenu />
 					<span className="text-xs font-medium text-gray-500 max-w-[120px] truncate">
 						教師画面
 					</span>

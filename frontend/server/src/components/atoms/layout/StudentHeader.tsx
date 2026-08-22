@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import apiClient from "@/lib/api/apiClient";
 import { useSidebar } from "@/components/ui/sidebar";
+import { TextSizeMenu } from "./TextSizeMenu";
 import { StudentBreadcrumbInline } from "@/app/(students)/layout";
 
 export const StudentHeader: FC = memo(() => {
@@ -159,6 +160,9 @@ export const StudentHeader: FC = memo(() => {
 						</Tooltip>
 					</TooltipProvider>
 
+					{/* 文字サイズ */}
+					<TextSizeMenu />
+
 					{/* お知らせ */}
 					<DropdownMenu
 						open={isAnnouncementsOpen}
@@ -190,14 +194,14 @@ export const StudentHeader: FC = memo(() => {
 						</DropdownMenuContent>
 					</DropdownMenu>
 
-					{/* 目標（TODO: 実装予定） */}
+					{/* 目標（TODO: 実装予定）: 未実装のため狭い画面では非表示 */}
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
 									variant="ghost"
 									size="icon"
-									className="text-gray-300 cursor-not-allowed h-7 w-7"
+									className="hidden sm:inline-flex text-gray-300 cursor-not-allowed h-7 w-7"
 									disabled
 									aria-label="目標（実装予定）"
 								>
@@ -211,11 +215,11 @@ export const StudentHeader: FC = memo(() => {
 					</TooltipProvider>
 
 					{/* セパレーター */}
-					<div className="w-px h-4 bg-gray-300" />
+					<div className="hidden sm:block w-px h-4 bg-gray-300" />
 
-					{/* ユーザー名 */}
+					{/* ユーザー名: 狭い画面では非表示（文字サイズ拡大時のはみ出し防止） */}
 					{username && (
-						<span className="text-xs font-medium text-gray-500 max-w-[120px] truncate">
+						<span className="hidden sm:inline text-xs font-medium text-gray-500 max-w-[120px] truncate">
 							{username}
 						</span>
 					)}
