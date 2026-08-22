@@ -17,6 +17,14 @@
 	user-select: text;
 }
 
+/* 長い数式は画面幅を超えたら数式だけ横スクロールさせる。
+   これがないと数式が親要素を押し広げ、ページ全体が横に伸びる。 */
+.textbook mjx-container[display="true"] {
+	max-width: 100%;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
 /* 教科書内の画像: width/height 属性・style属性で指定したサイズを優先する */
 .textbook img {
 	height: auto;
@@ -32,6 +40,14 @@
 .textbook img[height] {
 	height: revert;
 }
+/* 教科書の表は width 属性などで固定幅に書かれていることがある。
+   画面に収まらない場合はページ全体ではなく表だけを横スクロールさせる。 */
+.textbook table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
 /* テーブルのtd内の画像はセル幅に合わせる */
 .textbook td img {
 	max-width: 100%;

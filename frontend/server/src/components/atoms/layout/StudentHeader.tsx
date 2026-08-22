@@ -96,11 +96,10 @@ export const StudentHeader: FC = memo(() => {
 	}, []);
 
 	return (
-		<header className="fixed flex w-screen h-12 pt-2 bg-gray-100/95 backdrop-blur supports-[backdrop-filter]:bg-gray-100/80 border-b border-gray-200/70 z-30 transition-colors duration-200">
+		<header className="fixed inset-x-0 flex h-12 pt-2 bg-gray-100/95 backdrop-blur supports-[backdrop-filter]:bg-gray-100/80 border-b border-gray-200/70 z-30 transition-colors duration-200">
 			{/* 左エリア：サイドバー幅に合わせた領域（≡ + システム名） */}
 			<div
-				className="shrink-0 flex items-center gap-2 px-4"
-				style={{ width: "var(--sidebar-width, 16rem)" }}
+				className="shrink-0 flex items-center gap-2 px-2 sm:px-4 md:w-[var(--sidebar-width,16rem)]"
 			>
 				<Button
 					variant="ghost"
@@ -113,14 +112,14 @@ export const StudentHeader: FC = memo(() => {
 				</Button>
 				<button
 					onClick={() => router.push("/home")}
-					className="text-base text-gray-400 hover:text-gray-600 transition-colors cursor-pointer font-medium truncate"
+					className="hidden sm:block text-base text-gray-400 hover:text-gray-600 transition-colors cursor-pointer font-medium truncate"
 				>
 					学習支援システム
 				</button>
 			</div>
 
 			{/* 右エリア：コンテンツ幅（パンくず左寄せ + ユーザー情報右寄せ） */}
-			<div className="flex-1 flex items-center justify-between px-4 min-w-0">
+			<div className="flex-1 flex items-center justify-between gap-2 px-2 sm:px-4 min-w-0">
 				{/* パンくずリスト（ホーム以外で表示・左寄せ） */}
 				{!isHome ? (
 					<StudentBreadcrumbInline />

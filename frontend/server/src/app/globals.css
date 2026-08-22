@@ -216,7 +216,9 @@ html[data-theme="theme9"] {
 
 .container {
 	margin: 0 auto;
-	width: 1200px;
+	/* 固定 1200px だとスマホ/タブレットで画面幅を超えて横スクロールが発生する。
+	   max-width ではなく width で絞ることで、併用される max-w-* ユーティリティを潰さない。 */
+	width: min(100%, 1200px);
 }
 
 .lotate_icon {
