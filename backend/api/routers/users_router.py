@@ -5,7 +5,7 @@
 ユーザーに関連するAPIエンドポイントを定義します。
 """
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from typing import List, Optional
 from api.db.session import get_db
 from api.core.security import get_current_active_user, require_admin, require_teacher_or_higher
 from api.core.config import settings
+from api.core import login_rate_limit
 from api.repositories.users_repo import UserRepository
 from api.services.users_service import UserService
 import api.schemas.users as user_schema
@@ -54,16 +55,38 @@ async def login_for_access_token(
         "token_type": "bearer"
     }
 
+def _client_ip(request: Request) -> str:
+    """レート制限用のクライアントIP。nginx 経由では X-Forwarded-For の先頭を使う。"""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @users_router.post("/login", response_model=user_schema.LoginResponse, summary="NextAuth用 ログイン認証")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), service: UserService = Depends(get_user_service)):
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), service: UserService = Depends(get_user_service)):
+    # ブルートフォース対策: 同一メール+IP の連続失敗をロックする
+    client_ip = _client_ip(request)
+    wait = login_rate_limit.seconds_until_unlock(form_data.username, client_ip)
+    if wait > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"ログイン試行が多すぎます。約{(wait + 59) // 60}分後に再試行してください",
+            headers={"Retry-After": str(wait)},
+        )
+
     try:
         user, access_token, refresh_token = await service.perform_login(
             email=form_data.username,
             password=form_data.password
         )
-    except HTTPException:
-        # 認証失敗
+    except HTTPException as exc:
+        # 認証失敗（401系のみ失敗として数える。5xx はカウントしない）
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            login_rate_limit.record_failure(form_data.username, client_ip)
         raise
+
+    login_rate_limit.record_success(form_data.username, client_ip)
 
     return {
         "user": user,

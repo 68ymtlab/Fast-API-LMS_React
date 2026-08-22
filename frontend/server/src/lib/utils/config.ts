@@ -29,9 +29,13 @@ export const config = {
 	 * false: 認証チェックを実施（本番環境用）
 	 * ⚠️ セキュリティ上の理由から、本番環境では必ずfalseにしてください
 	 */
+	// 認証チェックの無効化は開発ビルド限定。
+	// 本番で誤って有効化すると全ページが未認証で通ってしまうため、
+	// NODE_ENV=production ではフラグの値に関わらず必ず false になる。
 	disableAuthCheck:
-		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "true" ||
-		process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "1",
+		process.env.NODE_ENV !== "production" &&
+		(process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "true" ||
+			process.env.NEXT_PUBLIC_DISABLE_AUTH_CHECK === "1"),
 };
 
 export default config;

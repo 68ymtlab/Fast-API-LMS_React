@@ -461,7 +461,10 @@ async def submit_assignment(
     # ファイルを保存
     save_dir = SUBMISSIONS_DIR / str(assignment_id) / str(current_user.id)
     save_dir.mkdir(parents=True, exist_ok=True)
-    unique_name = f"{uuid.uuid4()}_{file.filename}"
+    # 保存名にクライアント由来の filename を使わない（../ 等のパストラバーサル対策）。
+    # 表示・ダウンロード時の名前は original_filename カラム側で保持している。
+    safe_ext = re.sub(r"[^A-Za-z0-9.]", "", Path(file.filename or "").suffix)[:16]
+    unique_name = f"{uuid.uuid4()}{safe_ext}"
     save_path = save_dir / unique_name
 
     with open(save_path, "wb") as f_out:

@@ -5,6 +5,7 @@
 コンテンツ実体に関連するビジネスルールをカプセル化したサービスクラスを定義します。
 """
 import os
+import re
 import uuid
 from pathlib import Path
 from datetime import datetime
@@ -70,7 +71,9 @@ class ContentService:
     ) -> contents_model.Images:
         """画像をファイルシステムに保存し、その情報をデータベースに登録します。"""
         # ファイル名生成 (ユーザーID_タイムスタンプ_UUID.拡張子)
-        file_extension = original_file_name.split('.')[-1] if '.' in original_file_name else 'bin'
+        # 拡張子は英数字のみ許可（"a.png/../../x" のようなパストラバーサル対策）
+        raw_extension = original_file_name.split('.')[-1] if '.' in original_file_name else 'bin'
+        file_extension = re.sub(r"[^A-Za-z0-9]", "", raw_extension)[:16] or "bin"
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         unique_id = uuid.uuid4().hex[:8]
 

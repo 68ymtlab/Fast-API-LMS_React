@@ -46,6 +46,7 @@ backend/static/images/**
 .env.*.local
 .env.development
 .env.production
+.env.supabase.dev
 
 # --- Logs ---
 *.log

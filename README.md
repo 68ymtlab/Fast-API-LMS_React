@@ -68,6 +68,15 @@ docker compose exec backend poetry run python scripts/seed_users.py
 
 教室 Wi-Fi からアクセスできない場合の Docker ネットワーク変更手順は [docs/docker-network.md](docs/docker-network.md) を参照。
 
+### セキュリティ: 秘密情報の取り扱い
+
+- **`SECRET_KEY` と `DOCS_PASSWORD` は必ず環境ごとに新しい値を生成すること**
+  （`openssl rand -hex 32`）。過去に `.env` 本体がコミットされていた時期があり、
+  Git 履歴から旧値を参照できるため、履歴に載った値は使い続けないこと。
+- `SECRET_KEY` を変更すると発行済みの全トークンが無効になり、
+  全ユーザーは再ログインが必要になる（意図的な運用手順として有効）。
+- `.env` 系ファイルは絶対にコミットしない（`.gitignore` 済み）。
+
 本番向け `frontend` は `docker-compose.prod.yml` で以下を上書きしています。
 
 - `NODE_ENV=production`
