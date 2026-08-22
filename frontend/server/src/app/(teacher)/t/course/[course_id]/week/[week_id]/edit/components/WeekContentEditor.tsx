@@ -624,7 +624,9 @@ function WeekContentEditor({
 										<p className="text-sm text-gray-600">
 											レンダリング表示です。編集したい段落を選ぶと、その部分だけ編集できます。
 										</p>
-										<MathJaxGroup>
+										{/* MathJaxGroup は dynamic 未指定のため本番ビルドでは初回しかタイプセットしない。
+										    key で内容変更時に再マウントさせないと、「この部分を適用」後に数式が未変換で残る。 */}
+										<MathJaxGroup key={currentContent}>
 											{blocks.map((block, index) => (
 												<div
 													key={`${page.id}-${index}`}
