@@ -1627,21 +1627,23 @@ const LessonPage = () => {
 				)}
 				<div className="mt-8 flex items-center justify-between gap-3">
 					{Number(page) !== 1 ? (
-						<Button className="default align-middle" onClick={go_previous_page}>
+						<Button variant="outline" onClick={go_previous_page}>
 							前のページ
 						</Button>
 					) : (
 						<div />
 					)}
 
+					{totalPages > 0 && (
+						<span className="text-sm text-gray-500 tabular-nums">
+							{page} / {totalPages} ページ
+						</span>
+					)}
+
 					{Number(page) === totalPages ? (
-						<Button className="default align-middle" onClick={go_lesson_page}>
-							コンテンツ一覧に戻る
-						</Button>
+						<Button onClick={go_lesson_page}>コンテンツ一覧に戻る</Button>
 					) : (
-						<Button className="default align-middle" onClick={go_next_page}>
-							次のページ
-						</Button>
+						<Button onClick={go_next_page}>次のページ</Button>
 					)}
 				</div>
 			</div>

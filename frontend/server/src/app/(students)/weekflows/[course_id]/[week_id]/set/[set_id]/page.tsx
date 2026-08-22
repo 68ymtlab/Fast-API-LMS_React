@@ -359,7 +359,7 @@ export default function StudentExerciseSetPage() {
 
 	if (loading) {
 		return (
-			<div className="container mx-auto py-8 flex items-center justify-center">
+			<div className="container mx-auto py-8 px-4 flex items-center justify-center">
 				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
 			</div>
 		);
@@ -404,7 +404,7 @@ export default function StudentExerciseSetPage() {
 				page="student_weekflow_set" 
 				details={JSON.stringify({ course_id: courseId, week_id: weekId, set_id: setId, current_page: currentPage, current_question_id: currentQuestion?.id })}
 			/>
-			<div className="container mx-auto pt-16 pb-6 px-4 max-w-5xl space-y-4">
+			<div className="container mx-auto pt-4 pb-6 px-4 max-w-5xl space-y-4">
 				<div className="flex flex-wrap items-center justify-between gap-2 px-1">
 					<Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900 h-8">
 						<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
@@ -746,20 +746,20 @@ export default function StudentExerciseSetPage() {
 				)}
 
 				<Card className="border-gray-200">
-					<CardContent className="pt-6 flex justify-between gap-3">
+					<CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
 						<Button
 							variant="outline"
 							onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
 							disabled={currentPage <= 1}
-							className="gap-2"
+							className="gap-2 order-1 flex-1 sm:flex-none"
 						>
 							<ArrowLeft className="h-4 w-4" />
 							前の問題
 						</Button>
-						<Button 
-							variant="default" 
-							className="bg-green-600 hover:bg-green-700 text-white shadow-md font-bold px-6"
-							onClick={finishSession} 
+						<Button
+							variant="default"
+							className="bg-green-600 hover:bg-green-700 text-white shadow-md font-bold px-6 order-3 w-full sm:order-2 sm:w-auto"
+							onClick={finishSession}
 							disabled={!sessionId}
 						>
 							成績を提出して終了
@@ -768,7 +768,7 @@ export default function StudentExerciseSetPage() {
 							variant="outline"
 							onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
 							disabled={currentPage >= totalPages}
-							className="gap-2"
+							className="gap-2 order-2 flex-1 sm:order-3 sm:flex-none"
 						>
 							次の問題
 							<ArrowRight className="h-4 w-4" />

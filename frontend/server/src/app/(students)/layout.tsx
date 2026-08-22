@@ -319,7 +319,7 @@ const StudentLayoutInner = memo(
 			<div className="flex h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} />
 				<SidebarInset className="bg-gray-100">
-					<main className="flex-1 w-full min-w-0">{children}</main>
+					<main className="flex-1 w-full min-w-0 pt-12">{children}</main>
 				</SidebarInset>
 			</div>
 		);

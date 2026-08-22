@@ -249,7 +249,7 @@ const StudentHome = () => {
 	return (
 		<>
 			<TcAccessTime page="student_home" />
-			<main className="min-h-screen bg-slate-100 pb-12 pt-16">
+			<main className="min-h-screen bg-slate-100 pb-12 pt-4">
 				<div className="mx-auto w-full max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
 					<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in-0 duration-400">
 						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
