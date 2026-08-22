@@ -2,6 +2,8 @@
 
 import { AlertCircle, BookOpen, Edit, PlayCircle } from "lucide-react";
 import { useParams } from "next/navigation";
+import { useState } from "react";
+import { MathJaxSetup } from "@/components/shared/MathJax";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
 	Card,
@@ -19,9 +21,11 @@ import WeekInfoEditor from "./components/WeekInfoEditor";
 function EditWeekPage() {
 	const params = useParams();
 	const errorMessage = "";
+	const [activeTab, setActiveTab] = useState("week_info");
 
 	return (
-		<div className="container mx-auto py-8 px-4 max-w-7xl">
+		<MathJaxSetup>
+			<div className="container mx-auto py-8 px-4 max-w-7xl">
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-2xl flex items-center gap-2">
@@ -40,7 +44,11 @@ function EditWeekPage() {
 						</Alert>
 					)}
 
-					<Tabs defaultValue="week_info" className="w-full">
+					<Tabs
+						value={activeTab}
+						onValueChange={setActiveTab}
+						className="w-full"
+					>
 						<TabsList className="grid w-full grid-cols-3">
 							<TabsTrigger
 								value="week_info"
@@ -66,29 +74,36 @@ function EditWeekPage() {
 						</TabsList>
 
 						<TabsContent value="week_info" className="mt-6">
-							<WeekInfoEditor
-								courseId={params.course_id as string}
-								weekId={params.week_id as string}
-							/>
+							{activeTab === "week_info" && (
+								<WeekInfoEditor
+									courseId={params.course_id as string}
+									weekId={params.week_id as string}
+								/>
+							)}
 						</TabsContent>
 
 						<TabsContent value="week_content" className="mt-6">
-							<WeekContentEditor
-								courseId={params.course_id as string}
-								weekId={params.week_id as string}
-							/>
+							{activeTab === "week_content" && (
+								<WeekContentEditor
+									courseId={params.course_id as string}
+									weekId={params.week_id as string}
+								/>
+							)}
 						</TabsContent>
 
 						<TabsContent value="flow_content" className="mt-6">
-							<FlowContentEditor
-								courseId={params.course_id as string}
-								weekId={params.week_id as string}
-							/>
+							{activeTab === "flow_content" && (
+								<FlowContentEditor
+									courseId={params.course_id as string}
+									weekId={params.week_id as string}
+								/>
+							)}
 						</TabsContent>
 					</Tabs>
 				</CardContent>
 			</Card>
-		</div>
+			</div>
+		</MathJaxSetup>
 	);
 }
 

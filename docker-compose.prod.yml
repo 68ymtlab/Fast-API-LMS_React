@@ -107,5 +107,14 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+# 学内教室 Wi-Fi (172.18.0.0/22) との競合を避けるため、Docker 内部ネットワークの帯域を固定する
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.0.0/24
+          gateway: 10.200.0.1
+
 volumes:
   uploads-data:

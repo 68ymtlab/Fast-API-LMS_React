@@ -132,6 +132,21 @@ class LessonPageContentUpdate(BaseModel):
     content: str = Field(..., description="更新する本文")
 
 
+class LessonPageCreateRequest(BaseModel):
+    """教科書ページ作成時の入力スキーマ"""
+    insert_after_page_number: Optional[int] = Field(
+        None,
+        ge=1,
+        description="このページ番号の直後へ挿入（未指定時は末尾）",
+    )
+    title: Optional[str] = Field(None, description="ページタイトル")
+
+
+class LessonPageReorderRequest(BaseModel):
+    """教科書ページ並べ替え時の入力スキーマ"""
+    page_ids: List[int] = Field(..., min_length=1, description="並び順の教科書ページID一覧")
+
+
 class TextbookMarkerBase(BaseModel):
     """教科書マーカーの基本スキーマ"""
     lesson_page_id: int = Field(..., description="対象の教科書ページID")
@@ -396,4 +411,3 @@ class AdminWrongAnswerLog(BaseModel):
     question_type: str
     answer_data: Dict[str, Any]
     is_correct: Optional[bool] = None
-

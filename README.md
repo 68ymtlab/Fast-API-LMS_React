@@ -66,6 +66,8 @@ docker compose exec backend poetry run python scripts/seed_users.py
 ./scripts/deploy.sh
 ```
 
+教室 Wi-Fi からアクセスできない場合の Docker ネットワーク変更手順は [docs/docker-network.md](docs/docker-network.md) を参照。
+
 本番向け `frontend` は `docker-compose.prod.yml` で以下を上書きしています。
 
 - `NODE_ENV=production`
