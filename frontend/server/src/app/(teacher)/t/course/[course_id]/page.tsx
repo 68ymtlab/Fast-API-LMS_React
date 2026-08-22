@@ -216,19 +216,19 @@ const LessonSelectTable = ({
 	return (
 		<div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
 			<div className="overflow-x-auto relative">
-				<table className="w-full">
+				<table className="w-full min-w-[560px]">
 					<thead className="bg-gray-50 sticky top-0 z-10">
 						<tr>
-							<th className="px-6 py-3 text-left text-xs font-medium text-gray-500">
+							<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 whitespace-nowrap">
 								回
 							</th>
-							<th className="px-6 py-3 text-left text-xs font-medium text-gray-500">
+							<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 whitespace-nowrap">
 								内容
 							</th>
-							<th className="px-6 py-3 text-center text-xs font-medium text-gray-500">
+							<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 whitespace-nowrap">
 								プレビュー
 							</th>
-							<th className="px-6 py-3 text-center text-xs font-medium text-gray-500">
+							<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 whitespace-nowrap">
 								編集
 							</th>
 							<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 min-w-24">
@@ -979,7 +979,7 @@ function CoursePage() {
 						)}
 
 						<div className="mb-6">
-							<div className="flex items-center justify-end space-x-4">
+							<div className="flex flex-wrap items-center justify-end gap-3">
 								<Button
 									onClick={() => router.push(`/t/course/${course_id}/assignments`)}
 									variant="outline"
