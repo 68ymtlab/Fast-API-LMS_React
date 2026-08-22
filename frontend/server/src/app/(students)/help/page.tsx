@@ -48,7 +48,7 @@ const releasePlans = [
 export default function StudentHelpPage() {
 	return (
 		<main
-			className="min-h-screen bg-slate-100 px-4 pb-12 pt-16 sm:px-6 lg:px-8"
+			className="min-h-screen bg-slate-100 px-4 pb-12 pt-4 sm:px-6 lg:px-8"
 			style={helpThemeVars}
 		>
 			<section className="relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border border-white/70 bg-[linear-gradient(155deg,var(--help-bg-top),var(--help-bg-bottom))] p-5 shadow-[0_20px_80px_-42px_rgba(15,23,42,0.55)] sm:p-8">

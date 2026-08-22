@@ -103,7 +103,7 @@ const AdminLayoutInner = memo(
 			<div className="flex min-h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} showGroupLabels />
 				<SidebarInset className="bg-gray-100 min-h-screen">
-					<main className="flex-1 w-full bg-gray-100 min-h-screen pt-14">
+					<main className="flex-1 w-full min-w-0 bg-gray-100 min-h-screen pt-14">
 						{children}
 					</main>
 				</SidebarInset>

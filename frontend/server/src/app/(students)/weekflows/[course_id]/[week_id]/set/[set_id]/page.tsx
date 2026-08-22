@@ -21,6 +21,14 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import axios from "@/lib/axios";
@@ -63,6 +71,10 @@ export default function StudentExerciseSetPage() {
 	const [submitted, setSubmitted] = useState(false);
 	const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 	const [pageAnswerStatus, setPageAnswerStatus] = useState<Record<number, AnswerStatus>>({});
+	const [finishDialogOpen, setFinishDialogOpen] = useState(false);
+	const [finishSubmitting, setFinishSubmitting] = useState(false);
+	const [finishError, setFinishError] = useState("");
+	const [finishedScore, setFinishedScore] = useState<number | null>(null);
 	const [sessionId, setSessionId] = useState<number | null>(null);
 	const [activeNumericField, setActiveNumericField] = useState<string | null>(null);
 	const [isNumpadOpen, setIsNumpadOpen] = useState(false);
@@ -342,24 +354,40 @@ export default function StudentExerciseSetPage() {
 		setSingleAnswer(targetField, normalizeNumericInput(nextValue));
 	};
 
+	const unansweredCount = useMemo(() => {
+		let answered = 0;
+		for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+			if (
+				pageAnswerStatus[pageNum] === "correct" ||
+				pageAnswerStatus[pageNum] === "incorrect"
+			) {
+				answered++;
+			}
+		}
+		return totalPages - answered;
+	}, [pageAnswerStatus, totalPages]);
+
 	const finishSession = async () => {
 		if (!sessionId) return;
+		setFinishSubmitting(true);
+		setFinishError("");
 		try {
 			const correctCount = Object.values(pageAnswerStatus).filter((s) => s === "correct").length;
 			const score = totalPages > 0 ? (correctCount / totalPages) * 100 : 0;
-			
+
 			await axios.put(`/exercise-sessions/${sessionId}/finish`, { score });
-			alert(`お疲れ様でした！スコア: ${Math.round(score)}点 が記録されました。`);
-			router.push(`/weekflows/${courseId}/${weekId}`);
+			setFinishedScore(Math.round(score));
 		} catch (e) {
 			console.error(e);
-			alert("成績の提出に失敗しました");
+			setFinishError("成績の提出に失敗しました。通信環境を確認して、もう一度お試しください。");
+		} finally {
+			setFinishSubmitting(false);
 		}
 	};
 
 	if (loading) {
 		return (
-			<div className="container mx-auto py-8 flex items-center justify-center">
+			<div className="container mx-auto py-8 px-4 flex items-center justify-center">
 				<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
 			</div>
 		);
@@ -404,7 +432,7 @@ export default function StudentExerciseSetPage() {
 				page="student_weekflow_set" 
 				details={JSON.stringify({ course_id: courseId, week_id: weekId, set_id: setId, current_page: currentPage, current_question_id: currentQuestion?.id })}
 			/>
-			<div className="container mx-auto pt-16 pb-6 px-4 max-w-5xl space-y-4">
+			<div className="container mx-auto pt-4 pb-6 px-4 max-w-5xl space-y-4">
 				<div className="flex flex-wrap items-center justify-between gap-2 px-1">
 					<Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900 h-8">
 						<Link href={`/weekflows/${courseId}/${weekId}`} className="flex items-center gap-2">
@@ -746,20 +774,23 @@ export default function StudentExerciseSetPage() {
 				)}
 
 				<Card className="border-gray-200">
-					<CardContent className="pt-6 flex justify-between gap-3">
+					<CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
 						<Button
 							variant="outline"
 							onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
 							disabled={currentPage <= 1}
-							className="gap-2"
+							className="gap-2 order-1 flex-1 sm:flex-none"
 						>
 							<ArrowLeft className="h-4 w-4" />
 							前の問題
 						</Button>
-						<Button 
-							variant="default" 
-							className="bg-green-600 hover:bg-green-700 text-white shadow-md font-bold px-6"
-							onClick={finishSession} 
+						<Button
+							variant="default"
+							className="bg-green-600 hover:bg-green-700 text-white shadow-md font-bold px-6 order-3 w-full sm:order-2 sm:w-auto"
+							onClick={() => {
+								setFinishError("");
+								setFinishDialogOpen(true);
+							}}
 							disabled={!sessionId}
 						>
 							成績を提出して終了
@@ -768,13 +799,93 @@ export default function StudentExerciseSetPage() {
 							variant="outline"
 							onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
 							disabled={currentPage >= totalPages}
-							className="gap-2"
+							className="gap-2 order-2 flex-1 sm:order-3 sm:flex-none"
 						>
 							次の問題
 							<ArrowRight className="h-4 w-4" />
 						</Button>
 					</CardContent>
 				</Card>
+
+				{/* 提出の確認・結果ダイアログ */}
+				<Dialog
+					open={finishDialogOpen}
+					onOpenChange={(open) => {
+						// 提出完了後は×やオーバーレイで閉じても一覧に戻る
+						if (!open && finishedScore !== null) {
+							router.push(`/weekflows/${courseId}/${weekId}`);
+							return;
+						}
+						if (!finishSubmitting) setFinishDialogOpen(open);
+					}}
+				>
+					<DialogContent className="sm:max-w-md">
+						{finishedScore === null ? (
+							<>
+								<DialogHeader>
+									<DialogTitle>成績を提出して終了しますか？</DialogTitle>
+									<DialogDescription className="space-y-2 pt-2">
+										提出するとこの演習セッションは終了します。
+									</DialogDescription>
+								</DialogHeader>
+								{unansweredCount > 0 && (
+									<Alert className="border-amber-300 bg-amber-50 text-amber-800">
+										<AlertCircle className="h-4 w-4 !text-amber-600" />
+										<AlertDescription>
+											未解答の問題が {unansweredCount} 問あります。未解答のまま提出すると不正解として集計されます。
+										</AlertDescription>
+									</Alert>
+								)}
+								{finishError && (
+									<Alert variant="destructive">
+										<AlertCircle className="h-4 w-4" />
+										<AlertDescription>{finishError}</AlertDescription>
+									</Alert>
+								)}
+								<DialogFooter className="gap-2 sm:gap-0">
+									<Button
+										variant="outline"
+										onClick={() => setFinishDialogOpen(false)}
+										disabled={finishSubmitting}
+									>
+										解答に戻る
+									</Button>
+									<Button
+										className="bg-green-600 hover:bg-green-700 text-white"
+										onClick={finishSession}
+										disabled={finishSubmitting}
+									>
+										{finishSubmitting ? "提出中..." : "提出して終了"}
+									</Button>
+								</DialogFooter>
+							</>
+						) : (
+							<>
+								<DialogHeader>
+									<div className="flex justify-center pb-2">
+										<CheckCircle className="h-14 w-14 text-green-500" />
+									</div>
+									<DialogTitle className="text-center">
+										お疲れ様でした！
+									</DialogTitle>
+									<DialogDescription className="text-center pt-2">
+										スコア {finishedScore} 点を記録しました。
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										className="w-full"
+										onClick={() =>
+											router.push(`/weekflows/${courseId}/${weekId}`)
+										}
+									>
+										演習問題一覧に戻る
+									</Button>
+								</DialogFooter>
+							</>
+						)}
+					</DialogContent>
+				</Dialog>
 			</div>
 		</MathJaxSetup>
 	);

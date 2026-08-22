@@ -249,7 +249,7 @@ const StudentHome = () => {
 	return (
 		<>
 			<TcAccessTime page="student_home" />
-			<main className="min-h-screen bg-slate-100 pb-12 pt-16">
+			<main className="min-h-screen bg-slate-100 pb-12 pt-4">
 				<div className="mx-auto w-full max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
 					<section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm animate-in fade-in-0 duration-400">
 						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -305,7 +305,7 @@ const StudentHome = () => {
 						</div>
 
 						{isCoursesLoading ? (
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+							<div className="grid grid-cols-1 gap-3 xl:grid-cols-2 lg:gap-4">
 								{Array.from({ length: 4 }).map((_, index) => (
 									<Card
 										key={`subject-skeleton-${index + 1}`}
@@ -342,7 +342,7 @@ const StudentHome = () => {
 								</CardContent>
 							</Card>
 						) : (
-							<div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+							<div className="grid grid-cols-1 gap-3 xl:grid-cols-2 lg:gap-4">
 								{subjects.map((subject, index) => (
 									<Card
 										key={subject.id}
@@ -372,7 +372,7 @@ const StudentHome = () => {
 												) : null}
 											</div>
 										</CardHeader>
-										<CardFooter className="flex items-end justify-between gap-2 pt-1">
+										<CardFooter className="flex flex-col items-stretch gap-2 pt-1 sm:flex-row sm:items-end sm:justify-between">
 											<div className="flex items-center gap-1.5">
 												<Button
 													type="button"
@@ -394,7 +394,7 @@ const StudentHome = () => {
 												</Button>
 											</div>
 											<Button
-												className="h-9 rounded-lg px-3.5 text-sm font-semibold shadow-sm bg-sky-600 text-white hover:bg-sky-700"
+												className="h-9 w-full rounded-lg px-3.5 text-sm font-semibold shadow-sm bg-sky-600 text-white hover:bg-sky-700 sm:w-auto"
 												onClick={() =>
 													handleButtonClick(`course-${subject.id}`, () =>
 														router.push(`/course/${subject.id}`),

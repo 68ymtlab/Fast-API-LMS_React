@@ -471,7 +471,7 @@ function FlowSessionPage() {
 		<MathJaxSetup>
 			<TcAccessTime page="student_weekflows_session" />
 			<main>
-				<div className="container mx-auto py-8">
+				<div className="container mx-auto py-8 px-4">
 					{/* Header */}
 					<div className="mb-6">
 						<h1 className="text-2xl font-bold mb-2">

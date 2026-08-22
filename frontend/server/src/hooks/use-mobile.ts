@@ -1,6 +1,8 @@
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+// 1024px 未満（スマホ・iPad縦）ではサイドバーをオーバーレイ表示にする。
+// 820px の iPad で常時 256px を占有すると本文が 2/3 になってしまうため。
+const MOBILE_BREAKPOINT = 1024;
 
 export function useIsMobile() {
 	const [isMobile, setIsMobile] = React.useState<boolean>(false);
@@ -15,9 +17,9 @@ export function useIsMobile() {
 		checkIsMobile();
 
 		const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-		mql.addEventListener("resize", checkIsMobile);
+		mql.addEventListener("change", checkIsMobile);
 
-		return () => window.removeEventListener("resize", checkIsMobile);
+		return () => mql.removeEventListener("change", checkIsMobile);
 	}, []);
 
 	return isMobile;

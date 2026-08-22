@@ -605,25 +605,25 @@ function CourseScorePage() {
 									</CardHeader>
 									<CardContent>
 										<div className="overflow-x-auto">
-											<table className="w-full border-collapse border border-gray-300">
+											<table className="w-full min-w-[560px] border-collapse border border-gray-300">
 												<thead>
 													<tr className="bg-blue-600 text-white">
-														<th className="border border-gray-300 p-3 text-left font-bold">
+														<th className="border border-gray-300 p-3 text-left font-bold whitespace-nowrap">
 															演習問題
 														</th>
-														<th className="border border-gray-300 p-3 text-center font-bold">
+														<th className="border border-gray-300 p-3 text-center font-bold whitespace-nowrap">
 															平均値
 														</th>
-														<th className="border border-gray-300 p-3 text-center font-bold">
+														<th className="border border-gray-300 p-3 text-center font-bold whitespace-nowrap">
 															最大値
 														</th>
-														<th className="border border-gray-300 p-3 text-center font-bold">
+														<th className="border border-gray-300 p-3 text-center font-bold whitespace-nowrap">
 															最小値
 														</th>
-														<th className="border border-gray-300 p-3 text-center font-bold">
+														<th className="border border-gray-300 p-3 text-center font-bold whitespace-nowrap">
 															中央値
 														</th>
-														<th className="border border-gray-300 p-3 text-center font-bold">
+														<th className="border border-gray-300 p-3 text-center font-bold whitespace-nowrap">
 															データ数
 														</th>
 													</tr>
@@ -744,19 +744,19 @@ function CourseScorePage() {
 											{enrolledStudents.length}
 										</div>
 										<div className="overflow-x-auto">
-											<table className="w-full border-collapse border border-gray-300 text-xs md:text-sm">
+											<table className="w-full min-w-[720px] border-collapse border border-gray-300 text-xs md:text-sm">
 												<thead>
 													<tr className="bg-gray-100">
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															学生
 														</th>
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															学籍情報
 														</th>
 														{filteredReachabilitySets.map((set) => (
 															<th
 																key={set.id}
-																className="border border-gray-300 p-2 text-center"
+																className="border border-gray-300 p-2 text-center whitespace-nowrap"
 															>
 																{set.title || `セット #${set.id}`}
 															</th>
@@ -921,25 +921,25 @@ function CourseScorePage() {
 										</p>
 									) : (
 										<div className="overflow-x-auto">
-											<table className="w-full border-collapse border border-gray-300 text-sm">
+											<table className="w-full min-w-[640px] border-collapse border border-gray-300 text-sm">
 												<thead>
 													<tr className="bg-gray-100">
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															学生
 														</th>
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															学籍情報
 														</th>
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															演習セット
 														</th>
-														<th className="border border-gray-300 p-2 text-center">
+														<th className="border border-gray-300 p-2 text-center whitespace-nowrap">
 															スコア
 														</th>
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															開始時刻
 														</th>
-														<th className="border border-gray-300 p-2 text-left">
+														<th className="border border-gray-300 p-2 text-left whitespace-nowrap">
 															完了時刻
 														</th>
 													</tr>
@@ -1012,7 +1012,7 @@ function CourseScorePage() {
 																<td className="border border-gray-300 p-2">
 																	{exerciseName}
 																</td>
-																<td className="border border-gray-300 p-2 text-center">
+																<td className="border border-gray-300 p-2 text-center whitespace-nowrap">
 																	{session.score != null
 																		? `${session.score.toFixed(1)}%`
 																		: "-"}

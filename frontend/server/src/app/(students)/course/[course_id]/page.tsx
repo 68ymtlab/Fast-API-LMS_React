@@ -1,5 +1,5 @@
 "use client";
-import { FileText, Loader2 } from "lucide-react";
+import { ChevronRight, FileText, Loader2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import TcAccessTime from "@/components/tc_access_time";
@@ -155,6 +155,54 @@ const LessonSelectCard = ({
 	</Card>
 );
 
+// レッスン行のアクションボタン（表・カードの両方から使う）
+const LessonActionButton = ({
+	lesson,
+	kind,
+	onMove,
+	loadingState,
+	setLoadingState,
+	className,
+}: {
+	lesson: Lesson;
+	kind: "lesson" | "flow";
+	onMove: (lessonId: number) => void | Promise<void>;
+	loadingState: { [key: string]: boolean };
+	setLoadingState: React.Dispatch<
+		React.SetStateAction<{ [key: string]: boolean }>
+	>;
+	className?: string;
+}) => {
+	const stateKey = `${kind}-${lesson.id}`;
+	const isLoading = loadingState[stateKey];
+
+	return (
+		<Button
+			variant={kind === "lesson" ? "default" : "outline"}
+			size="sm"
+			className={className}
+			disabled={isLoading}
+			onClick={async (e) => {
+				e.stopPropagation();
+				setLoadingState((prev) => ({ ...prev, [stateKey]: true }));
+				try {
+					await onMove(lesson.id);
+				} finally {
+					setLoadingState((prev) => ({ ...prev, [stateKey]: false }));
+				}
+			}}
+		>
+			{isLoading ? (
+				<Loader2 className="w-4 h-4 animate-spin" />
+			) : kind === "lesson" ? (
+				"学習を始める"
+			) : (
+				"演習問題"
+			)}
+		</Button>
+	);
+};
+
 // レッスン選択テーブルコンポーネント
 const LessonSelectTable = ({
 	groupedLessons,
@@ -178,8 +226,8 @@ const LessonSelectTable = ({
 	>;
 }) => (
 	<div className="bg-white rounded-lg shadow-sm border">
-		<div className="overflow-x-auto">
-			<table className="w-full table-layout-fixed">
+		<div className="hidden md:block overflow-x-auto">
+			<table className="w-full table-layout-fixed break-keep">
 				<colgroup>
 					<col className="w-1/5" />
 					<col className="w-2/5" />
@@ -195,7 +243,10 @@ const LessonSelectTable = ({
 							内容
 						</th>
 						<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-							教科書コンテンツ
+							{/* 狭い幅では「教科書コ/ンテンツ」と中途折返しになるため、語の区切りで改行する */}
+							教科書
+							<wbr />
+							コンテンツ
 						</th>
 						<th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
 							演習問題
@@ -266,62 +317,22 @@ const LessonSelectTable = ({
 															{lesson.title}
 														</td>
 														<td className="px-6 py-3 text-center text-sm">
-															{" "}
-															{/* 学習を始めるボタン用のセル */}
-															<Button
-																variant="default"
-																size="sm"
-																disabled={loadingState[`lesson-${lesson.id}`]}
-																onClick={async (e) => {
-																	e.stopPropagation();
-																	setLoadingState((prev) => ({
-																		...prev,
-																		[`lesson-${lesson.id}`]: true,
-																	}));
-																	try {
-																		await onMoveLesson(lesson.id);
-																	} finally {
-																		setLoadingState((prev) => ({
-																			...prev,
-																			[`lesson-${lesson.id}`]: false,
-																		}));
-																	}
-																}}
-															>
-																{loadingState[`lesson-${lesson.id}`] ? (
-																	<Loader2 className="w-4 h-4 animate-spin" />
-																) : (
-																	"学習を始める"
-																)}
-															</Button>
+															<LessonActionButton
+																lesson={lesson}
+																kind="lesson"
+																onMove={onMoveLesson}
+																loadingState={loadingState}
+																setLoadingState={setLoadingState}
+															/>
 														</td>
 														<td className="px-6 py-3 text-center text-sm">
-															<Button
-																variant="outline"
-																size="sm"
-																disabled={loadingState[`flow-${lesson.id}`]}
-																onClick={async (e) => {
-																	e.stopPropagation();
-																	setLoadingState((prev) => ({
-																		...prev,
-																		[`flow-${lesson.id}`]: true,
-																	}));
-																	try {
-																		await onMoveFlow(lesson.id);
-																	} finally {
-																		setLoadingState((prev) => ({
-																			...prev,
-																			[`flow-${lesson.id}`]: false,
-																		}));
-																	}
-																}}
-															>
-																{loadingState[`flow-${lesson.id}`] ? (
-																	<Loader2 className="w-4 h-4 animate-spin" />
-																) : (
-																	"演習問題"
-																)}
-															</Button>
+															<LessonActionButton
+																lesson={lesson}
+																kind="flow"
+																onMove={onMoveFlow}
+																loadingState={loadingState}
+																setLoadingState={setLoadingState}
+															/>
 														</td>
 													</tr>
 
@@ -333,6 +344,65 @@ const LessonSelectTable = ({
 						})}
 				</tbody>
 			</table>
+		</div>
+
+		{/* md 未満: 列幅が潰れて見出しが縦書きになるため、1件ずつカードで表示する */}
+		<div className="divide-y divide-gray-200 md:hidden">
+			{Object.entries(groupedLessons)
+				.sort(([numA], [numB]) => Number.parseInt(numA) - Number.parseInt(numB))
+				.map(([lessonNumStr, lessonsInGroup]) => {
+					const lessonNum = Number.parseInt(lessonNumStr);
+					const isGroupExpanded = expandedLessonNumbers.has(lessonNum);
+
+					return (
+						<div key={`card-group-${lessonNum}`}>
+							<button
+								type="button"
+								onClick={() => onToggleLessonNumber(lessonNum)}
+								className="flex w-full items-center gap-2 bg-gray-100 px-4 py-3 text-left text-sm font-semibold text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+							>
+								<ChevronRight
+									className={`h-5 w-5 shrink-0 transition-transform ${isGroupExpanded ? "rotate-90" : ""}`}
+									aria-hidden="true"
+								/>
+								<span>第{lessonNum}回</span>
+							</button>
+
+							{isGroupExpanded && (
+								<div className="divide-y divide-gray-100">
+									{lessonsInGroup.map((lesson) => (
+										<div
+											key={`card-${lesson.id}`}
+											className="space-y-3 bg-slate-50 px-4 py-3"
+										>
+											<p className="text-base font-medium text-gray-700">
+												{lesson.title}
+											</p>
+											<div className="flex flex-wrap gap-2">
+												<LessonActionButton
+													lesson={lesson}
+													kind="lesson"
+													onMove={onMoveLesson}
+													loadingState={loadingState}
+													setLoadingState={setLoadingState}
+													className="flex-1"
+												/>
+												<LessonActionButton
+													lesson={lesson}
+													kind="flow"
+													onMove={onMoveFlow}
+													loadingState={loadingState}
+													setLoadingState={setLoadingState}
+													className="flex-1"
+												/>
+											</div>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+					);
+				})}
 		</div>
 	</div>
 );

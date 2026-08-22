@@ -119,7 +119,7 @@ const TeacherLayoutInner = memo(
 			<div className="flex min-h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} />
 				<SidebarInset className="bg-gray-100 min-h-screen">
-					<main className="flex-1 w-full bg-gray-100 min-h-screen pt-14">{children}</main>
+					<main className="flex-1 w-full min-w-0 bg-gray-100 min-h-screen pt-14">{children}</main>
 				</SidebarInset>
 			</div>
 		);
@@ -149,7 +149,7 @@ const TeacherLayout = memo(({ children }: { children: ReactNode }) => {
 					<div className="flex min-h-screen">
 						<AppSidebar sidebarGroups={adminSidebarGroups} showGroupLabels />
 						<SidebarInset className="bg-gray-100 min-h-screen">
-							<main className="flex-1 w-full bg-gray-100 min-h-screen pt-14">{children}</main>
+							<main className="flex-1 w-full min-w-0 bg-gray-100 min-h-screen pt-14">{children}</main>
 						</SidebarInset>
 					</div>
 				</div>

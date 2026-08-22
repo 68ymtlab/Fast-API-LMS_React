@@ -110,7 +110,7 @@ export const StudentBreadcrumbInline = memo(() => {
 	if (pathname === "/home") return null;
 
 	return (
-		<nav className="flex items-center text-xs text-gray-400 gap-1">
+		<nav className="flex items-center text-xs text-gray-400 gap-1 min-w-0 overflow-x-auto whitespace-nowrap [&>*]:shrink-0">
 			{/* 戻るボタン */}
 			<BreadcrumbBackButton onClick={() => router.back()} className="mr-1" />
 
@@ -319,7 +319,7 @@ const StudentLayoutInner = memo(
 			<div className="flex h-screen">
 				<AppSidebar sidebarGroups={sidebarGroups} />
 				<SidebarInset className="bg-gray-100">
-					<main className="flex-1 w-full">{children}</main>
+					<main className="flex-1 w-full min-w-0 pt-12">{children}</main>
 				</SidebarInset>
 			</div>
 		);

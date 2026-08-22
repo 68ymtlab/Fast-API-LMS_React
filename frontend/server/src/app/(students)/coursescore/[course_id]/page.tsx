@@ -421,7 +421,7 @@ const Page = () => {
 		<>
 			<TcAccessTime page="student_coursescore" />
 			<div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-sky-50/40">
-				<main className="mx-auto w-full max-w-6xl px-4 pb-8 pt-16 sm:px-6">
+				<main className="mx-auto w-full max-w-6xl px-4 pb-8 pt-4 sm:px-6">
 					<Card className="border-slate-200/80 bg-white/95 shadow-sm">
 						<CardHeader className="space-y-2">
 							<CardTitle className="flex items-center gap-2 text-2xl text-slate-900">

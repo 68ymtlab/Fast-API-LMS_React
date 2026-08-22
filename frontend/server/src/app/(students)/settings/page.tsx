@@ -59,7 +59,7 @@ function StudentSettingsPage() {
 		<>
 			<TcAccessTime page="student_settings" />
 			<main className="min-h-screen bg-slate-100">
-				<div className="container mx-auto max-w-4xl px-4 pb-8 pt-16 sm:pt-20">
+				<div className="container mx-auto max-w-4xl px-4 pb-8 pt-4 sm:pt-6">
 					<Card>
 					<CardHeader>
 						<CardTitle className="text-2xl">ユーザー設定</CardTitle>
@@ -141,7 +141,7 @@ function StudentSettingsPage() {
 									セキュリティ設定
 								</h3>
 
-								<div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+								<div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg">
 									<div className="flex items-center space-x-3">
 										<EyeOff className="h-5 w-5 text-gray-500" />
 										<div>

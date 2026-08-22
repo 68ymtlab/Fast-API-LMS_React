@@ -288,8 +288,8 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 									{/* レッスン名 */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
-											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
-												<h3 className="font-semibold text-center">
+											<div className="bg-gray-100 px-2 py-3 rounded-lg h-full flex items-center justify-center">
+												<h3 className="font-semibold text-center text-sm whitespace-nowrap">
 													レッスン名
 												</h3>
 											</div>
@@ -319,8 +319,8 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 									{/* コンテンツ名 */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
-											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
-												<h3 className="font-semibold text-center">
+											<div className="bg-gray-100 px-2 py-3 rounded-lg h-full flex items-center justify-center">
+												<h3 className="font-semibold text-center text-sm whitespace-nowrap">
 													コンテンツ名
 												</h3>
 											</div>
@@ -350,8 +350,8 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 									{/* 回数（レッスンの lesson_number を編集） */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
-											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
-												<h3 className="font-semibold text-center">回数</h3>
+											<div className="bg-gray-100 px-2 py-3 rounded-lg h-full flex items-center justify-center">
+												<h3 className="font-semibold text-center text-sm whitespace-nowrap">回数</h3>
 											</div>
 										</div>
 										<div className="md:col-span-3">
@@ -391,8 +391,8 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 									{/* 並び順 */}
 									<div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
 										<div className="md:col-span-1">
-											<div className="bg-gray-100 p-4 rounded-lg h-full flex items-center justify-center">
-												<h3 className="font-semibold text-center">並び順</h3>
+											<div className="bg-gray-100 px-2 py-3 rounded-lg h-full flex items-center justify-center">
+												<h3 className="font-semibold text-center text-sm whitespace-nowrap">並び順</h3>
 											</div>
 										</div>
 										<div className="md:col-span-3">
@@ -425,29 +425,27 @@ function WeekInfoEditor({ courseId, weekId }: WeekInfoEditorProps) {
 										</div>
 									</div>
 
-									<div className="flex justify-center gap-4 pt-6">
-										{canUpdate && (
-											<>
-												<Button
-													type="submit"
-													disabled={loading}
-													className="px-8"
-												>
-													{loading ? "更新中..." : "更新"}
-												</Button>
-												<Button
-													type="button"
-													variant="destructive"
-													onClick={() => setShowDeleteDialog(true)}
-													disabled={loading}
-													className="px-8"
-												>
-													<Trash2 className="h-4 w-4 mr-2" />
-													削除
-												</Button>
-											</>
-										)}
-									</div>
+									{canUpdate && (
+										<div className="flex items-center justify-between gap-4 pt-6">
+											<Button
+												type="button"
+												variant="outline"
+												onClick={() => setShowDeleteDialog(true)}
+												disabled={loading}
+												className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+											>
+												<Trash2 className="h-4 w-4 mr-2" />
+												削除
+											</Button>
+											<Button
+												type="submit"
+												disabled={loading}
+												className="px-8"
+											>
+												{loading ? "更新中..." : "更新"}
+											</Button>
+										</div>
+									)}
 								</form>
 							</Form>
 						</CardContent>

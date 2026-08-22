@@ -1,8 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { StudentHeader } from "@/components/atoms/layout/StudentHeader";
 import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,10 +17,9 @@ import axios from "@/lib/axios";
 // import { markdownToHtml, reloadMathJax } from '@/components/methods/markdown';
 
 interface Week {
-	week_id: number;
-	week_name: string;
-	week_num: number;
-	order: number;
+	id: number;
+	title: string;
+	lesson_number: number;
 }
 
 interface ExerciseSet {
@@ -32,20 +30,14 @@ interface ExerciseSet {
 	due_date?: string | null;
 }
 
-interface UserInfo {
-	id: number;
-	name: string;
-	email: string;
-}
-
 const WeekFlowsPage = () => {
 	const params = useParams();
+	const router = useRouter();
 	const course_id = params.course_id as string;
 	const week_id = params.week_id as string;
 
 	const [week, setWeek] = useState<Week | null>(null);
 	const [exerciseSets, setExerciseSets] = useState<ExerciseSet[]>([]);
-	const [_userInfo, setUserInfo] = useState<UserInfo | null>(null);
 	const [sessionError, setSessionError] = useState(false);
 	const [loading, setLoading] = useState(true);
 
@@ -56,28 +48,22 @@ const WeekFlowsPage = () => {
 			return;
 		}
 
-		const homeProfile = () => {
+		const getWeek = () => {
 			axios
-				.get("/home_profile")
+				.get(`/courses/${course_id}/lessons`)
 				.then((response) => {
-					setUserInfo(response.data);
+					const lessons = response.data as Week[];
+					const current = lessons.find(
+						(lesson) => lesson.id === Number(week_id),
+					);
+					if (current) setWeek(current);
 				})
 				.catch((error) => {
 					if (error.response?.status === 401) {
 						setSessionError(true);
 					} else {
+						console.error("週情報の取得に失敗しました:", error);
 					}
-				});
-		};
-
-		const getWeek = () => {
-			axios
-				.get(`/get_week/${week_id}`)
-				.then((response) => {
-					setWeek(response.data);
-				})
-				.catch((error) => {
-					console.error("週情報の取得に失敗しました:", error);
 				});
 		};
 
@@ -95,19 +81,17 @@ const WeekFlowsPage = () => {
 				});
 		};
 
-		homeProfile();
 		getWeek();
 		getExerciseSets();
 	}, [course_id, week_id]);
 
 	const handleStartSet = (setId: number) => {
-		window.location.href = `/weekflows/${course_id}/${week_id}/set/${setId}`;
+		router.push(`/weekflows/${course_id}/${week_id}/set/${setId}`);
 	};
 
 	if (sessionError) {
 		return (
 			<>
-				<StudentHeader />
 				<main>
 					<div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
 						<div className="container mx-auto px-4 py-8">
@@ -125,7 +109,6 @@ const WeekFlowsPage = () => {
 	if (loading) {
 		return (
 			<>
-				<StudentHeader />
 				<main>
 					<div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
 						<div className="container mx-auto px-4 py-8">
@@ -147,13 +130,13 @@ const WeekFlowsPage = () => {
 				<div className="min-h-screen bg-gray-100">
 					<div className="container mx-auto px-4 py-8">
 						{/* 週情報のヘッダー */}
-						{week && (
-							<div className="mb-8">
-								<h1 className="text-3xl font-bold mb-2">
-									第{week.week_num}回　{week.week_name}の演習問題一覧
-								</h1>
-							</div>
-						)}
+						<div className="mb-8">
+							<h1 className="text-2xl sm:text-3xl font-bold mb-2">
+								{week
+									? `第${week.lesson_number}回　${week.title}の演習問題一覧`
+									: "演習問題一覧"}
+							</h1>
+						</div>
 
 						{/* 演習問題一覧 */}
 						<div className="space-y-6">
