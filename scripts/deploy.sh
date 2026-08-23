@@ -39,6 +39,7 @@ check_env() {
 check_env "backend/.env"           "backend/.env.prod.example"
 check_env "frontend/server/.env"   "frontend/server/.env.prod.example"
 check_env "db/.env"                "db/.env.prod.example"
+check_env "tutor/.env"             "tutor/.env.example"
 
 if [ "$MISSING" -ne 0 ]; then
     echo ""
@@ -50,7 +51,7 @@ fi
 echo ""
 echo "=== CHANGE_ME チェック ==="
 FOUND=0
-for f in backend/.env frontend/server/.env db/.env; do
+for f in backend/.env frontend/server/.env db/.env tutor/.env; do
     if grep -q "CHANGE_ME" "$f" 2>/dev/null; then
         echo "[WARN] $f に CHANGE_ME が含まれています。本番値に変更してください。"
         FOUND=1
@@ -166,6 +167,35 @@ if [ -n "$NET_NAME" ]; then
     fi
 fi
 
+# --- AI チューター（tutor）の前提チェック ---
+echo ""
+echo "=== AI チューター（tutor）の前提チェック ==="
+# 共有シークレットが空だと tutor は誰からでも叩ける。本番では必須
+if ! grep -qE '^TUTOR_SERVICE_TOKEN=.+' tutor/.env 2>/dev/null; then
+    echo "[ERROR] tutor/.env の TUTOR_SERVICE_TOKEN が空です。次を実行してから再デプロイしてください:"
+    echo "        ./scripts/setup_tutor_secrets.sh    # 共有シークレットと tutor_app DB ロールを作成"
+    exit 1
+fi
+if ! grep -qE '^TUTOR_DATABASE_URL=.+' tutor/.env 2>/dev/null; then
+    echo "[WARN] tutor/.env の TUTOR_DATABASE_URL が空です。会話は保存されません（メモリのみ）。"
+    echo "       ./scripts/setup_tutor_secrets.sh を実行すると tutor_app ロールで設定されます。"
+fi
+# 知識ベース（研究側から同期するファイル）。無ければ同期を試みる
+if [ ! -f tutor/data/stage4/embeddings.json ] || [ ! -f tutor/data/stage4/knowledge_graph.json ]; then
+    SRC="${AGENTS_WORKSPACE:-/Users/kaihara/workspace/project/agents/workspace}"
+    if [ -d "$SRC/rag/textbooks/linear-algebra/stage4_qdrant" ]; then
+        echo "→ 知識ベースが無いので研究側から同期します: $SRC"
+        AGENTS_WORKSPACE="$SRC" ./tutor/scripts/sync_from_agents.sh
+    else
+        echo "[ERROR] tutor/data/stage4/ に知識ベース（embeddings.json / knowledge_graph.json）がありません。"
+        echo "        研究側（agents/workspace）が見える環境で ./tutor/scripts/sync_from_agents.sh を実行するか、"
+        echo "        同期済みの tutor/data/stage4/ をこのサーバーにコピーしてください（docs/ai-tutor-handover.md 参照）。"
+        exit 1
+    fi
+else
+    echo "[OK]    tutor/data/stage4/（$(sed -n 's/^agents_git: //p' tutor/data/stage4/SYNC_INFO.txt 2>/dev/null || echo '同期情報なし')）"
+fi
+
 # --- ビルドして起動（-v は使わない = データ保持）---
 echo ""
 echo "=== Docker イメージをビルドして起動 ==="
@@ -174,6 +204,19 @@ $COMPOSE up --build -d
 echo ""
 echo "=== 起動状態確認 ==="
 $COMPOSE ps
+# tutor は知識ベースの読み込みに数十秒かかる。health を待って結果を出す（失敗してもデプロイ自体は止めない）
+echo ""
+echo "=== AI チューター（tutor）の起動確認 ==="
+i=0; TUTOR_OK=0
+while [ "$i" -lt 40 ]; do
+    if $COMPOSE exec -T tutor curl -fsS http://127.0.0.1:8765/health >/dev/null 2>&1; then TUTOR_OK=1; break; fi
+    i=$((i + 1)); sleep 5
+done
+if [ "$TUTOR_OK" = "1" ]; then
+    echo "[OK]    tutor: $($COMPOSE exec -T tutor curl -fsS http://127.0.0.1:8765/health 2>/dev/null | head -c 160)"
+else
+    echo "[WARN] tutor が health になりません。ログを確認してください: $COMPOSE logs --tail=50 tutor"
+fi
 
 echo ""
 echo "=== デプロイ完了 ==="

@@ -1,7 +1,7 @@
 # tutor — AI チューター サービス（線形代数 RAG）
 
 研究側 `agents/workspace` で検証した線形代数チュータを、LMS 用の**独立コンテナ**として動かす。
-配置の考察・全体像は [`docs/ai-tutor.md`](../docs/ai-tutor.md)。
+配置の考察・全体像は [`docs/ai-tutor.md`](../docs/ai-tutor.md)。**運用でやること** は [`docs/ai-tutor-handover.md`](../docs/ai-tutor-handover.md)。
 
 ```
 tutor/
