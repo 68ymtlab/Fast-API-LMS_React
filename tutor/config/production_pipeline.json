@@ -1,0 +1,183 @@
+{
+  "version": "1.5",
+  "updated": "2026-07-24",
+  "description": "線形代数 RAG 本番パイプライン（winner_v1 + Phase5 回答層 + Phase7 適応型チュータ）。v1.4: 本番経路の実測値を追加、fail_decompose を既定オフ、出典表示フィルタを撤去。",
+  "pipeline": "winner_v1",
+  "embedding": {
+    "slug": "bge-m3",
+    "model_id": "BAAI/bge-m3",
+    "vector_dim": 1024,
+    "dense_top_k": 50,
+    "mode": "dense_only",
+    "embeddings_file": "rag/textbooks/linear-algebra/stage4_qdrant/embeddings.json",
+    "source_cache": "rag/textbooks/linear-algebra/stage4_qdrant/model_compare_hybrid_v1/bge-m3/embeddings_cache.npz",
+    "vllm_gpu_memory_utilization": 0.1,
+    "vllm_gpu_memory_note": "tutor-web 起動時は GPU1。チャット(27B)+rerank共存時は free VRAM に合わせ 0.10 目安"
+  },
+  "reranker": {
+    "slug": "ruri-v3-reranker-310m",
+    "model_id": "cl-nagoya/ruri-v3-reranker-310m",
+    "final_k": 5,
+    "vllm_gpu_memory_utilization": 0.12,
+    "vllm_gpu_memory_note": "チャット共存時は 0.12。専用GPUなら 0.18 可",
+    "context_k": 15,
+    "context_k_note": "生成LLMに渡す文脈の件数。表示出典は final_k(5) のまま分離。根拠: 実効(答=2率) 0.432→0.513, 16改善/0悪化 p<1e-4, 追加コストは生成+0.5秒のみ（retrieval_improvement_summary.md）",
+    "model_note": "2026-08-20 総当たり比較の勝者（vs small-v2: nDCG@5 +0.063, Holm後有意。rerank_bakeoff.md）。フォールバック既定も同名に更新済み"
+  },
+  "search": {
+    "use_rrf_sparse": false,
+    "use_graph_expansion": false,
+    "include_cross_in_context": "conditional",
+    "conditional_cross_max": 2,
+    "conditional_cross_note": "ヒットの横断前提のうち、ターゲットが definition のものだけ最大2件を「前提（他セクション）」として載せる（Phase5）",
+    "force_mention_entity_ids": true,
+    "force_mention_note": "クエリ中に ent_N が実在すれば候補・最終topに強制する安全策。hybrid_v2清掃後は評価上ヒット0件（実質no-op）で、実運用でユーザーがID文字列を貼った場合の保険として維持。",
+    "min_lexical_grounding": 0,
+    "min_lexical_grounding_note": "『教科書に無い』(extra) 判定を rerank_score でなく質問との語彙接地で行う（2026-08-05）。上位3件と質問が共有する多字内容語がこの数以下なら extra。既定0=共有語が皆無のときだけ。実測: 旧バナー13問は全て grounding≥1(＝的中)なのに rerank_score が低いだけで extra 化していた（13問中7問は Hit@5 成功）。score は成功/失敗を分離しないため撤去。教科書外の対照(天気/微分積分等)は grounding=0 で正しく extra。詳細: rag/reports/retrieval-e2e/false_banner_fix.md",
+    "weak_rerank_threshold": -4.0,
+    "weak_rerank_threshold_note": "fail_decompose 用の補助信号（現在オフ）。knowledge_mode/バナーの判定には使わない（min_lexical_grounding に置換）。",
+    "mixed_rerank_threshold": -1.5,
+    "mixed_tier_removed_note": "mixed 段（部分カバレッジのバナー）は 2026-08-05 に廃止。knowledge_mode は textbook / extra の2値。",
+    "fail_decompose": false,
+    "fail_decompose_max_subs": 3,
+    "fail_decompose_note": "既定オフ（2026-07-24）。本番経路の実測で Hit@5(all)・hop2 を1問も動かさず（0.860/0.7077 で有無とも同値）、発火時のみ LLM 分解＋再検索で max レイテンシが 1.95s → 27〜28s に跳ねるため。配線は残してあるので true に戻せば再有効化できる。根拠: rag/reports/retrieval-e2e/production_path_vs_offline.md",
+    "fail_decompose_measured": {
+      "fired": "3/150",
+      "hit_at_5_all_with": 0.86,
+      "hit_at_5_all_without": 0.86,
+      "hop2_with": 0.7077,
+      "hop2_without": 0.7077,
+      "latency_max_sec_with": 27.1,
+      "latency_max_sec_without": 1.95
+    }
+  },
+  "answer": {
+    "audience": "beginner",
+    "audience_note": "beginner=初学者プロンプト（既定） / general=旧ラベル付き / adaptive=LearnerState付き（チュータが指定）",
+    "temperature": 0.1,
+    "max_tokens": 2048,
+    "enable_thinking": false,
+    "enable_thinking_note": "Qwen3 向け。generate_answer は extra_body で disable + strip_thinking_text"
+  },
+  "tutor": {
+    "mode": "adaptive_v1",
+    "mode_note": "adaptive_v1=対話チュータ（turn_class + 文脈 + 混乱時言い直し/clarify） / legacy_probe=Phase6確認質問",
+    "diagnose_when": "conditional",
+    "diagnose_when_note": "conditional=初出/曖昧な「って何」等のみ / always / never",
+    "show_citations": true,
+    "announce_extra_knowledge": true,
+    "dialogue_window": 6,
+    "confusion_clarify_after": 2,
+    "confusion_clarify_after_note": "confused がこの回数以上で clarify 3択。1回目は simplify（検索再利用）",
+    "viz_enabled": true,
+    "attempts_before_strong_hint": 2,
+    "hints_before_explanation": 2,
+    "probe_after_every_answer": false,
+    "probe_after_every_answer_note": "legacy_probe 時のみ意味あり。adaptive_v1 では主経路から外す",
+    "citations_page_note": "ページ番号フィールドは未整備。出典は節名・種別・抜粋まで。PDF再取り込み後に page_start/page_end を追加予定。",
+    "advanced_tier_note": "2026-08-05 追加。理解度5段階（none<heard<can_compute<can_prove）＋ goal に proof/generalization。診断MCQに選択肢E（証明・一般化）。can_prove では回答が証明骨子・一般化・反例寄り、出典が theorem/proof 優先、can_compute 以上に『次に学ぶと良い概念』(get_dependents)を文脈提示。",
+    "passive_level_estimation": false,
+    "passive_level_estimation_note": "既定オフ。on で学習者発話ごとに理解度を推定（learner_model.estimate_level）して逐次更新（S4対策。診断1回きり自己申告からの脱却）。1ターンあたり追加LLM呼出のため、レイテンシとのトレードオフ。評価: evaluate_learner_estimation.py。",
+    "passive_est_min_confidence": 0.6,
+    "note": "Phase8 対話チュータ。RAGは RetrievalAdapter 経由。検証UIは rag/project/tutor-web/。永続学習者モデルは対象外。"
+  },
+  "evaluation": {
+    "test_set": "rag/textbooks/linear-algebra/stage4_qdrant/test_queries_hybrid_v2.csv",
+    "test_set_note": "hybrid_v1のうちent_ID直書き/内部参照/LaTeX生表記を含む12問を自然文に書き換え（2026-07-14）。旧v1はhybrid_v1_cleaning_report.mdに記録。",
+    "k_values": [
+      1,
+      5,
+      10
+    ],
+    "pass_thresholds": {
+      "recall_at_5": 0.87,
+      "hit_at_5_all": 0.82,
+      "hop2_hit_at_5_all": 0.65
+    },
+    "reference_scores": {
+      "note": "設計値（オフライン再現実装 evaluate_production_pipeline.py。DeepRAGSearcher を通らない）。winner_v1, hybrid_v2。",
+      "recall_at_5": 0.91,
+      "hit_at_5_all": 0.86,
+      "hop2_hit_at_5_all": 0.708
+    },
+    "measured_production_path": {
+      "note": "本番コード経路（DeepRAGSearcher.search）の実測値。evaluate_retrieval_e2e.py、2026-07-24。設計値と3桁一致。詳細: rag/reports/retrieval-e2e/production_path_vs_offline.md",
+      "measured_at": "2026-07-24",
+      "recall_at_5": 0.91,
+      "hit_at_5_all": 0.86,
+      "hop2_hit_at_5_all": 0.7077,
+      "hop1_hit_at_5_all": 0.9765,
+      "oracle_dense_top50": {
+        "hit_at_50_all": 0.987,
+        "hop2_hit_at_50_all": 0.969,
+        "note": "一次プールの天井。hybrid_v1 時代の 0.953/0.892 より高く、プール外の問題はほぼ解消している"
+      },
+      "latency_sec": {
+        "p50": 1.09,
+        "p95": 1.66,
+        "max": 27.1
+      },
+      "ablations": {
+        "note": "force_mention / fail_decompose はいずれも本番経路で Hit@5 を1問も動かさない",
+        "no_force_mention": {
+          "hit_at_5_all": 0.86,
+          "hop2_hit_at_5_all": 0.7077
+        },
+        "no_fail_decompose": {
+          "hit_at_5_all": 0.86,
+          "hop2_hit_at_5_all": 0.7077,
+          "latency_max_sec": 1.95
+        },
+        "dense_only": {
+          "hit_at_5_all": 0.74,
+          "hop2_hit_at_5_all": 0.462
+        }
+      },
+      "top1_rerank_score_distribution": {
+        "note": "weak_rerank_threshold=-4.0 は分布のほぼ下端で、150問中3問しか発火しない",
+        "min": -8.03,
+        "p50": 3.51,
+        "max": 13.44
+      }
+    },
+    "citation_quality": {
+      "note": "evaluate_citations.py --mode coverage。詳細: rag/reports/retrieval-e2e/citation_quality_v1.md",
+      "measured_at": "2026-07-24",
+      "L1_search_citations": {
+        "gold_section_recall_all": 0.92,
+        "precision": 0.623,
+        "empty_rate": 0.0
+      },
+      "L2_tutor_displayed_after_fix": {
+        "gold_section_recall_all": 0.92,
+        "precision": 0.623,
+        "empty_rate": 0.0
+      },
+      "L2_tutor_displayed_before_fix": {
+        "gold_section_recall_all": 0.393,
+        "precision": 0.446,
+        "empty_rate": 0.333,
+        "note": "_filter_citations が focus 部分一致で出典を捨てていた。150問中50問で出典が空、59問で正解節が消滅。2026-07-24 に並べ替えのみへ変更して解消。"
+      }
+    },
+    "superseded_reference_scores_v1": {
+      "note": "旧hybrid_v1（ent_ID汚染あり）での参考値。force_mentionの見かけ上の効果が過大評価されていたため置き換え。",
+      "baseline_hop2_hit_at_5_all": 0.662,
+      "force_mention_hop2_hit_at_5_all": 0.754
+    },
+    "tutor_checks": {
+      "note": "adaptive_v1 機械チェック項目（evaluate_adaptive_tutor.py）",
+      "diagnosis_conditional": true,
+      "citations_present_on_hit": true,
+      "extra_banner_when_weak": true,
+      "no_mandatory_probe": true
+    }
+  },
+  "api": {
+    "manager_url_env": "VLLM_MANAGER_URL",
+    "litellm_url_env": "LITELLM_URL",
+    "embeddings_path": "/v1/embeddings",
+    "rerank_path": "/rerank",
+    "rerank_note": "LiteLLM /v1/rerank は未対応。Manager :18000/rerank を使う"
+  }
+}

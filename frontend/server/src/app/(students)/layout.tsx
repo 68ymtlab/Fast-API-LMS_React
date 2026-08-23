@@ -30,6 +30,11 @@ const sidebarGroups: SidebarGroups[] = [
 				url: "/home",
 				icon: Home,
 			},
+			{
+				title: "AIチューター",
+				url: "/tutor",
+				icon: MessageCircle,
+			},
 		],
 	},
 	{

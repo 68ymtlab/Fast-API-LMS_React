@@ -25,6 +25,12 @@ class Settings(BaseSettings):
 
   # Basic認証（Docs）用のパスワード
   DOCS_PASSWORD: str = "password_docs"
+
+  # AI チューター（tutor サービス）への内部URL。docker-compose のサービス名で到達する
+  TUTOR_SERVICE_URL: str = "http://tutor:8765"
+
+  # backend → tutor 間の共有シークレット（tutor 側 TUTOR_SERVICE_TOKEN と一致させる。空なら未検証=開発用）
+  TUTOR_SERVICE_TOKEN: str = ""
   
 # アプリケーション全体で使う設定インスタンス
 settings = Settings()

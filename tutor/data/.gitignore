@@ -1,0 +1,5 @@
+# 実データ（embeddings ~21MB, KG ~1MB, qdrant_data ~8MB）はコミットしない。
+# tutor/scripts/sync_from_agents.sh で研究側（agents/workspace）から同期する。
+*
+!.gitignore
+!README.md

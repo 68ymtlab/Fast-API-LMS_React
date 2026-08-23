@@ -27,6 +27,23 @@ services:
       retries: 3
       start_period: 30s
 
+  # ---- AI Tutor (本番) ----
+  tutor:
+    restart: unless-stopped
+    # 本番ではソースバインドマウントを外し、データのみ読み取り専用で与える
+    # （volumes は target 単位でマージされるため !override で dev 側の bind を確実に外す）
+    volumes: !override
+      - ./tutor/data:/app/data:ro
+    command: !reset null
+    # ホストへのポート公開を削除（backend からの内部呼び出しのみ）
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
   # ---- Frontend (本番) ----
   frontend:
     restart: unless-stopped

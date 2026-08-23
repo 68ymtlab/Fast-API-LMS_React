@@ -1,0 +1,5 @@
+# 任意: ローカル埋め込み（DEEPRAG_USE_VLLM_EMBED=0）/ ローカル CrossEncoder を使う場合のみ。
+# torch が入るためイメージが大きくなる。通常の LMS 運用では不要。
+-r requirements.txt
+torch
+sentence-transformers>=3.0.0

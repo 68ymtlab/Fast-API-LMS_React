@@ -33,6 +33,35 @@ services:
       - uploads-data:/app/uploads
     command: poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
+# AI Tutor (線形代数 RAG チューター。backend の /api/tutor/* から内部的に呼ばれる)
+  tutor:
+    build:
+      context: ./tutor
+      network: host
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+        https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
+    container_name: lms-tutor
+    env_file:
+      - ./tutor/.env
+    environment:
+      - DEEPRAG_USE_VLLM_EMBED=1
+      - TUTOR_STAGE4_DIR=/app/data/stage4
+      - TUTOR_PROD_CFG=/app/config/production_pipeline.json
+    # 開発時のみホストから直接叩けるようにする（本番は prod override で閉じる）
+    ports:
+      - 127.0.0.1:8765:8765
+    volumes:
+      # 実データ（embeddings / KG / qdrant）。tutor/scripts/sync_from_agents.sh で取り込む
+      - ./tutor/data:/app/data:ro
+      # 開発時はコードをバインドしてホットリロード
+      - ./tutor/app:/app/app
+      - ./tutor/core:/app/core
+      - ./tutor/config:/app/config
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8765 --reload
+
 # Frontend
   frontend:
     build:
