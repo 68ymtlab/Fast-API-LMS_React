@@ -8,10 +8,10 @@
 import { ArrowRight, Check, ExternalLink, ListChecks, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { MathJax } from "@/components/shared/MathJax";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import axios from "@/lib/axios";
+import { SafeMathJax } from "./SafeMathJax";
 
 type Blank = {
 	blank_id: string;
@@ -193,7 +193,7 @@ function QuestionCard({ q, more }: { q: RelatedQuestion; more: number }) {
 			</div>
 			<div className="space-y-3 border-t px-3 py-3 text-sm">
 				<div className="prose prose-sm max-w-none dark:prose-invert">
-					<MathJax text={cleanQuestion(q.question)} />
+					<SafeMathJax text={cleanQuestion(q.question)} />
 				</div>
 
 				{/* 解答欄（numeric / multiple_numeric）。その他の型は演習ページへ */}
@@ -314,7 +314,7 @@ function QuestionCard({ q, more }: { q: RelatedQuestion; more: number }) {
 						)}
 						{q.hint ? (
 							<div className="mt-1 text-muted-foreground">
-								ヒント: <MathJax text={q.hint} />
+								ヒント: <SafeMathJax text={q.hint} />
 							</div>
 						) : null}
 					</div>

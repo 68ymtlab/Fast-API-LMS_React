@@ -10,7 +10,7 @@ import {
 	Sparkles,
 	TriangleAlert,
 } from "lucide-react";
-import { MathJax } from "@/components/shared/MathJax";
+import { SafeMathJax } from "./SafeMathJax";
 
 export type Reflection = {
 	did: string[];
@@ -46,7 +46,7 @@ function Bullets({ items }: { items: string[] }) {
 		<ul className="space-y-1 pl-4 text-sm">
 			{items.map((x) => (
 				<li key={x} className="list-disc marker:text-muted-foreground">
-					<MathJax text={x} />
+					<SafeMathJax text={x} />
 				</li>
 			))}
 		</ul>
@@ -119,15 +119,15 @@ export function ReflectionCard({
 									</span>
 									<div className="min-w-0">
 										<div className="font-medium">
-											<MathJax text={n.topic} />
+											<SafeMathJax text={n.topic} />
 										</div>
 										<div className="text-xs text-muted-foreground">
-											<MathJax text={n.why} />
+											<SafeMathJax text={n.why} />
 										</div>
 										{n.how ? (
 											<div className="mt-1 flex items-start gap-1 text-xs">
 												<ListTodo className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-												<MathJax text={n.how} />
+												<SafeMathJax text={n.how} />
 											</div>
 										) : null}
 									</div>

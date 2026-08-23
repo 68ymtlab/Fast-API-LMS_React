@@ -645,7 +645,7 @@ export default function AssignmentsPage() {
 
 			{/* ── 課題作成・編集ダイアログ ── */}
 			<Dialog open={isCreateOpen} onOpenChange={(o) => !o && setIsCreateOpen(false)}>
-				<DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle className="text-xl font-bold">
 							{editTarget ? "課題を編集" : "課題を作成"}
@@ -852,7 +852,7 @@ export default function AssignmentsPage() {
 					}
 				}}
 			>
-				<DialogContent className="sm:max-w-[540px]">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-[540px]">
 					<DialogHeader>
 						<DialogTitle className="text-xl font-bold">
 							一括エクスポート設定
@@ -944,7 +944,7 @@ export default function AssignmentsPage() {
 				open={submissionDialogOpen}
 				onOpenChange={(o) => !o && setSubmissionDialogOpen(false)}
 			>
-				<DialogContent className="sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-[800px] max-h-[85vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle className="text-xl font-bold flex items-center gap-2">
 							<Users className="w-6 h-6 text-primary" />
@@ -1064,7 +1064,7 @@ export default function AssignmentsPage() {
 				open={gradeDialogOpen}
 				onOpenChange={(o) => !o && setGradeDialogOpen(false)}
 			>
-				<DialogContent className="sm:max-w-[480px]">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-[480px]">
 					<DialogHeader>
 						<DialogTitle className="text-xl font-bold flex items-center gap-2">
 							<Star className="w-5 h-5 text-yellow-500" />

@@ -55,7 +55,7 @@ const onboardingDialog = ({
 
 	return (
 		<Dialog open={open_dialog} onOpenChange={setOpenDialog}>
-			<DialogContent className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
+			<DialogContent aria-describedby={undefined} className="!max-w-none w-[90vw] max-h-[95vh] overflow-y-auto rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-2xl p-8 border border-slate-200">
 				<DialogHeader>
 					{/* アクセシビリティ用のタイトル（画面上では非表示） */}
 					<DialogTitle className="sr-only">

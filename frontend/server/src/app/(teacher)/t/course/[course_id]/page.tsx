@@ -1064,7 +1064,7 @@ function CoursePage() {
 								}
 							}}
 						>
-							<DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+							<DialogContent aria-describedby={undefined} className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
 								<DialogHeader>
 									<DialogTitle className="text-2xl font-bold text-gray-800 flex items-center gap-2">
 										<Shield className="w-6 h-6 text-primary" />
@@ -1221,7 +1221,7 @@ function CoursePage() {
 							open={isAddContentDialogOpen}
 							onOpenChange={handleDialogClose}
 						>
-							<DialogContent className="sm:max-w-[600px]">
+							<DialogContent aria-describedby={undefined} className="sm:max-w-[600px]">
 								<DialogHeader>
 									<DialogTitle className="text-2xl font-bold text-gray-800">
 										コンテンツ追加

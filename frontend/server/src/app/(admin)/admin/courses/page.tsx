@@ -971,7 +971,7 @@ const AdminCoursesPage = () => {
 
 			{/* 科目新規作成ダイアログ */}
 			<Dialog open={createSubjectDialogOpen} onOpenChange={setCreateSubjectDialogOpen}>
-				<DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>科目新規作成</DialogTitle>
 					</DialogHeader>
@@ -1108,7 +1108,7 @@ const AdminCoursesPage = () => {
 			</Dialog>
 
 			<Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
-				<DialogContent>
+				<DialogContent aria-describedby={undefined}>
 					<DialogHeader>
 						<DialogTitle>科目編集</DialogTitle>
 					</DialogHeader>
@@ -1317,7 +1317,7 @@ const AdminCoursesPage = () => {
 
 			{/* 学期マスタ管理ダイアログ */}
 			<Dialog open={semesterManageDialogOpen} onOpenChange={setSemesterManageDialogOpen}>
-				<DialogContent>
+				<DialogContent aria-describedby={undefined}>
 					<DialogHeader>
 						<DialogTitle>学期マスタ管理</DialogTitle>
 					</DialogHeader>
@@ -1387,7 +1387,7 @@ const AdminCoursesPage = () => {
 
 			{/* 授業科目区分マスタ管理ダイアログ */}
 			<Dialog open={categoryManageDialogOpen} onOpenChange={setCategoryManageDialogOpen}>
-				<DialogContent>
+				<DialogContent aria-describedby={undefined}>
 					<DialogHeader>
 						<DialogTitle>授業科目区分マスタ管理</DialogTitle>
 					</DialogHeader>
@@ -1476,7 +1476,7 @@ const AdminCoursesPage = () => {
 				open={!!deleteTarget}
 				onOpenChange={(open) => !open && closeDeleteDialog()}
 			>
-				<DialogContent className="sm:max-w-md">
+				<DialogContent aria-describedby={undefined} className="sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle>
 							{deleteTarget?.kind === "subject"
@@ -1518,7 +1518,7 @@ const AdminCoursesPage = () => {
 			</Dialog>
 
 			<Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-				<DialogContent>
+				<DialogContent aria-describedby={undefined}>
 					<DialogHeader>
 						<DialogTitle>コース複製</DialogTitle>
 					</DialogHeader>
@@ -1674,7 +1674,7 @@ const AdminCoursesPage = () => {
 			</Dialog>
 
 			<Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
-				<DialogContent>
+				<DialogContent aria-describedby={undefined}>
 					<DialogHeader>
 						<DialogTitle>コース編集</DialogTitle>
 					</DialogHeader>

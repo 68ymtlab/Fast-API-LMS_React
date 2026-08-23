@@ -22,7 +22,6 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MathJax } from "@/components/shared/MathJax";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -40,6 +39,7 @@ import {
 	type RelatedQuestion,
 	RelatedQuestions,
 } from "./RelatedQuestions";
+import { SafeMathJax } from "./SafeMathJax";
 import { TutorViz, type VizSpec } from "./TutorViz";
 
 export type TutorContext = {
@@ -766,7 +766,7 @@ export function TutorChat({
 										className="rounded-xl border bg-muted/30 px-4 py-3 text-sm"
 									>
 										<div className="prose prose-sm max-w-none dark:prose-invert">
-											<MathJax text={protectMath(m.text)} />
+											<SafeMathJax text={protectMath(m.text)} />
 										</div>
 									</div>
 								) : (
@@ -794,7 +794,7 @@ export function TutorChat({
 											</div>
 										) : null}
 										<div className="prose prose-sm max-w-none dark:prose-invert">
-											<MathJax text={protectMath(m.text)} />
+											<SafeMathJax text={protectMath(m.text)} />
 										</div>
 										<TutorViz viz={m.viz} />
 										{m.relatedQuestions?.length || m.relatedMeta?.suppressed ? (
@@ -817,7 +817,7 @@ export function TutorChat({
 															{c.type ? <span> / {c.type}</span> : null}
 															{c.excerpt ? (
 																<div className="mt-0.5 line-clamp-3 opacity-80">
-																	<MathJax text={protectMath(c.excerpt)} />
+																	<SafeMathJax text={protectMath(c.excerpt)} />
 																</div>
 															) : null}
 														</li>

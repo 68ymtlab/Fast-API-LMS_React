@@ -304,7 +304,7 @@ const SubjectPage = () => {
 						open={isCreateDialogOpen}
 						onOpenChange={setIsCreateDialogOpen}
 					>
-						<DialogContent className="sm:max-w-[600px]">
+						<DialogContent aria-describedby={undefined} className="sm:max-w-[600px]">
 							<DialogHeader>
 								<DialogTitle className="text-2xl font-bold text-gray-800">
 									新規コース作成
