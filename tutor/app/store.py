@@ -37,7 +37,8 @@ DDL = [
       started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_activity_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       ended_at TIMESTAMPTZ, end_reason TEXT, turn_count INTEGER NOT NULL DEFAULT 0,
-      summary TEXT, state_json JSONB)""",
+      title TEXT, summary TEXT, state_json JSONB)""",
+    "ALTER TABLE tutor.conversations ADD COLUMN IF NOT EXISTS title TEXT",
     "CREATE INDEX IF NOT EXISTS ix_tutor_conversations_student ON tutor.conversations (student_id, last_activity_at DESC)",
     """CREATE TABLE IF NOT EXISTS tutor.turns (
       id BIGSERIAL PRIMARY KEY,
@@ -57,8 +58,10 @@ DDL = [
       known_topics JSONB NOT NULL DEFAULT '[]'::jsonb, topic_level_log JSONB NOT NULL DEFAULT '{}'::jsonb,
       last_focus_concept TEXT, last_focus_section TEXT, last_lesson_page_id INTEGER, last_conversation_id BIGINT,
       conversation_count INTEGER NOT NULL DEFAULT 0, turn_count INTEGER NOT NULL DEFAULT 0,
+      answer_length TEXT,
       first_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT",
     """CREATE OR REPLACE VIEW tutor.v_student_questions AS
       SELECT t.id, t.created_at, c.student_id, c.course_id, c.lesson_item_id,
              COALESCE(t.lesson_page_id, c.lesson_page_id) AS lesson_page_id,
@@ -170,9 +173,79 @@ class TutorStore:
             return conn.execute(
                 """SELECT c.*, k.embeddings_sha, k.kg_sha FROM tutor.conversations c
                    LEFT JOIN tutor.kb_versions k ON k.id = c.kb_version_id
-                   WHERE c.student_id = %s ORDER BY c.last_activity_at DESC LIMIT 1""",
+                   WHERE c.student_id = %s AND COALESCE(c.end_reason, '') <> 'deleted'
+                   ORDER BY c.last_activity_at DESC LIMIT 1""",
                 (student_id,),
             ).fetchone()
+
+    def load_conversation(self, student_id: int, conversation_id: int) -> dict[str, Any] | None:
+        if not self.enabled:
+            return None
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            return conn.execute(
+                """SELECT c.*, k.embeddings_sha, k.kg_sha FROM tutor.conversations c
+                   LEFT JOIN tutor.kb_versions k ON k.id = c.kb_version_id
+                   WHERE c.id = %s AND c.student_id = %s AND COALESCE(c.end_reason, '') <> 'deleted'""",
+                (conversation_id, student_id),
+            ).fetchone()
+
+    def list_conversations(self, student_id: int, limit: int = 50) -> list[dict[str, Any]]:
+        """学生の会話一覧（新しい順、削除済みと空の会話は除く）。"""
+        if not self.enabled:
+            return []
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            rows = conn.execute(
+                """SELECT id, title, page_title, lesson_page_id, course_id, started_at, last_activity_at, ended_at, end_reason, turn_count
+                   FROM tutor.conversations
+                   WHERE student_id = %s AND COALESCE(end_reason, '') <> 'deleted' AND turn_count > 0
+                   ORDER BY last_activity_at DESC LIMIT %s""",
+                (student_id, limit),
+            ).fetchall()
+        return list(rows)
+
+    def rename_conversation(self, student_id: int, conversation_id: int, title: str) -> bool:
+        if not self.enabled:
+            return False
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            cur = conn.execute(
+                "UPDATE tutor.conversations SET title = %s WHERE id = %s AND student_id = %s",
+                (title[:120], conversation_id, student_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def delete_conversation(self, student_id: int, conversation_id: int) -> bool:
+        """学生の一覧からは消すが、行は残す（質問収集のため）。end_reason='deleted'。"""
+        if not self.enabled:
+            return False
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            cur = conn.execute(
+                """UPDATE tutor.conversations SET end_reason = 'deleted', ended_at = COALESCE(ended_at, CURRENT_TIMESTAMP)
+                   WHERE id = %s AND student_id = %s""",
+                (conversation_id, student_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def reopen_conversation(self, conversation_id: int) -> None:
+        if not self.enabled:
+            return
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            conn.execute(
+                "UPDATE tutor.conversations SET ended_at = NULL, end_reason = NULL WHERE id = %s", (conversation_id,)
+            )
+            conn.commit()
+
+    def save_preferences(self, student_id: int, *, answer_length: str | None) -> None:
+        if not self.enabled:
+            return
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            conn.execute(
+                """INSERT INTO tutor.learner_profiles (student_id, answer_length) VALUES (%s, %s)
+                   ON CONFLICT (student_id) DO UPDATE SET answer_length = EXCLUDED.answer_length, updated_at = CURRENT_TIMESTAMP""",
+                (student_id, answer_length),
+            )
+            conn.commit()
 
     def load_turns(self, conversation_id: int, limit: int = 40) -> list[dict[str, Any]]:
         if not self.enabled:
@@ -285,10 +358,12 @@ class TutorStore:
                  _jsonb(turn.get("diagnosis")), _jsonb(turn.get("clarify")), _jsonb(turn.get("viz")),
                  _jsonb(citations), latency_ms, llm_model),
             )
+            auto_title = (student_text or "").strip().replace("\n", " ")[:40] or None
             conn.execute(
-                """UPDATE tutor.conversations SET last_activity_at = CURRENT_TIMESTAMP, turn_count = %s, state_json = %s
+                """UPDATE tutor.conversations SET last_activity_at = CURRENT_TIMESTAMP, turn_count = %s, state_json = %s,
+                       title = COALESCE(title, %s)
                    WHERE id = %s""",
-                (seq + 1, _jsonb(state), conversation_id),
+                (seq + 1, _jsonb(state), auto_title, conversation_id),
             )
             conn.execute(
                 """INSERT INTO tutor.learner_profiles (student_id, understanding_level, goal, style, known_topics, topic_level_log,

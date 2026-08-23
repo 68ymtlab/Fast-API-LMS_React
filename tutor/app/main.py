@@ -55,6 +55,9 @@ class _Entry:
         self.resumed = resumed
 
 
+ANSWER_LENGTHS = ("short", "normal", "long")
+
+
 class SessionManager:
     """student_id → TutorSession。DeepRAGSearcher（重い）はプロセス内で共有し、状態は store にも書く。"""
 
@@ -92,6 +95,9 @@ class SessionManager:
         sid = _to_int(student_id)
         if sid is None or not self.store.enabled:
             return _Entry(session, None, resumed=False)
+        profile = self.store.load_profile(sid)
+        if profile and profile.get("answer_length") in ANSWER_LENGTHS:
+            session.answer_length = profile["answer_length"]
         conv = self.store.load_latest_conversation(sid)
         if not conv:
             return _Entry(session, None, resumed=False)
@@ -142,9 +148,48 @@ class SessionManager:
             session = TutorSession(searcher=self._searcher)
             # 理解度などの長期情報は引き継ぎ、会話は新規
             session.state = restore_state(seed, same_kb=True, continue_conversation=False)
+            session.answer_length = old.session.answer_length if old is not None else None
             entry = _Entry(session, None, resumed=False)
             self._entries[student_id] = entry
             return summary, entry
+
+    def new_conversation(self, student_id: str) -> _Entry:
+        """「新しい会話」: いまの会話は終了させずに置いておき（一覧から戻れる）、空の会話に切り替える。"""
+        with self._guard:
+            if self._searcher is None:
+                raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
+            old = self._entries.pop(student_id, None)
+            seed = old.session.export_state() if old is not None else None
+            session = TutorSession(searcher=self._searcher)
+            session.state = restore_state(seed, same_kb=True, continue_conversation=False)
+            session.answer_length = old.session.answer_length if old is not None else None
+            entry = _Entry(session, None, resumed=False)
+            self._entries[student_id] = entry
+            return entry
+
+    def switch_conversation(self, student_id: str, conversation_id: int) -> _Entry:
+        """保存済みの会話に切り替える（その会話の続きとして復元）。"""
+        sid = _to_int(student_id)
+        if sid is None or not self.store.enabled:
+            raise HTTPException(status_code=404, detail="会話が見つかりません")
+        conv = self.store.load_conversation(sid, conversation_id)
+        if not conv:
+            raise HTTPException(status_code=404, detail="会話が見つかりません")
+        with self._guard:
+            if self._searcher is None:
+                raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
+            old = self._entries.pop(student_id, None)
+            same_kb = conv.get("kb_version_id") == self.store.kb_version_id
+            session = TutorSession(searcher=self._searcher)
+            session.state = restore_state(conv.get("state_json"), same_kb=same_kb, continue_conversation=True)
+            session.answer_length = old.session.answer_length if old is not None else None
+            if conv.get("ended_at") is not None and conv.get("end_reason") in ("reset", "ttl", "evicted"):
+                # 終了済みの会話を開き直す: 続きとして再開できるよう終了を取り消す
+                self.store.reopen_conversation(conversation_id)
+            entry = _Entry(session, conversation_id, resumed=True)
+            entry.lesson_page_id = conv.get("lesson_page_id")
+            self._entries[student_id] = entry
+            return entry
 
     def stats(self) -> dict[str, Any]:
         with self._guard:
@@ -208,6 +253,15 @@ class MessageRequest(BaseModel):
     text: str = Field(default="")
     choice_id: str | None = Field(default=None)
     page_context: PageContext | None = None
+    answer_length: str | None = None  # short / normal / long（指定があれば設定として保存）
+
+
+class PreferencesRequest(BaseModel):
+    answer_length: str | None = None
+
+
+class RenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
 
 
 class MessageResponse(BaseModel):
@@ -243,20 +297,30 @@ def _apply_page_context(session: TutorSession, pc: PageContext | None) -> None:
     session.page_context = {"lesson_page_id": pc.lesson_page_id, "title": pc.title, "text": pc.text}
 
 
+def _concept_label(focus: str | None) -> str:
+    """挨拶に出してよい概念名か。発話そのもの（文）が焦点に入っているときは名指ししない。"""
+    f = (focus or "").strip()
+    if not f or len(f) > 14 or any(ch in f for ch in "、。？?！!"):
+        return ""
+    return f
+
+
 def _greeting(entry: _Entry, pc: PageContext | None, profile: dict[str, Any] | None) -> str:
     st = entry.session.state
     ls = st.learner_state
     parts: list[str] = []
     if entry.resumed:
-        if st.focus_concept:
-            parts.append(f"前回の続きです。「{st.focus_concept}」について話していました。そのまま続けてください。")
+        name = _concept_label(st.focus_concept)
+        if name:
+            parts.append(f"前回の続きです。「{name}」について話していました。そのまま続けてください。")
         else:
             parts.append("前回の続きです。そのまま続けてください。")
     elif profile and (profile.get("last_focus_concept") or profile.get("turn_count")):
         lvl = LEVEL_JA.get(str(ls.understanding_level), "")
-        if profile.get("last_focus_concept"):
+        name = _concept_label(profile.get("last_focus_concept"))
+        if name:
             parts.append(
-                f"おかえりなさい。前回は「{profile['last_focus_concept']}」を学んでいましたね"
+                f"おかえりなさい。前回は「{name}」を学んでいましたね"
                 + (f"（理解度: {lvl}）" if lvl and lvl != "未設定" else "")
                 + "。続きからでも、別の質問でも大丈夫です。"
             )
@@ -302,7 +366,75 @@ def open_session(body: OpenRequest, student_id: str = Depends(_auth)):
             "history": history,
             "state": entry.session.debug_state(),
             "persistence": store.enabled,
+            "answer_length": entry.session.answer_length or "normal",
+            "conversations": _conv_items(store.list_conversations(sid)) if sid is not None else [],
         }
+
+
+def _conv_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for r in rows:
+        out.append({
+            "id": r["id"], "title": r.get("title") or r.get("page_title") or "（無題）",
+            "page_title": r.get("page_title"), "lesson_page_id": r.get("lesson_page_id"), "course_id": r.get("course_id"),
+            "turn_count": r.get("turn_count"), "ended": r.get("ended_at") is not None,
+            "started_at": r["started_at"].isoformat() if r.get("started_at") else None,
+            "last_activity_at": r["last_activity_at"].isoformat() if r.get("last_activity_at") else None,
+        })
+    return out
+
+
+@app.get("/session/conversations")
+def list_conversations(student_id: str = Depends(_auth)):
+    entry = manager.get(student_id)
+    sid = _to_int(student_id)
+    return {"current_id": entry.conversation_id, "items": _conv_items(store.list_conversations(sid)) if sid is not None else []}
+
+
+@app.post("/session/conversations")
+def new_conversation(student_id: str = Depends(_auth)):
+    entry = manager.new_conversation(student_id)
+    return {"conversation_id": entry.conversation_id, "state": entry.session.debug_state()}
+
+
+@app.post("/session/conversations/{conversation_id}/switch")
+def switch_conversation(conversation_id: int, student_id: str = Depends(_auth)):
+    entry = manager.switch_conversation(student_id, conversation_id)
+    with entry.lock:
+        last = store.load_turns(conversation_id, 40)
+        return {"conversation_id": conversation_id, "history": _history_items(last), "state": entry.session.debug_state()}
+
+
+@app.put("/session/conversations/{conversation_id}")
+def rename_conversation(conversation_id: int, body: RenameRequest, student_id: str = Depends(_auth)):
+    sid = _to_int(student_id)
+    if sid is None or not store.rename_conversation(sid, conversation_id, body.title.strip()):
+        raise HTTPException(status_code=404, detail="会話が見つかりません")
+    return {"ok": True}
+
+
+@app.delete("/session/conversations/{conversation_id}")
+def delete_conversation(conversation_id: int, student_id: str = Depends(_auth)):
+    sid = _to_int(student_id)
+    if sid is None or not store.delete_conversation(sid, conversation_id):
+        raise HTTPException(status_code=404, detail="会話が見つかりません")
+    entry = manager.get(student_id)
+    if entry.conversation_id == conversation_id:
+        manager.new_conversation(student_id)
+    return {"ok": True}
+
+
+@app.post("/session/preferences")
+def set_preferences(body: PreferencesRequest, student_id: str = Depends(_auth)):
+    if body.answer_length is not None and body.answer_length not in ANSWER_LENGTHS:
+        raise HTTPException(status_code=400, detail="answer_length は short / normal / long")
+    entry = manager.get(student_id)
+    with entry.lock:
+        entry.session.answer_length = body.answer_length
+    sid = _to_int(student_id)
+    if sid is not None:
+        store.save_preferences(sid, answer_length=body.answer_length)
+    return {"ok": True, "answer_length": body.answer_length or "normal"}
 
 
 @app.post("/session/message", response_model=MessageResponse)
@@ -316,6 +448,11 @@ def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
         session = entry.session
         manager.ensure_conversation(student_id, entry, _ctx_dict(body.page_context))
         _apply_page_context(session, body.page_context)
+        if body.answer_length in ANSWER_LENGTHS and body.answer_length != (session.answer_length or "normal"):
+            session.answer_length = body.answer_length
+            sid0 = _to_int(student_id)
+            if sid0 is not None:
+                store.save_preferences(sid0, answer_length=body.answer_length)
         t0 = time.monotonic()
         turn = session.handle_turn(text or choice_id or "", choice_id=choice_id)
         latency_ms = int((time.monotonic() - t0) * 1000)

@@ -1280,6 +1280,7 @@ class DeepRAGSearcher:
         skip_banner=False,
         answer_query=None,
         page_context=None,
+        answer_length=None,
     ):
         """
         DeepRAG検索のメイン関数
@@ -1331,6 +1332,7 @@ class DeepRAGSearcher:
                 turn_class=turn_class,
                 last_explanation=last_explanation,
                 page_context=page_context,
+                answer_length=answer_length,
             )
             cite_block = self.format_citations_block(result.get("citations") or [])
             parts = []
@@ -1491,10 +1493,12 @@ class DeepRAGSearcher:
         turn_class=None,
         last_explanation=None,
         page_context=None,
+        answer_length=None,
     ):
         """
         LLMによる回答生成（対話文脈・説明モード対応）
         page_context: [LMS port] 学生がいま LMS で開いている教科書ページ {"title","text","lesson_page_id"}
+        answer_length: [LMS port] 学生が選んだ回答の長さ short / normal / long（None は normal）
         """
         if audience is None:
             audience = self.answer_audience
@@ -1576,8 +1580,24 @@ class DeepRAGSearcher:
                 + "\n"
             )
 
+        # [LMS port] 回答の長さ（学生の選択。理解度による長さ調整より優先）
+        length_block = ""
+        max_tokens = self.answer_max_tokens
+        if answer_length == "short":
+            length_block = (
+                "\n## 回答の長さ\nshort\n学生が「短め」を選んでいる。結論を先に、2〜4文・1段落以内で。"
+                "数式は1つまで。『次の一歩』は1文。\n"
+            )
+            max_tokens = min(max_tokens, 700)
+        elif answer_length == "long":
+            length_block = (
+                "\n## 回答の長さ\nlong\n学生が「詳しく」を選んでいる。段階を踏んで丁寧に。"
+                "具体例・途中計算・よくある誤解を含めてよい。見出しや箇条書きで整理する。\n"
+            )
+            max_tokens = max(max_tokens, 3000)
+
         user_prompt = f"""以下の教科書の文脈と会話を踏まえて、質問／発話に回答してください。
-{state_block}{km_note}{focus_block}{mode_block}{page_block}{dialogue_block}{last_exp_block}
+{state_block}{km_note}{focus_block}{mode_block}{length_block}{page_block}{dialogue_block}{last_exp_block}
 ## 質問／発話
 {query}
 
@@ -1594,7 +1614,7 @@ class DeepRAGSearcher:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=self.answer_temperature,
-                max_tokens=self.answer_max_tokens,
+                max_tokens=max_tokens,
                 stream=True,
                 extra_body=LLM_EXTRA_BODY,
             )

@@ -37,9 +37,11 @@ CREATE TABLE IF NOT EXISTS tutor.conversations (
   ended_at         TIMESTAMPTZ,
   end_reason       TEXT,          -- reset / ttl / restart / superseded
   turn_count       INTEGER NOT NULL DEFAULT 0,
+  title            TEXT,          -- 一覧表示用。最初の質問から自動生成、学生が変更可
   summary          TEXT,          -- 終了時の振り返り（summarize_weak_points）
   state_json       JSONB          -- 最新の SessionState スナップショット（引き継ぎ用）
 );
+ALTER TABLE tutor.conversations ADD COLUMN IF NOT EXISTS title TEXT;
 CREATE INDEX IF NOT EXISTS ix_tutor_conversations_student ON tutor.conversations (student_id, last_activity_at DESC);
 
 -- 1発話 = 1行（学生の質問とチュータの返答の両方）。質問収集・品質ループの一次データ
@@ -85,11 +87,13 @@ CREATE TABLE IF NOT EXISTS tutor.learner_profiles (
   last_focus_section  TEXT,
   last_lesson_page_id INTEGER,
   last_conversation_id BIGINT,
+  answer_length       TEXT,                                 -- short / normal / long（学生の設定）
   conversation_count  INTEGER NOT NULL DEFAULT 0,
   turn_count          INTEGER NOT NULL DEFAULT 0,
   first_seen_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT;
 
 -- 教員ビュー用: 学生の質問一覧（チュータ返答を除外）
 CREATE OR REPLACE VIEW tutor.v_student_questions AS

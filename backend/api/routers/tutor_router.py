@@ -43,6 +43,15 @@ class TutorMessageRequest(BaseModel):
     text: str = Field(default="", max_length=4000)
     choice_id: Optional[str] = Field(default=None, max_length=16)
     context: Optional[TutorContext] = None
+    answer_length: Optional[str] = Field(default=None, pattern="^(short|normal|long)$")
+
+
+class TutorPreferencesRequest(BaseModel):
+    answer_length: Optional[str] = Field(default=None, pattern="^(short|normal|long)$")
+
+
+class TutorRenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
 
 
 class TutorMessageResponse(BaseModel):
@@ -204,8 +213,43 @@ async def tutor_message(
         "text": body.text,
         "choice_id": body.choice_id,
         "page_context": await _resolve_page_context(body.context, db),
+        "answer_length": body.answer_length,
     }
     return await _forward("POST", "/session/message", current_user, json=payload)
+
+
+# ---- 会話スレッド（保存済みの会話の一覧・切り替え・新規・名前変更・削除） ----
+@tutor_router.get("/conversations")
+async def tutor_conversations(current_user: Users = Depends(get_current_active_user)):
+    return await _forward("GET", "/session/conversations", current_user)
+
+
+@tutor_router.post("/conversations")
+async def tutor_new_conversation(current_user: Users = Depends(get_current_active_user)):
+    return await _forward("POST", "/session/conversations", current_user)
+
+
+@tutor_router.post("/conversations/{conversation_id}/switch")
+async def tutor_switch_conversation(conversation_id: int, current_user: Users = Depends(get_current_active_user)):
+    return await _forward("POST", f"/session/conversations/{conversation_id}/switch", current_user)
+
+
+@tutor_router.put("/conversations/{conversation_id}")
+async def tutor_rename_conversation(
+    conversation_id: int, body: TutorRenameRequest, current_user: Users = Depends(get_current_active_user)
+):
+    return await _forward("PUT", f"/session/conversations/{conversation_id}", current_user, json=body.model_dump())
+
+
+@tutor_router.delete("/conversations/{conversation_id}")
+async def tutor_delete_conversation(conversation_id: int, current_user: Users = Depends(get_current_active_user)):
+    return await _forward("DELETE", f"/session/conversations/{conversation_id}", current_user)
+
+
+@tutor_router.post("/preferences")
+async def tutor_preferences(body: TutorPreferencesRequest, current_user: Users = Depends(get_current_active_user)):
+    """回答の長さなど、学生ごとの設定を保存する。"""
+    return await _forward("POST", "/session/preferences", current_user, json=body.model_dump())
 
 
 @tutor_router.get("/summary", response_model=TutorSummaryResponse)

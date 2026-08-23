@@ -450,6 +450,8 @@ class TutorSession:
         self._last_turn: dict[str, Any] = {}
         # [LMS port] 学生がいま開いている教科書ページ {"title","text","lesson_page_id"}（LMS から毎ターン更新）
         self.page_context: dict[str, Any] | None = None
+        # [LMS port] 学生が選んだ回答の長さ short / normal / long
+        self.answer_length: str | None = None
 
     # ------------------------------------------------------------------
     # public API
@@ -1201,6 +1203,7 @@ class TutorSession:
                 turn_class=turn_class,
                 last_explanation=self.state.last_explanation,
                 page_context=self.page_context,
+                answer_length=self.answer_length,
             )
             cite_block = (
                 DeepRAGSearcher.format_citations_block(citations)
@@ -1230,6 +1233,7 @@ class TutorSession:
                 skip_banner=skip_banner,
                 answer_query=user_text,
                 page_context=self.page_context,
+                answer_length=self.answer_length,
             )
             answer = (result.get("answer") or "").strip() or "（回答を生成できませんでした）"
             answer_body = (result.get("answer_body") or "").strip()
