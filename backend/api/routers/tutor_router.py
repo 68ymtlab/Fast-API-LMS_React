@@ -196,10 +196,6 @@ def _question_public(q: questions_model.Questions) -> dict[str, Any]:
     }
 
 
-# 学生の解答履歴に基づく優先度（前回不正解 > 未回答 > 正解済み）。類似度への加点として効かせる
-_STATUS_BONUS = {"wrong": 0.08, "unanswered": 0.03, "correct": -0.05}
-
-
 async def _answer_status(db: AsyncSession, user_id: int, question_ids: list[int]) -> dict[int, dict[str, Any]]:
     """question_id → {status, attempts, last_correct}。最新の解答（id が大きいもの）で判定。"""
     if not question_ids:
@@ -253,12 +249,12 @@ async def _related_questions(
     course_id: Optional[int] = None,
     user_id: Optional[int] = None,
     tag: Optional[str] = None,
+    record: bool = True,
 ) -> list[dict[str, Any]]:
-    """いまの話題に近い既存問題。類似度（bge-m3）を土台に、学生の解答履歴・タグ・習熟度で並べ替える。
+    """いまの話題に近い既存問題。
 
-    - 解答履歴: 前回不正解 +0.08 / 未回答 +0.03 / 正解済み -0.05（類似度に加点。話題の関連性は類似度の閾値で担保）
-    - タグ: 問い合わせ文にタグ名が含まれていれば +0.05。tag= 指定時はそのタグの問題だけ
-    - 習熟度（student_competencies）: 同点付近の並びを、高いほど難しい問題が先になるよう調整
+    backend の仕事: 候補（public.questions）と学生の解答履歴・習熟度を集めて tutor に渡し、返ってきた問題を学生向けの形にする。
+    選定（類似度の閾値、既に出した問題の除外 — 不正解は例外 —、加点・並べ替え、提示の記録）は tutor サービス側。
     """
     query = (query or "").strip()
     if not query:
@@ -273,40 +269,33 @@ async def _related_questions(
     if not qs:
         return []
     by_id = {q.id: q for q in qs}
+    statuses = await _answer_status(db, user_id, list(by_id)) if user_id is not None else {}
+    mastery = await _mastery_for_course(db, user_id, course_id) if user_id is not None else None
+    candidates = [
+        {
+            "id": q.id,
+            "text": _question_text(q),
+            "status": statuses.get(q.id, {}).get("status", "unknown") if statuses else "unknown",
+            "difficulty": float(q.difficulty) if q.difficulty is not None else None,
+            "tags": [t.name for t in (q.tags or []) if t.name],
+        }
+        for q in qs
+    ]
+    headers = {"X-Student-Id": str(user_id)} if user_id is not None else {}
+    if settings.TUTOR_SERVICE_TOKEN:
+        headers["X-Tutor-Token"] = settings.TUTOR_SERVICE_TOKEN
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
             res = await client.post(
                 f"{settings.TUTOR_SERVICE_URL.rstrip('/')}/related/rank",
-                json={"query": query, "candidates": [{"id": q.id, "text": _question_text(q)} for q in qs], "top_k": max(limit * 4, 12), "min_score": 0.48},
-                headers={"X-Tutor-Token": settings.TUTOR_SERVICE_TOKEN} if settings.TUTOR_SERVICE_TOKEN else {},
+                json={"query": query, "candidates": candidates, "top_k": limit, "mastery": mastery, "record": record},
+                headers=headers,
             )
         if res.status_code != 200:
             return []
         ranked = res.json().get("items") or []
     except httpx.HTTPError:
         return []
-    # 上位との差が大きいもの（別の話題の問題）は落とす。スコアは bge-m3 のコサイン類似度
-    if ranked:
-        top = float(ranked[0].get("score") or 0)
-        ranked = [r for r in ranked if float(r.get("score") or 0) >= top - 0.07]
-    # 学生の解答履歴・タグ・習熟度で並べ替え
-    statuses = await _answer_status(db, user_id, [r["id"] for r in ranked]) if user_id is not None else {}
-    mastery = await _mastery_for_course(db, user_id, course_id) if user_id is not None else None
-    q_lower = query.lower()
-    for r in ranked:
-        q = by_id.get(r["id"])
-        st = statuses.get(r["id"], {}).get("status", "unanswered") if statuses else "unknown"
-        adj = float(r.get("score") or 0) + _STATUS_BONUS.get(st, 0.0)
-        if q is not None and any((t.name or "").lower() in q_lower for t in (q.tags or []) if t.name):
-            adj += 0.05
-        # 習熟度が高い学生には難しめ、低い学生には易しめを同点付近で先に
-        diff = float(q.difficulty or 0) if q is not None else 0.0
-        if mastery is not None:
-            adj += (diff - 2.5) * 0.01 * (1 if mastery >= 0.7 else -1)
-        r["adj_score"] = round(adj, 4)
-        r["status"] = st
-    ranked.sort(key=lambda r: -r["adj_score"])
-    ranked = ranked[:limit]
     # 問題が入っている演習セット（あれば「演習ページで解く」リンク先）
     sets = (await db.execute(select(exercises_model.ExerciseSets))).scalars().all()
     set_by_q: dict[int, exercises_model.ExerciseSets] = {}
@@ -329,6 +318,7 @@ async def _related_questions(
         item["score"] = r.get("score")
         item["status"] = r.get("status")  # wrong / unanswered / correct / unknown
         item["attempts"] = statuses.get(q.id, {}).get("attempts", 0) if statuses else 0
+        item["shown_before"] = bool(r.get("shown_before"))
         st = set_by_q.get(q.id)
         if st is not None:
             if st.course_id not in first_lesson:
@@ -341,6 +331,18 @@ async def _related_questions(
                                     "url": f"/weekflows/{st.course_id}/{first_lesson[st.course_id]}/set/{st.id}"}
         out.append(item)
     return out
+
+
+class RelatedEventRequest(BaseModel):
+    kind: str = Field(pattern="^(revealed|clicked)$")
+
+
+@tutor_router.post("/related-questions/{question_id}/event")
+async def tutor_related_event(
+    question_id: int, body: RelatedEventRequest, current_user: Users = Depends(get_current_active_user)
+):
+    """「答えを確認」「演習ページで解く」を記録（次回の提示判断に使う）。"""
+    return await _forward("POST", "/related/event", current_user, json={"question_id": question_id, "kind": body.kind})
 
 
 @tutor_router.get("/related-questions")

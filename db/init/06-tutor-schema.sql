@@ -95,6 +95,19 @@ CREATE TABLE IF NOT EXISTS tutor.learner_profiles (
 );
 ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT;
 
+-- チューターが提示した演習問題の記録（同じ問題を繰り返し出さないため。不正解の問題は例外で再提示する）
+CREATE TABLE IF NOT EXISTS tutor.question_exposures (
+  id               BIGSERIAL PRIMARY KEY,
+  student_id       INTEGER NOT NULL,
+  question_id      INTEGER NOT NULL,        -- public.questions.id（FK は張らない）
+  conversation_id  BIGINT,
+  status_at_show   TEXT,                    -- 提示時点の状態 wrong / unanswered / correct / unknown
+  shown_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revealed_at      TIMESTAMPTZ,             -- 「答えを確認」を押した
+  clicked_at       TIMESTAMPTZ              -- 「演習ページで解く」に進んだ
+);
+CREATE INDEX IF NOT EXISTS ix_tutor_exposures_student ON tutor.question_exposures (student_id, shown_at DESC);
+
 -- 教員ビュー用: 学生の質問一覧（チュータ返答を除外）
 CREATE OR REPLACE VIEW tutor.v_student_questions AS
 SELECT t.id, t.created_at, c.student_id, c.course_id, c.lesson_item_id,

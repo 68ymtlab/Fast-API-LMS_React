@@ -62,6 +62,11 @@ DDL = [
       first_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
     "ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT",
+    """CREATE TABLE IF NOT EXISTS tutor.question_exposures (
+      id BIGSERIAL PRIMARY KEY, student_id INTEGER NOT NULL, question_id INTEGER NOT NULL, conversation_id BIGINT,
+      status_at_show TEXT, shown_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      revealed_at TIMESTAMPTZ, clicked_at TIMESTAMPTZ)""",
+    "CREATE INDEX IF NOT EXISTS ix_tutor_exposures_student ON tutor.question_exposures (student_id, shown_at DESC)",
     """CREATE OR REPLACE VIEW tutor.v_student_questions AS
       SELECT t.id, t.created_at, c.student_id, c.course_id, c.lesson_item_id,
              COALESCE(t.lesson_page_id, c.lesson_page_id) AS lesson_page_id,
@@ -381,6 +386,55 @@ class TutorStore:
                  debug_state.get("focus_concept"), debug_state.get("focus_section"), lesson_page_id, conversation_id),
             )
             conn.commit()
+
+    # ---- 提示した演習問題の記録 ----
+    def load_exposures(self, student_id: int, cooldown_days: int) -> dict[int, dict[str, Any]]:
+        """question_id → {last_shown_at, times, revealed, clicked}。cooldown_days<=0 なら全期間。"""
+        if not self.enabled:
+            return {}
+        where = "student_id = %s"
+        args: list[Any] = [student_id]
+        if cooldown_days > 0:
+            where += " AND shown_at >= CURRENT_TIMESTAMP - make_interval(days => %s)"
+            args.append(cooldown_days)
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            rows = conn.execute(
+                f"""SELECT question_id, MAX(shown_at) AS last_shown_at, COUNT(*) AS times,
+                           BOOL_OR(revealed_at IS NOT NULL) AS revealed, BOOL_OR(clicked_at IS NOT NULL) AS clicked
+                    FROM tutor.question_exposures WHERE {where} GROUP BY question_id""",
+                args,
+            ).fetchall()
+        return {int(r["question_id"]): dict(r) for r in rows}
+
+    def record_exposures(self, student_id: int, conversation_id: int | None, items: list[tuple[int, str]]) -> None:
+        if not self.enabled or not items:
+            return
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            conn.cursor().executemany(
+                "INSERT INTO tutor.question_exposures (student_id, question_id, conversation_id, status_at_show) VALUES (%s, %s, %s, %s)",
+                [(student_id, qid, conversation_id, st) for qid, st in items],
+            )
+            conn.commit()
+
+    def mark_exposure(self, student_id: int, question_id: int, kind: str) -> bool:
+        """kind: revealed / clicked。直近の提示行に時刻を入れる（無ければ提示行を作る）。"""
+        if not self.enabled or kind not in ("revealed", "clicked"):
+            return False
+        col = f"{kind}_at"
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            cur = conn.execute(
+                f"""UPDATE tutor.question_exposures SET {col} = COALESCE({col}, CURRENT_TIMESTAMP)
+                    WHERE id = (SELECT id FROM tutor.question_exposures WHERE student_id = %s AND question_id = %s
+                                ORDER BY shown_at DESC LIMIT 1)""",
+                (student_id, question_id),
+            )
+            if cur.rowcount == 0:
+                conn.execute(
+                    f"INSERT INTO tutor.question_exposures (student_id, question_id, {col}) VALUES (%s, %s, CURRENT_TIMESTAMP)",
+                    (student_id, question_id),
+                )
+            conn.commit()
+        return True
 
     # ---- teacher / admin views ----
     def list_questions(self, *, limit: int = 100, course_id: int | None = None, student_id: int | None = None,

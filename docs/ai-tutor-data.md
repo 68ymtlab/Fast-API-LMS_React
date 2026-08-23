@@ -87,6 +87,7 @@ tutor.conversations    id, student_id, course_id, lesson_item_id, lesson_page_id
 tutor.turns            id, conversation_id, seq, role(student|tutor), text, choice_id, turn_class, explain_mode, phase,
                        knowledge_mode, retrieval_path, banner, focus_concept, focus_section, understanding_level, goal,
                        lesson_page_id, diagnosis, clarify, viz, citations, latency_ms, llm_model, created_at
+tutor.question_exposures id, student_id, question_id, conversation_id, status_at_show, shown_at, revealed_at, clicked_at
 tutor.learner_profiles student_id, understanding_level, goal, style, known_topics, topic_level_log,
                        last_focus_concept, last_focus_section, last_lesson_page_id, last_conversation_id,
                        conversation_count, turn_count, first_seen_at, updated_at
@@ -140,7 +141,8 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 - 並べ替え（実装済み）: 類似度を土台に、学生の解答履歴（`student_answers` ⋈ `exercise_sessions`）で **前回不正解 +0.08 / 未回答 +0.03 / 正解済み −0.05**、問い合わせ文にタグ名が含まれていれば +0.05、`student_competencies.mastery_level`（科目単位）があれば同点付近で難易度の並びを調整（高いほど難しい問題が先）。カードに「前回 不正解／未回答／正解済み」チップとタグを表示
 - 絞り込み: `GET /api/tutor/related-questions?tag=行列式` でタグ一致の問題だけ。埋め込みテキストにもタグ名を含める（類似度が上がる）
 - デモ seed はタグ（`線形代数` + 単元名）も投入する（`--remove` で孤立タグも片付ける）
-- 次の段階: 学生が「解いた／答えを見た」を tutor 側にも記録して重複提示を避ける、教員が `difficulty` を付ければ習熟度連動が効く
+- 繰り返し提示の抑止（実装済み）: 提示した問題を `tutor.question_exposures`（学生 × 問題 × 提示時刻・答えを見た・演習ページへ進んだ）に記録し、**過去 `TUTOR_EXPOSURE_COOLDOWN_DAYS`（既定 30、0=無期限）日以内に出した問題は除外。ただし status=wrong（前回不正解）は例外で再提示**（カードに「もう一度」チップ）。選定ロジックは tutor の `/related/rank` に集約（backend は候補＋正誤＋習熟度を渡すだけ）。「答えを確認」「演習ページで解く」は `POST /api/tutor/related-questions/{id}/event` で記録
+- 次の段階: 教員が `difficulty` を付ければ習熟度連動が効く。出した回数が多い問題の扱い（不正解が続く問題は教員ビューで可視化）
 
 # 次にやること
 

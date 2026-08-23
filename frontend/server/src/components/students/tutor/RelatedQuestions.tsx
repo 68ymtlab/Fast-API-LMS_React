@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { MathJax } from "@/components/shared/MathJax";
 import { Button } from "@/components/ui/button";
+import axios from "@/lib/axios";
 
 export type RelatedQuestion = {
 	id: number;
@@ -20,6 +21,7 @@ export type RelatedQuestion = {
 	score?: number;
 	status?: "wrong" | "unanswered" | "correct" | "unknown";
 	attempts?: number;
+	shown_before?: boolean;
 	tags?: string[];
 	exercise_set?: {
 		id: number;
@@ -44,6 +46,13 @@ const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
 	},
 };
 
+// 「答えを確認」「演習ページで解く」を tutor に記録（次回の提示判断に使う。失敗しても無視）
+function recordEvent(questionId: number, kind: "revealed" | "clicked") {
+	void axios
+		.post(`/tutor/related-questions/${questionId}/event`, { kind })
+		.catch(() => undefined);
+}
+
 // 問題文の先頭の見出し（# Q1 …）と入力注記は本文から外して読みやすくする
 function cleanQuestion(q: string): string {
 	return q
@@ -64,6 +73,11 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 				aria-expanded={open}
 			>
 				<span className="min-w-0 flex-1 truncate">{q.title}</span>
+				{q.shown_before && q.status === "wrong" ? (
+					<span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+						もう一度
+					</span>
+				) : null}
 				{q.status && STATUS_CHIP[q.status] ? (
 					<span
 						className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${STATUS_CHIP[q.status].cls}`}
@@ -129,7 +143,10 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 							variant="outline"
 							size="sm"
 							className="rounded-full"
-							onClick={() => setShowAnswer((v) => !v)}
+							onClick={() => {
+								if (!showAnswer) recordEvent(q.id, "revealed");
+								setShowAnswer((v) => !v);
+							}}
 						>
 							{showAnswer ? "答えを隠す" : "答えを確認"}
 						</Button>
@@ -140,7 +157,10 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 								size="sm"
 								className="rounded-full"
 							>
-								<Link href={q.exercise_set.url}>
+								<Link
+									href={q.exercise_set.url}
+									onClick={() => recordEvent(q.id, "clicked")}
+								>
 									演習ページで解く
 									<ExternalLink className="ml-1 h-3.5 w-3.5" />
 								</Link>
@@ -159,7 +179,7 @@ export function RelatedQuestions({ items }: { items: RelatedQuestion[] }) {
 		<div className="mt-3 rounded-xl border bg-muted/30 p-2">
 			<div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
 				<ListChecks className="h-3.5 w-3.5" />
-				関連する演習問題（教員が作成した問題から。間違えた問題・未回答を優先）
+				関連する演習問題（教員が作成した問題から。間違えた問題は再提示、出した問題は繰り返さない）
 			</div>
 			<ul className="space-y-1.5">
 				{items.map((q) => (

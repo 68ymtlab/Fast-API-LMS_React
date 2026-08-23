@@ -513,25 +513,92 @@ def post_reset(student_id: str = Depends(_auth)):
 
 
 # ---- 類似問題（既存の教員作成問題のランキング。生成はしない） ----
+EXPOSURE_COOLDOWN_DAYS = int(os.environ.get("TUTOR_EXPOSURE_COOLDOWN_DAYS", "30"))  # 0 = 期限なし（一度出したら出さない）
+# 学生の解答履歴に基づく優先度（前回不正解 > 未回答 > 正解済み）。類似度への加点として効かせる
+STATUS_BONUS = {"wrong": 0.08, "unanswered": 0.03, "correct": -0.05}
+
+
 class RelatedCandidate(BaseModel):
     id: int
     text: str = Field(max_length=4000)
+    status: str = "unknown"         # wrong / unanswered / correct / unknown（LMS の解答履歴。backend が付ける）
+    difficulty: float | None = None
+    tags: list[str] = Field(default_factory=list)
 
 
 class RelatedRankRequest(BaseModel):
     query: str = Field(max_length=2000)
     candidates: list[RelatedCandidate] = Field(default_factory=list, max_length=2000)
     top_k: int = Field(default=3, ge=1, le=20)
-    min_score: float = 0.0
+    min_score: float = 0.48
+    max_gap: float = 0.07            # 上位との類似度差がこれより大きい候補は別話題とみなして落とす
+    mastery: float | None = None     # 科目の習熟度（0..1）。難易度の並びに使う
+    record: bool = True              # 返した問題を「提示した」として記録する
+    student_id: int | None = None    # 省略時は X-Student-Id
 
 
 @app.post("/related/rank")
-def related_rank(body: RelatedRankRequest, _: None = Depends(_service_auth)):
+def related_rank(
+    body: RelatedRankRequest,
+    _: None = Depends(_service_auth),
+    x_student_id: str | None = Header(default=None, alias="X-Student-Id"),
+):
+    """類似度で絞る → 既に出した問題を除外（不正解の問題は例外） → 解答履歴・タグ・習熟度で並べ替え → 提示を記録。"""
     if manager._searcher is None:
         raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
     model_id = getattr(manager._searcher, "embed_model_id", "BAAI/bge-m3")
-    items = rank_related(model_id, body.query, [c.model_dump() for c in body.candidates], top_k=body.top_k, min_score=body.min_score)
-    return {"items": items, "model": model_id}
+    sid = body.student_id if body.student_id is not None else _to_int(x_student_id or "")
+    cands = {c.id: c for c in body.candidates}
+    ranked = rank_related(model_id, body.query, [{"id": c.id, "text": c.text} for c in body.candidates],
+                          top_k=max(body.top_k * 4, 12), min_score=body.min_score)
+    if ranked:
+        top = float(ranked[0]["score"])
+        ranked = [r for r in ranked if float(r["score"]) >= top - body.max_gap]
+    # 既に出した問題は外す。ただし「前回不正解」はもう一度出す
+    exposures = store.load_exposures(sid, EXPOSURE_COOLDOWN_DAYS) if sid is not None else {}
+    suppressed: list[int] = []
+    kept = []
+    for r in ranked:
+        c = cands[r["id"]]
+        if r["id"] in exposures and c.status != "wrong":
+            suppressed.append(r["id"])
+            continue
+        kept.append(r)
+    q_lower = body.query.lower()
+    for r in kept:
+        c = cands[r["id"]]
+        adj = float(r["score"]) + STATUS_BONUS.get(c.status, 0.0)
+        if any(t and t.lower() in q_lower for t in c.tags):
+            adj += 0.05
+        if body.mastery is not None and c.difficulty is not None:
+            adj += (c.difficulty - 2.5) * 0.01 * (1 if body.mastery >= 0.7 else -1)
+        r["adj_score"] = round(adj, 4)
+        r["status"] = c.status
+        ex = exposures.get(r["id"])
+        r["shown_before"] = bool(ex)
+        r["shown_times"] = int(ex["times"]) if ex else 0
+    kept.sort(key=lambda r: -r["adj_score"])
+    kept = kept[: body.top_k]
+    if body.record and sid is not None and kept:
+        conv_id = None
+        with manager._guard:
+            e = manager._entries.get(str(sid))
+            conv_id = e.conversation_id if e else None
+        store.record_exposures(sid, conv_id, [(r["id"], r["status"]) for r in kept])
+    return {"items": kept, "suppressed": suppressed, "model": model_id, "cooldown_days": EXPOSURE_COOLDOWN_DAYS}
+
+
+class RelatedEventRequest(BaseModel):
+    question_id: int
+    kind: str = Field(pattern="^(revealed|clicked)$")
+
+
+@app.post("/related/event")
+def related_event(body: RelatedEventRequest, student_id: str = Depends(_auth)):
+    """「答えを確認」「演習ページで解く」を記録する。"""
+    sid = _to_int(student_id)
+    ok = store.mark_exposure(sid, body.question_id, body.kind) if sid is not None else False
+    return {"ok": ok}
 
 
 # ---- 教員／管理用（LMS backend が教員権限を確認してから呼ぶ） ----
