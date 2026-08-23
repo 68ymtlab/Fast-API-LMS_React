@@ -194,6 +194,17 @@ def _question_public(q: questions_model.Questions) -> dict[str, Any]:
         "hint": str(cd.get("hint") or ""),
         "answers": answers,
         "tags": [t.name for t in (getattr(q, "tags", None) or [])],
+        # その場で解答・採点するための情報（既存の演習ページと同じ採点規則: 許容誤差つき数値比較）
+        "grading": {
+            "type": q.question_type,
+            "answers": cd.get("answers") if q.question_type == "numeric" else None,
+            "tolerance": cd.get("tolerance", 0) if q.question_type == "numeric" else None,
+            "blanks": [
+                {"blank_id": b.get("blank_id"), "label": b.get("label") or b.get("blank_id") or "", "answers": b.get("answers"),
+                 "tolerance": b.get("tolerance", 0)}
+                for b in (cd.get("blanks") or []) if isinstance(b, dict)
+            ] if q.question_type == "multiple_numeric" else [],
+        },
     }
 
 
@@ -258,7 +269,7 @@ async def _related_questions(
     選定（類似度の閾値、既に出した問題の除外 — 不正解は例外 —、加点・並べ替え、提示の記録）は tutor サービス側。
     """
     query = (query or "").strip()
-    empty_meta: dict[str, Any] = {"suppressed": 0, "topic_tags": []}
+    empty_meta: dict[str, Any] = {"suppressed": 0, "topic_tags": [], "more": 0}
     if not query:
         return [], empty_meta
     stmt = select(questions_model.Questions).options(selectinload(questions_model.Questions.tags)).where(
@@ -297,7 +308,11 @@ async def _related_questions(
             return [], empty_meta
         payload = res.json()
         ranked = payload.get("items") or []
-        meta_out = {"suppressed": len(payload.get("suppressed") or []), "topic_tags": payload.get("topic_tags") or []}
+        meta_out = {
+            "suppressed": len(payload.get("suppressed") or []),
+            "topic_tags": payload.get("topic_tags") or [],
+            "more": max(int(payload.get("eligible") or 0) - len(ranked), 0),  # 今回出さなかったが解ける問題の数
+        }
     except httpx.HTTPError:
         return [], empty_meta
     # 問題が入っている演習セット（あれば「演習ページで解く」リンク先）
@@ -435,14 +450,15 @@ async def tutor_message(
         focus = str(state.get("focus_concept") or "").strip()
         query = " ".join(p for p in (focus, (body.text or "").strip()) if p)
         try:
+            # 1問だけ出してその場で解けるようにする。続けて解きたい場合は演習ページへ（meta.more で案内）
             items, meta = await _related_questions(
-                query, db, limit=3, course_id=body.context.course_id if body.context else None, user_id=current_user.id
+                query, db, limit=1, course_id=body.context.course_id if body.context else None, user_id=current_user.id
             )
             data["related_questions"] = items
             data["related_meta"] = meta
         except Exception:  # 付加情報なので失敗しても回答は返す
             data["related_questions"] = []
-            data["related_meta"] = {"suppressed": 0, "topic_tags": []}
+            data["related_meta"] = {"suppressed": 0, "topic_tags": [], "more": 0}
     return data
 
 

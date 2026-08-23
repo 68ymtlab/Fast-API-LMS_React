@@ -594,6 +594,7 @@ def related_rank(
         r["shown_before"] = bool(ex)
         r["shown_times"] = int(ex["times"]) if ex else 0
     kept.sort(key=lambda r: -r["adj_score"])
+    eligible = len(kept)  # 今回出せる問題の総数（top_k で切る前）。「他の問題も解く」の案内に使う
     kept = kept[: body.top_k]
     if body.record and sid is not None and kept:
         conv_id = None
@@ -601,8 +602,8 @@ def related_rank(
             e = manager._entries.get(str(sid))
             conv_id = e.conversation_id if e else None
         store.record_exposures(sid, conv_id, [(r["id"], r["status"]) for r in kept])
-    return {"items": kept, "suppressed": suppressed, "topic_tags": sorted(topic_tags), "model": model_id,
-            "cooldown_days": EXPOSURE_COOLDOWN_DAYS}
+    return {"items": kept, "suppressed": suppressed, "eligible": eligible, "topic_tags": sorted(topic_tags),
+            "model": model_id, "cooldown_days": EXPOSURE_COOLDOWN_DAYS}
 
 
 class RelatedEventRequest(BaseModel):
