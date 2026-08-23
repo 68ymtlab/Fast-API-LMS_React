@@ -29,6 +29,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from deeprag_search import LLM_MODEL  # noqa: E402
+from related import rank as rank_related  # noqa: E402
 from state_io import restore_state  # noqa: E402
 from store import TutorStore  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
@@ -509,6 +510,28 @@ def get_state(student_id: str = Depends(_auth)):
 def post_reset(student_id: str = Depends(_auth)):
     summary, entry = manager.reset(student_id)
     return SummaryResponse(summary=summary, state=entry.session.debug_state())
+
+
+# ---- 類似問題（既存の教員作成問題のランキング。生成はしない） ----
+class RelatedCandidate(BaseModel):
+    id: int
+    text: str = Field(max_length=4000)
+
+
+class RelatedRankRequest(BaseModel):
+    query: str = Field(max_length=2000)
+    candidates: list[RelatedCandidate] = Field(default_factory=list, max_length=2000)
+    top_k: int = Field(default=3, ge=1, le=20)
+    min_score: float = 0.0
+
+
+@app.post("/related/rank")
+def related_rank(body: RelatedRankRequest, _: None = Depends(_service_auth)):
+    if manager._searcher is None:
+        raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
+    model_id = getattr(manager._searcher, "embed_model_id", "BAAI/bge-m3")
+    items = rank_related(model_id, body.query, [c.model_dump() for c in body.candidates], top_k=body.top_k, min_score=body.min_score)
+    return {"items": items, "model": model_id}
 
 
 # ---- 教員／管理用（LMS backend が教員権限を確認してから呼ぶ） ----

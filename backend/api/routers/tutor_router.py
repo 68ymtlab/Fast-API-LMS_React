@@ -18,8 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.core.config import settings
 from api.core.security import get_current_active_user, require_teacher_or_higher
 from api.db.session import get_db
+from api.models import exercises_model, lessons_model, questions_model
 from api.models.users_model import Users
 from api.repositories.contents_repo import ContentRepository
+from sqlalchemy import select
 from api.repositories.lessons_repo import LessonRepository
 
 tutor_router = APIRouter(prefix="/tutor", tags=["AIチューター"])
@@ -66,6 +68,7 @@ class TutorMessageResponse(BaseModel):
     turn_class: str = ""
     viz: Optional[dict[str, Any]] = None
     conversation_id: Optional[int] = None
+    related_questions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class TutorSummaryResponse(BaseModel):
@@ -150,6 +153,116 @@ async def _resolve_page_context(ctx: Optional[TutorContext], db: AsyncSession) -
     return out
 
 
+# ---- 類似問題（教員が作った既存問題を、いまの話題に近い順に出す。LLM 生成はしない） ----
+_MD_NOISE_RE = re.compile(r"^#+\s*|\\fbox\{[^}]*\}|\(半角で入力\)", re.M)
+
+
+def _question_text(q: questions_model.Questions) -> str:
+    """埋め込み用のテキスト（タイトル + 問題文 + 空欄ラベル）。"""
+    cd = q.content_data or {}
+    parts = [q.title or ""]
+    if isinstance(cd, dict):
+        if cd.get("question"):
+            parts.append(str(cd["question"]))
+        for b in cd.get("blanks") or []:
+            if isinstance(b, dict) and b.get("label"):
+                parts.append(str(b["label"]))
+    text = "\n".join(p for p in parts if p)
+    return _MD_NOISE_RE.sub("", text)[:2000]
+
+
+def _question_public(q: questions_model.Questions) -> dict[str, Any]:
+    """学生に見せる形。正解は『答えを確認』用に answers として同梱（教員作成の確定値）。"""
+    cd = q.content_data if isinstance(q.content_data, dict) else {}
+    answers: list[dict[str, Any]] = []
+    if q.question_type == "numeric" and cd.get("answers") is not None:
+        answers.append({"label": "答え", "answers": cd.get("answers")})
+    for b in cd.get("blanks") or []:
+        if isinstance(b, dict):
+            answers.append({"label": b.get("label") or b.get("blank_id") or "", "answers": b.get("answers")})
+    return {
+        "id": q.id,
+        "title": q.title,
+        "question_type": q.question_type,
+        "difficulty": q.difficulty,
+        "question": str(cd.get("question") or ""),
+        "hint": str(cd.get("hint") or ""),
+        "answers": answers,
+    }
+
+
+async def _related_questions(query: str, db: AsyncSession, *, limit: int = 3, course_id: Optional[int] = None) -> list[dict[str, Any]]:
+    query = (query or "").strip()
+    if not query:
+        return []
+    qs = (await db.execute(
+        select(questions_model.Questions).where(questions_model.Questions.is_active == True)  # noqa: E712
+    )).scalars().all()
+    if not qs:
+        return []
+    by_id = {q.id: q for q in qs}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            res = await client.post(
+                f"{settings.TUTOR_SERVICE_URL.rstrip('/')}/related/rank",
+                json={"query": query, "candidates": [{"id": q.id, "text": _question_text(q)} for q in qs], "top_k": limit, "min_score": 0.48},
+                headers={"X-Tutor-Token": settings.TUTOR_SERVICE_TOKEN} if settings.TUTOR_SERVICE_TOKEN else {},
+            )
+        if res.status_code != 200:
+            return []
+        ranked = res.json().get("items") or []
+    except httpx.HTTPError:
+        return []
+    # 上位との差が大きいもの（別の話題の問題）は落とす。スコアは bge-m3 のコサイン類似度
+    if ranked:
+        top = float(ranked[0].get("score") or 0)
+        ranked = [r for r in ranked if float(r.get("score") or 0) >= top - 0.07]
+    # 問題が入っている演習セット（あれば「演習ページで解く」リンク先）
+    sets = (await db.execute(select(exercises_model.ExerciseSets))).scalars().all()
+    set_by_q: dict[int, exercises_model.ExerciseSets] = {}
+    for st in sets:
+        ids = st.question_ids if isinstance(st.question_ids, list) else []
+        for qid in ids:
+            try:
+                qid_i = int(qid)
+            except (TypeError, ValueError):
+                continue
+            if qid_i not in set_by_q or (course_id is not None and st.course_id == course_id):
+                set_by_q[qid_i] = st
+    first_lesson: dict[int, int] = {}
+    out = []
+    for r in ranked:
+        q = by_id.get(r["id"])
+        if not q:
+            continue
+        item = _question_public(q)
+        item["score"] = r.get("score")
+        st = set_by_q.get(q.id)
+        if st is not None:
+            if st.course_id not in first_lesson:
+                row = (await db.execute(
+                    select(lessons_model.CourseLessons.id).where(lessons_model.CourseLessons.course_id == st.course_id)
+                    .order_by(lessons_model.CourseLessons.display_order, lessons_model.CourseLessons.id).limit(1)
+                )).scalar_one_or_none()
+                first_lesson[st.course_id] = row or 0
+            item["exercise_set"] = {"id": st.id, "title": st.title, "course_id": st.course_id,
+                                    "url": f"/weekflows/{st.course_id}/{first_lesson[st.course_id]}/set/{st.id}"}
+        out.append(item)
+    return out
+
+
+@tutor_router.get("/related-questions")
+async def tutor_related_questions(
+    q: str = Query(min_length=1, max_length=2000),
+    limit: int = Query(default=3, ge=1, le=10),
+    course_id: Optional[int] = None,
+    current_user: Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """いまの話題に近い既存の演習問題（教員作成）。"""
+    return {"items": await _related_questions(q, db, limit=limit, course_id=course_id)}
+
+
 @tutor_router.post("/open")
 async def tutor_open(
     body: TutorOpenRequest,
@@ -215,7 +328,17 @@ async def tutor_message(
         "page_context": await _resolve_page_context(body.context, db),
         "answer_length": body.answer_length,
     }
-    return await _forward("POST", "/session/message", current_user, json=payload)
+    data = await _forward("POST", "/session/message", current_user, json=payload)
+    # 回答を返したターン（診断・clarify の待ち受け中でない）だけ、関連する既存問題を添える
+    state = data.get("state") or {}
+    if isinstance(data, dict) and state.get("phase") == "idle" and not data.get("diagnosis") and not data.get("clarify"):
+        focus = str(state.get("focus_concept") or "").strip()
+        query = " ".join(p for p in (focus, (body.text or "").strip()) if p)
+        try:
+            data["related_questions"] = await _related_questions(query, db, limit=3, course_id=body.context.course_id if body.context else None)
+        except Exception:  # 付加情報なので失敗しても回答は返す
+            data["related_questions"] = []
+    return data
 
 
 # ---- 会話スレッド（保存済みの会話の一覧・切り替え・新規・名前変更・削除） ----

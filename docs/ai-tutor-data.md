@@ -121,6 +121,24 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 - [x] frontend: `TutorChat` 共通コンポーネント化、`/tutor` は履歴復元、教科書ページに 🤖 サイドパネル、数式内バックスラッシュ保護
 - [x] 検証: 再起動後の復元（履歴 6 件・理解度）、指示語の話題名、リセット後の持ち越し、教員のみ質問一覧（学生は 403）、Playwright でサイドパネル動作
 
+## 関連する演習問題（デモ）
+
+研究側が却下したのは「LLM に問題を**生成**させる」こと。ここでは **教員が作った既存問題（`public.questions`）を検索して出す**だけなので方針に反しない。
+
+```
+回答を返したターン（診断/clarify 待ちでない）だけ:
+  backend  → 有効な questions を全件（タイトル+問題文+空欄ラベル）→ tutor /related/rank { query: 焦点概念+学生の発話, candidates }
+  tutor    → bge-m3（検索と同じ埋め込み API）でコサイン類似度。候補の埋め込みはハッシュでメモリキャッシュ
+  backend  → 上位3件（類似度 0.48 以上・上位との差 0.07 以内）に、問題が入っている演習セットの URL を付けて
+             message レスポンスの related_questions に同梱
+  フロント → 回答の下に「関連する演習問題（教員が作成した問題から）」カード。展開で問題文、「答えを確認」（教員登録の正解）、
+             「演習ページで解く」（既存の /weekflows/…/set/{id} へ）
+```
+
+- `GET /api/tutor/related-questions?q=…&course_id=…` 単体でも呼べる
+- デモ用データ: `backend/scripts/seed_tutor_demo_questions.py`（線形代数 12 問 + 演習セット。`--remove` で撤去）。数式の行区切りは LMS の流儀で `\\\\` と二重化して保存する
+- 次の段階: 学生の正誤（`student_answers`）や `student_competencies` を使って「未回答／間違えた問題を優先」する、タグ（`question_tags`）で教科・単元を絞る
+
 # 次にやること
 
 1. **教員ビューの画面**（`/t/...`）: `GET /api/tutor/questions` を表で出す。ページ別・学生別の集計 SQL は `v_student_questions` に対する GROUP BY で足りる

@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MathJax } from "@/components/shared/MathJax";
 import { Button } from "@/components/ui/button";
 import axios from "@/lib/axios";
+import { type RelatedQuestion, RelatedQuestions } from "./RelatedQuestions";
 import { TutorViz, type VizSpec } from "./TutorViz";
 
 export type TutorContext = {
@@ -52,6 +53,7 @@ interface TutorMessageResponse {
 	banner?: string;
 	viz?: VizSpec | null;
 	conversation_id?: number | null;
+	related_questions?: RelatedQuestion[];
 }
 
 interface HistoryItem {
@@ -92,6 +94,7 @@ export interface ChatMessage {
 	banner?: string;
 	citations?: Citation[];
 	viz?: VizSpec | null;
+	relatedQuestions?: RelatedQuestion[];
 }
 
 const CITATION_HEADING = "## 参考（教科書）";
@@ -321,6 +324,7 @@ export function TutorChat({
 					banner: data.banner || undefined,
 					citations: data.citations ?? [],
 					viz: data.viz ?? null,
+					relatedQuestions: data.related_questions ?? [],
 				});
 				setChoices(
 					bundle?.choices?.length
@@ -701,6 +705,9 @@ export function TutorChat({
 											<MathJax text={protectMath(m.text)} />
 										</div>
 										<TutorViz viz={m.viz} />
+										{m.relatedQuestions?.length ? (
+											<RelatedQuestions items={m.relatedQuestions} />
+										) : null}
 										{m.citations && m.citations.length > 0 ? (
 											<details className="mt-2 text-xs text-muted-foreground">
 												<summary className="cursor-pointer select-none">
