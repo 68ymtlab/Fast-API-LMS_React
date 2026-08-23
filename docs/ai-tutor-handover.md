@@ -1,6 +1,6 @@
 # AI チューター — 引き継ぎ: あなたがやること
 
-作成: 2026-08-23 / ブランチ `feature/ai-tutor`（未 push）/ 詳細設計は [`ai-tutor.md`](ai-tutor.md)・[`ai-tutor-data.md`](ai-tutor-data.md)
+作成: 2026-08-23 / ブランチ `feature/ai-tutor`（未 push）/ 詳細設計は [`ai-tutor.md`](ai-tutor.md)・[`ai-tutor-data.md`](ai-tutor-data.md)・今後と問題作成は [`ai-tutor-roadmap-and-problem-authoring.md`](ai-tutor-roadmap-and-problem-authoring.md)
 
 開発環境（このマシンの docker compose）では全部動いています。本番に出すまで・出した後に **人がやる必要があること** だけをまとめます。
 

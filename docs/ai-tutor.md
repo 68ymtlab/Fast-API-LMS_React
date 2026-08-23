@@ -90,7 +90,7 @@ Fast-API-LMS_React/
 4. **compose** — dev: `127.0.0.1:8765` 公開＋ソース bind（`--reload`）。prod: `ports` 閉鎖・`volumes: !override` で data のみ ro・healthcheck
 5. 本ドキュメント、`tutor/README.md`
 
-> **やることリスト（引き継ぎ）: [`ai-tutor-handover.md`](ai-tutor-handover.md)**
+> **やることリスト（引き継ぎ）: [`ai-tutor-handover.md`](ai-tutor-handover.md)** ／ **今後の方向性と問題作成の考察: [`ai-tutor-roadmap-and-problem-authoring.md`](ai-tutor-roadmap-and-problem-authoring.md)**
 >
 > 2026-08-23 追記: 会話の永続化（Postgres `tutor` スキーマ）・学生ごとの引き継ぎ・質問収集・教科書ページ連携は
 > [`docs/ai-tutor-data.md`](ai-tutor-data.md) に設計と実装をまとめた。下の TODO 5・6 はそちらで実施済み。
