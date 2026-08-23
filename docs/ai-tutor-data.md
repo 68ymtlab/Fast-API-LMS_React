@@ -144,6 +144,7 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 - 繰り返し提示の抑止（実装済み）: 提示した問題を `tutor.question_exposures`（学生 × 問題 × 提示時刻・答えを見た・演習ページへ進んだ）に記録し、**過去 `TUTOR_EXPOSURE_COOLDOWN_DAYS`（既定 30、0=無期限）日以内に出した問題は除外。ただし status=wrong（前回不正解）は例外で再提示**（カードに「もう一度」チップ）。選定ロジックは tutor の `/related/rank` に集約（backend は候補＋正誤＋習熟度を渡すだけ）。「答えを確認」「演習ページで解く」は `POST /api/tutor/related-questions/{id}/event` で記録
 - トピック固定（実装済み）: 問い合わせ（焦点概念＋発話）に単元タグ名が含まれていれば、そのタグの問題だけを候補にする（候補の半数以上に付く教科名タグは無視）。「不正解なら再提示」もこの中でしか効かないので、隣のトピックの不正解問題は混ざらない。類似度の下限は実測で 0.53（無関係 ≈0.50 / 関係あり 0.55〜0.66）
 - 出し切ったとき: `related_meta.suppressed > 0` で「この話題の演習問題はすべて提示済みです。間違えた問題があれば、また出します」と一言
+- その場で解く（実装済み）: カードには **1 問だけ**出し、numeric / multiple_numeric はその場で解答・採点（採点規則は既存演習ページ `checkAnswer` と同じ許容誤差つき数値比較）。保存は既存 API（`POST /exercise-sets/{id}/sessions` → `POST /exercise-sessions/{id}/answers`、`answer_data.source="tutor"` 付き）なので `student_answers` に入り、次回の「前回不正解／正解済み」判定と再提示ルールにそのまま効く。続けて解きたいときは「他の問題も解く（あと N 問）」で既存の演習ページへ（`related_meta.more` = 今回出さなかった解ける問題の数）。演習セットに入っていない問題は採点のみ（記録されない旨を表示）。答えは一度解答を試した後に見られる
 - 次の段階: 教員が `difficulty` を付ければ習熟度連動が効く。不正解が続く問題は教員ビューで可視化
 
 # 次にやること
