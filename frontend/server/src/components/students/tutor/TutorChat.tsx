@@ -13,13 +13,13 @@ import {
 	Loader2,
 	MessageSquare,
 	PanelLeft,
+	PanelLeftClose,
 	Pencil,
 	Plus,
 	RotateCcw,
 	SlidersHorizontal,
 	Sparkles,
 	Trash2,
-	X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MathJax } from "@/components/shared/MathJax";
@@ -221,7 +221,30 @@ export function TutorChat({
 	const [answerLength, setAnswerLength] = useState<AnswerLength>("normal");
 	const [conversations, setConversations] = useState<ConversationItem[]>([]);
 	const [currentId, setCurrentId] = useState<number | null>(null);
-	const [sidebarOpen, setSidebarOpen] = useState(false);
+	const [sidebarOpen, setSidebarOpen] = useState(false); // モバイル: オーバーレイ表示
+	const [sidebarVisible, setSidebarVisible] = useState(true); // デスクトップ: 畳む／広げる（記憶する）
+	useEffect(() => {
+		try {
+			if (window.localStorage.getItem("tutor.sidebar") === "0")
+				setSidebarVisible(false);
+		} catch {
+			/* localStorage が使えない環境は既定（表示）のまま */
+		}
+	}, []);
+	const toggleSidebar = () => {
+		if (window.matchMedia("(min-width: 768px)").matches) {
+			setSidebarVisible((v) => {
+				try {
+					window.localStorage.setItem("tutor.sidebar", v ? "0" : "1");
+				} catch {
+					/* ignore */
+				}
+				return !v;
+			});
+		} else {
+			setSidebarOpen((v) => !v);
+		}
+	};
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const logRef = useRef<HTMLDivElement>(null);
@@ -478,9 +501,10 @@ export function TutorChat({
 
 	const sidebar = showSidebar ? (
 		<aside
-			className={`absolute inset-y-0 left-0 z-20 flex w-64 shrink-0 flex-col border-r bg-muted/40 backdrop-blur transition-transform md:static md:translate-x-0 ${
+			className={`absolute inset-y-0 left-0 z-20 flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/40 backdrop-blur transition-[transform,width,opacity] duration-200 md:static md:translate-x-0 ${
 				sidebarOpen ? "translate-x-0" : "-translate-x-full"
-			}`}
+			} ${sidebarVisible ? "md:w-64 md:opacity-100" : "md:w-0 md:border-r-0 md:opacity-0"}`}
+			aria-hidden={!sidebarOpen && !sidebarVisible}
 		>
 			<div className="flex items-center gap-1 p-2">
 				<Button
@@ -495,11 +519,11 @@ export function TutorChat({
 				<Button
 					variant="ghost"
 					size="icon"
-					className="md:hidden"
-					onClick={() => setSidebarOpen(false)}
-					aria-label="閉じる"
+					onClick={toggleSidebar}
+					aria-label="会話履歴を隠す"
+					title="会話履歴を隠す"
 				>
-					<X className="h-4 w-4" />
+					<PanelLeftClose className="h-4 w-4" />
 				</Button>
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -613,9 +637,10 @@ export function TutorChat({
 						<Button
 							variant="ghost"
 							size="icon"
-							className="md:hidden"
-							onClick={() => setSidebarOpen(true)}
-							aria-label="会話一覧"
+							onClick={toggleSidebar}
+							aria-label="会話履歴を表示／隠す"
+							title="会話履歴を表示／隠す"
+							aria-pressed={sidebarVisible}
 						>
 							<PanelLeft className="h-4 w-4" />
 						</Button>
