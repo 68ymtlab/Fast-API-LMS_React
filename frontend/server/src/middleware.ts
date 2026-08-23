@@ -87,7 +87,8 @@ export default withAuth(
 		for (const [pathPrefix, allowedRoles] of Object.entries(
 			protectedRoutesWithRoles,
 		)) {
-			if (pathname.startsWith(pathPrefix)) {
+			// セグメント境界で比較する（"/t" が "/tutor" に誤マッチしないように）
+			if (pathname === pathPrefix || pathname.startsWith(`${pathPrefix}/`)) {
 				if (!allowedRoles.includes(userRole)) {
 					if (appConfig.debugLevel >= LogLevel.WARN) {
 						debug.warn(

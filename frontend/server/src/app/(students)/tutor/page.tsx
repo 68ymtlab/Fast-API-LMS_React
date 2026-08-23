@@ -112,15 +112,19 @@ export default function TutorPage() {
 					choice_id: payload.choice_id ?? null,
 				});
 				const data = res.data;
+				const bundle = data.diagnosis ?? data.clarify;
 				push({
 					role: "tutor",
-					text: cleanReply(data.reply, data.banner),
+					// 選択肢はボタンとして別枠に出すので、吹き出しには問いかけ文だけを残す
+					text:
+						bundle?.choices?.length && bundle.prompt
+							? bundle.prompt
+							: cleanReply(data.reply, data.banner),
 					banner: data.banner || undefined,
 					citations: data.citations ?? [],
 					viz: data.viz ?? null,
 					knowledgeMode: data.knowledge_mode,
 				});
-				const bundle = data.diagnosis ?? data.clarify;
 				if (bundle?.choices?.length) {
 					setChoices({
 						kind: data.diagnosis ? "diagnosis" : "clarify",
@@ -192,7 +196,7 @@ export default function TutorPage() {
 			<div className="mx-auto flex h-[calc(100vh-8rem)] w-full max-w-4xl flex-col gap-3 p-4">
 				<Card className="shrink-0">
 					<CardHeader className="py-4">
-						<div className="flex items-center justify-between gap-2">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<div>
 								<CardTitle className="flex items-center gap-2 text-lg">
 									<Sparkles className="h-5 w-5" />
@@ -202,7 +206,7 @@ export default function TutorPage() {
 									わからないところをそのまま聞いてください。教科書の該当箇所を引用しながら説明します。
 								</CardDescription>
 							</div>
-							<div className="flex items-center gap-2">
+							<div className="flex shrink-0 items-center gap-2">
 								{serviceOk === false ? (
 									<Badge variant="destructive">停止中</Badge>
 								) : null}
@@ -244,7 +248,7 @@ export default function TutorPage() {
 								className={`flex gap-2 ${m.role === "student" ? "justify-end" : "justify-start"}`}
 							>
 								{m.role !== "student" ? (
-									<div className="mt-1 shrink-0 rounded-full bg-muted p-1.5">
+									<div className="mt-1 shrink-0 self-start rounded-full bg-muted p-1.5">
 										<Bot className="h-4 w-4" />
 									</div>
 								) : null}
@@ -294,7 +298,7 @@ export default function TutorPage() {
 									) : null}
 								</div>
 								{m.role === "student" ? (
-									<div className="mt-1 shrink-0 rounded-full bg-primary/10 p-1.5">
+									<div className="mt-1 shrink-0 self-start rounded-full bg-primary/10 p-1.5">
 										<User className="h-4 w-4" />
 									</div>
 								) : null}
