@@ -10,8 +10,16 @@ import {
 	type MouseEvent as ReactMouseEvent,
 } from "react";
 import { MathJax, MathJaxSetup } from "@/components/shared/MathJax";
+import { TutorChat } from "@/components/students/tutor/TutorChat";
 import TcAccessTime from "@/components/tc_access_time";
 import { Button } from "@/components/ui/button";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
 
@@ -721,6 +729,8 @@ const LessonPage = () => {
 	const [error, setError] = useState<string | null>(null);
 	const [markers, setMarkers] = useState<TextbookMarkerType[]>([]);
 	const [markerMode, setMarkerMode] = useState(false);
+	// AI チューター（教科書を見ながら質問）サイドパネル
+	const [tutorOpen, setTutorOpen] = useState(false);
 	const [showMarkerHint, setShowMarkerHint] = useState(true);
 	const [popup, setPopup] = useState<PopupState | null>(null);
 	const [contextMenu, setContextMenu] = useState<MarkerContextMenuState | null>(null);
@@ -1421,8 +1431,44 @@ const LessonPage = () => {
 				page="student_lesson_page" 
 				details={JSON.stringify({ course_id, lesson_item_id, current_page: page, total_pages: totalPages })}
 			/>
+			{/* AI チューター: このページを見ながら質問できるサイドパネル */}
+			<Sheet open={tutorOpen} onOpenChange={setTutorOpen}>
+				<SheetContent
+					side="right"
+					className="flex w-full flex-col gap-0 p-0 sm:max-w-xl"
+				>
+					<SheetHeader className="border-b px-4 py-3 text-left">
+						<SheetTitle className="text-base">AIチューター</SheetTitle>
+						<SheetDescription className="text-xs">
+							いま開いている「
+							{currentPage?.title || lessonItem?.title || "このページ"}
+							」の内容を踏まえて答えます。「この式は？」だけでも大丈夫です。
+						</SheetDescription>
+					</SheetHeader>
+					<MathJaxSetup>
+						<TutorChat
+							compact
+							context={{
+								course_id: Number(course_id) || null,
+								lesson_item_id: Number(lesson_item_id) || null,
+								lesson_page_id: currentPage?.id ?? null,
+							}}
+						/>
+					</MathJaxSetup>
+				</SheetContent>
+			</Sheet>
+
 			{/* マーカーモードトグル（画面右上に固定）＋簡単なガイド */}
 			<div className="fixed right-4 top-20 z-40 flex flex-col items-end gap-2">
+				<Button
+					size="icon"
+					variant={tutorOpen ? "default" : "outline"}
+					onClick={() => setTutorOpen(true)}
+					aria-label="AIチューターに質問する"
+					title="AIチューターに質問する"
+				>
+					<span className="text-xl">🤖</span>
+				</Button>
 				<Button
 					size="icon"
 					variant={markerMode ? "default" : "outline"}

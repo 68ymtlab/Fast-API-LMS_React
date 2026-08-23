@@ -5,15 +5,22 @@
   X-Student-Id（= users.id）と共有シークレット X-Tutor-Token を付けて転送する。
 - tutor サービス自体は公開しない（docker-compose で ports を閉じる）。
 """
+import html
+import re
+from datetime import datetime
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings
-from api.core.security import get_current_active_user
+from api.core.security import get_current_active_user, require_teacher_or_higher
+from api.db.session import get_db
 from api.models.users_model import Users
+from api.repositories.contents_repo import ContentRepository
+from api.repositories.lessons_repo import LessonRepository
 
 tutor_router = APIRouter(prefix="/tutor", tags=["AIチューター"])
 
@@ -21,9 +28,21 @@ tutor_router = APIRouter(prefix="/tutor", tags=["AIチューター"])
 _TIMEOUT = httpx.Timeout(connect=5.0, read=110.0, write=10.0, pool=5.0)
 
 
+class TutorContext(BaseModel):
+    """学生がいま開いている教科書ページ（フロントは ID だけ送る。本文は backend が DB から引く）。"""
+    course_id: Optional[int] = None
+    lesson_item_id: Optional[int] = None
+    lesson_page_id: Optional[int] = None
+
+
+class TutorOpenRequest(BaseModel):
+    context: Optional[TutorContext] = None
+
+
 class TutorMessageRequest(BaseModel):
     text: str = Field(default="", max_length=4000)
     choice_id: Optional[str] = Field(default=None, max_length=16)
+    context: Optional[TutorContext] = None
 
 
 class TutorMessageResponse(BaseModel):
@@ -37,6 +56,7 @@ class TutorMessageResponse(BaseModel):
     retrieval_path: str = ""
     turn_class: str = ""
     viz: Optional[dict[str, Any]] = None
+    conversation_id: Optional[int] = None
 
 
 class TutorSummaryResponse(BaseModel):
@@ -81,6 +101,84 @@ async def _forward(method: str, path: str, user: Users, json: Any = None) -> Any
     return res.json()
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"[ \t\u3000]+")
+PAGE_TEXT_MAX = 6000
+
+
+def _plain_text(body: str) -> str:
+    """教科書本文（Markdown + HTML 混在）を LLM に渡すプレーンテキストへ。数式（$...$）はそのまま残す。"""
+    t = _TAG_RE.sub(" ", body or "")
+    t = html.unescape(t)
+    t = re.sub(r"\$\\\\+\$", "\n", t)  # 本文中の改行代替 `$\\$`
+    t = _WS_RE.sub(" ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()[:PAGE_TEXT_MAX]
+
+
+async def _resolve_page_context(ctx: Optional[TutorContext], db: AsyncSession) -> Optional[dict[str, Any]]:
+    """context.lesson_page_id から tutor 用の page_context（タイトル・本文）を組み立てる。見つからなければ ID だけ渡す。"""
+    if ctx is None:
+        return None
+    out: dict[str, Any] = {
+        "course_id": ctx.course_id,
+        "lesson_item_id": ctx.lesson_item_id,
+        "lesson_page_id": ctx.lesson_page_id,
+        "title": "",
+        "text": "",
+    }
+    if not ctx.lesson_page_id:
+        return out
+    page = await LessonRepository(db).get_lesson_page_by_id(page_id=ctx.lesson_page_id)
+    if page is None or not page.is_active:
+        return out
+    out["title"] = page.title or ""
+    content_id = page.raw_content_id or page.rendered_content_id
+    if content_id:
+        content = await ContentRepository(db).get_content_by_id(content_id=content_id)
+        if content is not None:
+            out["text"] = _plain_text(content.content_body)
+    return out
+
+
+@tutor_router.post("/open")
+async def tutor_open(
+    body: TutorOpenRequest,
+    current_user: Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """チャットを開いたとき: 引き継ぎ（前回の続き）・挨拶・履歴。LLM は呼ばない。"""
+    page_context = await _resolve_page_context(body.context, db)
+    return await _forward("POST", "/session/open", current_user, json={"page_context": page_context})
+
+
+@tutor_router.get("/history")
+async def tutor_history(
+    limit: int = Query(default=40, ge=1, le=200),
+    current_user: Users = Depends(get_current_active_user),
+):
+    return await _forward("GET", f"/session/history?limit={limit}", current_user)
+
+
+@tutor_router.get("/questions", dependencies=[Depends(require_teacher_or_higher)])
+async def tutor_questions(
+    limit: int = Query(default=100, ge=1, le=1000),
+    course_id: Optional[int] = None,
+    student_id: Optional[int] = None,
+    since: Optional[datetime] = None,
+    current_user: Users = Depends(get_current_active_user),
+):
+    """教員向け: 学生がチューターにした質問の一覧（tutor.v_student_questions）。"""
+    qs = [f"limit={limit}"]
+    if course_id is not None:
+        qs.append(f"course_id={course_id}")
+    if student_id is not None:
+        qs.append(f"student_id={student_id}")
+    if since is not None:
+        qs.append(f"since={since.isoformat()}")
+    return await _forward("GET", "/admin/questions?" + "&".join(qs), current_user)
+
+
 @tutor_router.get("/health")
 async def tutor_health(current_user: Users = Depends(get_current_active_user)):
     """チューターサービスの生存確認（ログインユーザーのみ）。"""
@@ -98,10 +196,16 @@ async def tutor_health(current_user: Users = Depends(get_current_active_user)):
 async def tutor_message(
     body: TutorMessageRequest,
     current_user: Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if not (body.text or "").strip() and not (body.choice_id or "").strip():
         raise HTTPException(status_code=400, detail="text または choice_id が必要です")
-    return await _forward("POST", "/session/message", current_user, json=body.model_dump())
+    payload = {
+        "text": body.text,
+        "choice_id": body.choice_id,
+        "page_context": await _resolve_page_context(body.context, db),
+    }
+    return await _forward("POST", "/session/message", current_user, json=payload)
 
 
 @tutor_router.get("/summary", response_model=TutorSummaryResponse)

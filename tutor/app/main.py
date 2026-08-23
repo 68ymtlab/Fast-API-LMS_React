@@ -1,11 +1,10 @@
 """AI チューター サービス（LMS 内部サービス）
 
-agents/workspace/rag/project/tutor-web/app/tutor_web.py を LMS 向けに移植したもの。
-違い:
-  - 単一セッション → 学生ごとのセッション（SessionManager, TTL 付き）
-  - HTML 配信なし（UI は LMS フロントエンド側）
-  - 公開 API は LMS backend（/api/tutor/*）からのみ呼ばれる想定。
-    呼び出し元は X-Student-Id ヘッダで学生を識別する（LMS backend が JWT 検証済みの user.id を入れる）。
+agents/workspace/rag/project/tutor-web/app/tutor_web.py を LMS 向けに移植・拡張したもの。
+  - 学生ごとのセッション（SessionManager, TTL 付き）
+  - Postgres（tutor スキーマ）への会話・質問・プロファイルの永続化と、再起動／翌日の引き継ぎ（store.py / state_io.py）
+  - 教科書ページ文脈（page_context）の注入
+  - 公開 API は LMS backend（/api/tutor/*）からのみ呼ばれる想定。X-Student-Id = LMS の users.id
 """
 from __future__ import annotations
 
@@ -14,40 +13,53 @@ import sys
 import threading
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-# 本番経路: クエリ埋め込みは vLLM(LiteLLM) /v1/embeddings、リランクは Manager /rerank
 os.environ.setdefault("DEEPRAG_USE_VLLM_EMBED", "1")
 
 APP_DIR = Path(__file__).resolve().parent
 CORE_DIR = Path(os.environ.get("TUTOR_CORE_DIR", APP_DIR.parent / "core"))
-if str(CORE_DIR) not in sys.path:
-    sys.path.insert(0, str(CORE_DIR))
+for d in (str(CORE_DIR), str(APP_DIR)):
+    if d not in sys.path:
+        sys.path.insert(0, d)
 
-from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: E402
+from fastapi import Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
+from deeprag_search import LLM_MODEL  # noqa: E402
+from state_io import restore_state  # noqa: E402
+from store import TutorStore  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
 
 SESSION_TTL_SEC = int(os.environ.get("TUTOR_SESSION_TTL_SEC", str(30 * 60)))
 SESSION_MAX = int(os.environ.get("TUTOR_SESSION_MAX", "200"))
+# この時間内に活動があった未終了の会話は「同じ会話の続き」として復元する
+RESUME_WINDOW_SEC = int(os.environ.get("TUTOR_RESUME_WINDOW_SEC", str(24 * 60 * 60)))
 SERVICE_TOKEN = os.environ.get("TUTOR_SERVICE_TOKEN", "").strip()
+STAGE4_DIR = os.environ.get("TUTOR_STAGE4_DIR")
+
+LEVEL_JA = {"none": "はじめて", "heard": "聞いたことがある", "can_compute": "計算できる", "can_prove": "証明できる", "unknown": "未設定"}
 
 
 class _Entry:
-    __slots__ = ("session", "lock", "last_used")
+    __slots__ = ("session", "lock", "last_used", "conversation_id", "lesson_page_id", "resumed")
 
-    def __init__(self, session: TutorSession):
+    def __init__(self, session: TutorSession, conversation_id: int | None, resumed: bool):
         self.session = session
         self.lock = threading.Lock()
         self.last_used = time.monotonic()
+        self.conversation_id = conversation_id
+        self.lesson_page_id: int | None = None
+        self.resumed = resumed
 
 
 class SessionManager:
-    """student_id → TutorSession。DeepRAGSearcher（重い）はプロセス内で共有する。"""
+    """student_id → TutorSession。DeepRAGSearcher（重い）はプロセス内で共有し、状態は store にも書く。"""
 
-    def __init__(self) -> None:
+    def __init__(self, store: TutorStore) -> None:
+        self.store = store
         self._searcher = None
         self._entries: dict[str, _Entry] = {}
         self._guard = threading.Lock()
@@ -56,50 +68,98 @@ class SessionManager:
         with self._guard:
             if self._searcher is None:
                 self._searcher = TutorSession().searcher
+        self.store.connect(STAGE4_DIR, len(getattr(self._searcher, "entities", {}) or {}) or None)
 
     @property
     def ready(self) -> bool:
         return self._searcher is not None
 
+    # ---- 内部 ----
     def _evict_locked(self) -> None:
         now = time.monotonic()
         expired = [k for k, e in self._entries.items() if now - e.last_used > SESSION_TTL_SEC]
         for k in expired:
-            self._entries.pop(k, None)
+            e = self._entries.pop(k)
+            self.store.end_conversation(e.conversation_id, "ttl", state=e.session.export_state())
         if len(self._entries) > SESSION_MAX:
-            for k, _ in sorted(self._entries.items(), key=lambda kv: kv[1].last_used)[
-                : len(self._entries) - SESSION_MAX
-            ]:
+            for k, e in sorted(self._entries.items(), key=lambda kv: kv[1].last_used)[: len(self._entries) - SESSION_MAX]:
                 self._entries.pop(k, None)
+                self.store.end_conversation(e.conversation_id, "evicted", state=e.session.export_state())
 
-    def get(self, student_id: str, create: bool = True) -> _Entry | None:
+    def _hydrate(self, student_id: str) -> _Entry:
+        """メモリに無い学生のセッションを DB から組み立てる（無ければ素のセッション）。"""
+        session = TutorSession(searcher=self._searcher)
+        sid = _to_int(student_id)
+        if sid is None or not self.store.enabled:
+            return _Entry(session, None, resumed=False)
+        conv = self.store.load_latest_conversation(sid)
+        if not conv:
+            return _Entry(session, None, resumed=False)
+        same_kb = (conv.get("kb_version_id") == self.store.kb_version_id)
+        last = conv.get("last_activity_at")
+        recent = bool(last) and (datetime.now(timezone.utc) - last) < timedelta(seconds=RESUME_WINDOW_SEC)
+        cont = recent and conv.get("ended_at") is None
+        session.state = restore_state(conv.get("state_json"), same_kb=same_kb, continue_conversation=cont)
+        entry = _Entry(session, conv["id"] if cont else None, resumed=cont)
+        if cont:
+            entry.lesson_page_id = conv.get("lesson_page_id")
+        return entry
+
+    # ---- 公開 ----
+    def get(self, student_id: str) -> _Entry:
         with self._guard:
             if self._searcher is None:
                 raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
             self._evict_locked()
             entry = self._entries.get(student_id)
-            if entry is None and create:
-                entry = _Entry(TutorSession(searcher=self._searcher))
+            if entry is None:
+                entry = self._hydrate(student_id)
                 self._entries[student_id] = entry
-            if entry is not None:
-                entry.last_used = time.monotonic()
+            entry.last_used = time.monotonic()
             return entry
 
-    def reset(self, student_id: str) -> tuple[TutorSession | None, TutorSession]:
+    def ensure_conversation(self, student_id: str, entry: _Entry, context: dict[str, Any] | None) -> None:
+        if entry.conversation_id is None:
+            sid = _to_int(student_id)
+            if sid is not None:
+                entry.conversation_id = self.store.start_conversation(sid, context)
+        elif context and context.get("lesson_page_id") and context.get("lesson_page_id") != entry.lesson_page_id:
+            self.store.touch_context(entry.conversation_id, context)
+        if context and context.get("lesson_page_id"):
+            entry.lesson_page_id = int(context["lesson_page_id"])
+
+    def reset(self, student_id: str) -> tuple[str, _Entry]:
         with self._guard:
             if self._searcher is None:
                 raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
             old = self._entries.pop(student_id, None)
-            new = _Entry(TutorSession(searcher=self._searcher))
-            self._entries[student_id] = new
-            return (old.session if old else None), new.session
+            summary = ""
+            seed = None
+            if old is not None:
+                summary = old.session.summarize_weak_points()
+                seed = old.session.export_state()
+                self.store.end_conversation(old.conversation_id, "reset", summary=summary, state=seed)
+            session = TutorSession(searcher=self._searcher)
+            # 理解度などの長期情報は引き継ぎ、会話は新規
+            session.state = restore_state(seed, same_kb=True, continue_conversation=False)
+            entry = _Entry(session, None, resumed=False)
+            self._entries[student_id] = entry
+            return summary, entry
 
     def stats(self) -> dict[str, Any]:
         with self._guard:
-            return {"active_sessions": len(self._entries), "ttl_sec": SESSION_TTL_SEC}
+            return {"active_sessions": len(self._entries), "ttl_sec": SESSION_TTL_SEC, "store": self.store.stats()}
 
 
-manager = SessionManager()
+def _to_int(s: str) -> int | None:
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        return None
+
+
+store = TutorStore(os.environ.get("TUTOR_DATABASE_URL"))
+manager = SessionManager(store)
 
 
 @asynccontextmanager
@@ -108,28 +168,46 @@ async def lifespan(_app: FastAPI):
     manager.warmup()
     print("チューター準備完了。", flush=True)
     yield
+    store.close()
 
 
-app = FastAPI(title="LMS AI Tutor Service", version="0.1", lifespan=lifespan)
+app = FastAPI(title="LMS AI Tutor Service", version="0.2", lifespan=lifespan)
 
 
 # ---- 認証（内部サービス用の簡易トークン + 学生ID） ----
-def _auth(
-    x_student_id: str = Header(..., alias="X-Student-Id"),
-    x_tutor_token: str | None = Header(default=None, alias="X-Tutor-Token"),
-) -> str:
+def _service_auth(x_tutor_token: str | None = Header(default=None, alias="X-Tutor-Token")) -> None:
     if SERVICE_TOKEN and (x_tutor_token or "") != SERVICE_TOKEN:
         raise HTTPException(status_code=401, detail="invalid service token")
+
+
+def _auth(
+    x_student_id: str = Header(..., alias="X-Student-Id"),
+    _: None = Depends(_service_auth),
+) -> str:
     sid = (x_student_id or "").strip()
     if not sid:
         raise HTTPException(status_code=400, detail="X-Student-Id が必要です")
     return sid
 
 
-# ---- スキーマ（tutor_web.py と同形） ----
+# ---- スキーマ ----
+class PageContext(BaseModel):
+    """学生がいま開いている教科書ページ（LMS backend が本文を埋めて渡す）。"""
+    course_id: int | None = None
+    lesson_item_id: int | None = None
+    lesson_page_id: int | None = None
+    title: str = ""
+    text: str = Field(default="", max_length=20000)
+
+
+class OpenRequest(BaseModel):
+    page_context: PageContext | None = None
+
+
 class MessageRequest(BaseModel):
     text: str = Field(default="")
     choice_id: str | None = Field(default=None)
+    page_context: PageContext | None = None
 
 
 class MessageResponse(BaseModel):
@@ -143,6 +221,7 @@ class MessageResponse(BaseModel):
     retrieval_path: str = ""
     turn_class: str = ""
     viz: dict[str, Any] | None = None
+    conversation_id: int | None = None
 
 
 class SummaryResponse(BaseModel):
@@ -150,10 +229,80 @@ class SummaryResponse(BaseModel):
     state: dict[str, Any]
 
 
+def _ctx_dict(pc: PageContext | None) -> dict[str, Any] | None:
+    if pc is None:
+        return None
+    return {"course_id": pc.course_id, "lesson_item_id": pc.lesson_item_id, "lesson_page_id": pc.lesson_page_id,
+            "page_title": pc.title or None}
+
+
+def _apply_page_context(session: TutorSession, pc: PageContext | None) -> None:
+    if pc is None or not (pc.title or pc.text):
+        session.page_context = None
+        return
+    session.page_context = {"lesson_page_id": pc.lesson_page_id, "title": pc.title, "text": pc.text}
+
+
+def _greeting(entry: _Entry, pc: PageContext | None, profile: dict[str, Any] | None) -> str:
+    st = entry.session.state
+    ls = st.learner_state
+    parts: list[str] = []
+    if entry.resumed:
+        if st.focus_concept:
+            parts.append(f"前回の続きです。「{st.focus_concept}」について話していました。そのまま続けてください。")
+        else:
+            parts.append("前回の続きです。そのまま続けてください。")
+    elif profile and (profile.get("last_focus_concept") or profile.get("turn_count")):
+        lvl = LEVEL_JA.get(str(ls.understanding_level), "")
+        if profile.get("last_focus_concept"):
+            parts.append(
+                f"おかえりなさい。前回は「{profile['last_focus_concept']}」を学んでいましたね"
+                + (f"（理解度: {lvl}）" if lvl and lvl != "未設定" else "")
+                + "。続きからでも、別の質問でも大丈夫です。"
+            )
+        else:
+            parts.append("おかえりなさい。わからないところをそのまま聞いてください。")
+    else:
+        parts.append("はじめまして。わからないところをそのまま聞いてください。教科書の該当箇所を引用しながら説明します。")
+    if pc is not None and pc.title:
+        parts.append(f"いま開いている「{pc.title}」のページについても、そのまま聞けます（「この式は？」だけでも大丈夫です）。")
+    return " ".join(parts)
+
+
+def _history_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for r in rows:
+        out.append({
+            "seq": r["seq"], "role": r["role"], "text": r["text"], "choice_id": r.get("choice_id"),
+            "banner": r.get("banner") or "", "citations": r.get("citations") or [], "viz": r.get("viz"),
+            "diagnosis": r.get("diagnosis"), "clarify": r.get("clarify"), "knowledge_mode": r.get("knowledge_mode"),
+            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+        })
+    return out
+
+
 # ---- エンドポイント ----
 @app.get("/health")
 def health():
     return {"ok": manager.ready, **manager.stats()}
+
+
+@app.post("/session/open")
+def open_session(body: OpenRequest, student_id: str = Depends(_auth)):
+    """画面を開いたとき: 引き継ぎ状況・挨拶・（継続なら）直近の履歴を返す。LLM は呼ばない。"""
+    entry = manager.get(student_id)
+    sid = _to_int(student_id)
+    profile = store.load_profile(sid) if sid is not None else None
+    with entry.lock:
+        history = _history_items(store.load_turns(entry.conversation_id)) if entry.resumed and entry.conversation_id else []
+        return {
+            "resumed": entry.resumed,
+            "conversation_id": entry.conversation_id,
+            "greeting": _greeting(entry, body.page_context, profile),
+            "history": history,
+            "state": entry.session.debug_state(),
+            "persistence": store.enabled,
+        }
 
 
 @app.post("/session/message", response_model=MessageResponse)
@@ -163,11 +312,24 @@ def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
     if not text and not choice_id:
         raise HTTPException(status_code=400, detail="text または choice_id が必要です")
     entry = manager.get(student_id)
-    assert entry is not None
     with entry.lock:  # TutorSession はスレッドセーフでないため学生単位で直列化
         session = entry.session
+        manager.ensure_conversation(student_id, entry, _ctx_dict(body.page_context))
+        _apply_page_context(session, body.page_context)
+        t0 = time.monotonic()
         turn = session.handle_turn(text or choice_id or "", choice_id=choice_id)
+        latency_ms = int((time.monotonic() - t0) * 1000)
         state = turn.get("state") or session.debug_state()
+        sid = _to_int(student_id)
+        if sid is not None:
+            try:
+                store.record_turn_pair(
+                    conversation_id=entry.conversation_id, student_id=sid, student_text=text, choice_id=choice_id,
+                    turn=turn, state=session.export_state(), debug_state=session.debug_state(),
+                    lesson_page_id=entry.lesson_page_id, latency_ms=latency_ms, llm_model=LLM_MODEL,
+                )
+            except Exception as exc:  # 永続化失敗で対話を止めない
+                print(f"  [store] record failed: {exc}", flush=True)
     return MessageResponse(
         reply=str(turn.get("reply") or ""),
         state=state,
@@ -179,44 +341,59 @@ def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
         retrieval_path=str(turn.get("retrieval_path") or ""),
         turn_class=str(turn.get("turn_class") or ""),
         viz=turn.get("viz"),
+        conversation_id=entry.conversation_id,
     )
+
+
+@app.get("/session/history")
+def get_history(limit: int = Query(default=40, ge=1, le=200), student_id: str = Depends(_auth)):
+    entry = manager.get(student_id)
+    if entry.conversation_id is None:
+        return {"conversation_id": None, "items": []}
+    return {"conversation_id": entry.conversation_id, "items": _history_items(store.load_turns(entry.conversation_id, limit))}
 
 
 @app.get("/session/summary", response_model=SummaryResponse)
 def get_summary(student_id: str = Depends(_auth)):
     entry = manager.get(student_id)
-    assert entry is not None
     with entry.lock:
-        return SummaryResponse(
-            summary=entry.session.summarize_weak_points(),
-            state=entry.session.debug_state(),
-        )
+        return SummaryResponse(summary=entry.session.summarize_weak_points(), state=entry.session.debug_state())
 
 
 @app.get("/session/state")
 def get_state(student_id: str = Depends(_auth)):
-    entry = manager.get(student_id, create=False)
-    if entry is None:
-        return {"exists": False, "state": None}
+    entry = manager.get(student_id)
     with entry.lock:
-        return {"exists": True, "state": entry.session.debug_state()}
+        return {"exists": True, "conversation_id": entry.conversation_id, "resumed": entry.resumed,
+                "state": entry.session.debug_state()}
 
 
 @app.post("/session/reset", response_model=SummaryResponse)
 def post_reset(student_id: str = Depends(_auth)):
-    old, new = manager.reset(student_id)
-    summary = old.summarize_weak_points() if old is not None else ""
-    return SummaryResponse(summary=summary, state=new.debug_state())
+    summary, entry = manager.reset(student_id)
+    return SummaryResponse(summary=summary, state=entry.session.debug_state())
+
+
+# ---- 教員／管理用（LMS backend が教員権限を確認してから呼ぶ） ----
+@app.get("/admin/questions")
+def admin_questions(
+    limit: int = Query(default=100, ge=1, le=1000),
+    course_id: int | None = None,
+    student_id: int | None = None,
+    since: datetime | None = None,
+    _: None = Depends(_service_auth),
+):
+    rows = store.list_questions(limit=limit, course_id=course_id, student_id=student_id, since=since)
+    for r in rows:
+        if r.get("created_at"):
+            r["created_at"] = r["created_at"].isoformat()
+    return {"items": rows, "persistence": store.enabled}
 
 
 def main() -> None:
     import uvicorn
 
-    uvicorn.run(
-        app,
-        host=os.environ.get("TUTOR_HOST", "0.0.0.0"),
-        port=int(os.environ.get("TUTOR_PORT", "8765")),
-    )
+    uvicorn.run(app, host=os.environ.get("TUTOR_HOST", "0.0.0.0"), port=int(os.environ.get("TUTOR_PORT", "8765")))
 
 
 if __name__ == "__main__":

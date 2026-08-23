@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import threading
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
@@ -373,6 +374,10 @@ def _chat_json(
             return {"_raw": blob, "_parse_error": "json_fail"}
 
 
+# [LMS port] 開いている教科書ページのタイトル（スレッド毎。TutorSession.handle_turn が毎ターン設定）
+_page_hint = threading.local()
+
+
 def _topic_key_from_query(query: str) -> str:
     q = (query or "").strip()
     hits = [c for c in KNOWN_CONCEPTS if c in q]
@@ -385,6 +390,10 @@ def _topic_key_from_query(query: str) -> str:
         return hits[0]
     if hits:
         return hits[0]
+    # [LMS port] 指示語だけ／ごく短い質問は、開いているページのタイトルを話題にする（「このEって何」→「単位行列」）
+    hint = str(getattr(_page_hint, "title", "") or "").strip()
+    if hint and (re.search(r"(この|これ|ここ|それ|その|上の|下の|左の|右の)", q) or len(q) < 12):
+        return hint
     q2 = re.sub(r"[？\?！!。．\s]+", "", q)
     q2 = re.sub(
         r"(って何|とは何|とは|ってなに|教えて|を説明|について|"
@@ -439,6 +448,8 @@ class TutorSession:
         )
         self.state = SessionState()
         self._last_turn: dict[str, Any] = {}
+        # [LMS port] 学生がいま開いている教科書ページ {"title","text","lesson_page_id"}（LMS から毎ターン更新）
+        self.page_context: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # public API
@@ -453,6 +464,7 @@ class TutorSession:
         """構造化ターン結果（Web / 評価用）。"""
         text = (text or "").strip()
         choice_id = (choice_id or "").strip() or None
+        _page_hint.title = str((self.page_context or {}).get("title") or "")  # [LMS port]
 
         if not text and not choice_id:
             return self._pack_turn("何か質問を書いてください。")
@@ -1138,6 +1150,10 @@ class TutorSession:
             return self.state.last_retrieval_query or f"{focus} の定義"
         # new topic: 生文ではなく概念寄りの検索クエリ
         topic = _topic_key_from_query(user_text)
+        # [LMS port] 「この式」「ここ」のような指示語だけの質問は、開いているページのタイトルを概念にする
+        page_title = str((self.page_context or {}).get("title") or "").strip()
+        if page_title and (not topic or len(user_text) < 12):
+            return f"{page_title} {topic or user_text}".strip()
         if topic:
             return f"{topic} とは何か"
         return user_text
@@ -1184,6 +1200,7 @@ class TutorSession:
                 explain_mode=explain_mode,
                 turn_class=turn_class,
                 last_explanation=self.state.last_explanation,
+                page_context=self.page_context,
             )
             cite_block = (
                 DeepRAGSearcher.format_citations_block(citations)
@@ -1212,6 +1229,7 @@ class TutorSession:
                 last_explanation=self.state.last_explanation or None,
                 skip_banner=skip_banner,
                 answer_query=user_text,
+                page_context=self.page_context,
             )
             answer = (result.get("answer") or "").strip() or "（回答を生成できませんでした）"
             answer_body = (result.get("answer_body") or "").strip()

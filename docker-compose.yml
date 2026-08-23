@@ -44,6 +44,9 @@ services:
         http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
         https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
     container_name: lms-tutor
+    depends_on:
+      db:
+        condition: service_healthy
     env_file:
       - ./tutor/.env
     environment:

@@ -1279,6 +1279,7 @@ class DeepRAGSearcher:
         last_explanation=None,
         skip_banner=False,
         answer_query=None,
+        page_context=None,
     ):
         """
         DeepRAG検索のメイン関数
@@ -1329,6 +1330,7 @@ class DeepRAGSearcher:
                 explain_mode=explain_mode,
                 turn_class=turn_class,
                 last_explanation=last_explanation,
+                page_context=page_context,
             )
             cite_block = self.format_citations_block(result.get("citations") or [])
             parts = []
@@ -1488,9 +1490,11 @@ class DeepRAGSearcher:
         explain_mode=None,
         turn_class=None,
         last_explanation=None,
+        page_context=None,
     ):
         """
         LLMによる回答生成（対話文脈・説明モード対応）
+        page_context: [LMS port] 学生がいま LMS で開いている教科書ページ {"title","text","lesson_page_id"}
         """
         if audience is None:
             audience = self.answer_audience
@@ -1559,8 +1563,21 @@ class DeepRAGSearcher:
                 + "\n"
             )
 
+        # [LMS port] いま開いている教科書ページ（「この式」「ここ」の指示対象として使う）
+        page_block = ""
+        if page_context and (page_context.get("title") or page_context.get("text")):
+            page_block = (
+                "\n## 学生がいま開いている教科書ページ\n"
+                f"タイトル: {page_context.get('title') or '(不明)'}\n"
+                "学生が「この」「ここ」「この式」などと言ったら、このページの内容を指している。"
+                "このページの説明に沿って答え、ページ内の記号・番号はそのまま使う。\n"
+                "本文（抜粋）:\n"
+                + str(page_context.get("text") or "")[:3000]
+                + "\n"
+            )
+
         user_prompt = f"""以下の教科書の文脈と会話を踏まえて、質問／発話に回答してください。
-{state_block}{km_note}{focus_block}{mode_block}{dialogue_block}{last_exp_block}
+{state_block}{km_note}{focus_block}{mode_block}{page_block}{dialogue_block}{last_exp_block}
 ## 質問／発話
 {query}
 

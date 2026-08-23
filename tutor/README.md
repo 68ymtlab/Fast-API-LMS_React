@@ -5,7 +5,9 @@
 
 ```
 tutor/
-├── app/main.py          FastAPI。学生ごとの TutorSession（SessionManager, TTL 30分）
+├── app/main.py          FastAPI。学生ごとの TutorSession（SessionManager, TTL 30分）、引き継ぎ、page_context
+├── app/store.py         Postgres（tutor スキーマ）への永続化。TUTOR_DATABASE_URL 未設定なら無効
+├── app/state_io.py      SessionState のスナップショット復元（KG 依存フィールドの切り分け）
 ├── core/                研究側 scripts/rag/ からの移植（deeprag_search, tutor_session, thin_agent, tutor_viz, learner_model）
 ├── config/production_pipeline.json
 ├── data/stage4/         実データ（git 管理外）。scripts/sync_from_agents.sh で取り込む
@@ -46,7 +48,10 @@ VLLM_MANAGER_URL=http://hinton.kanazawa-it.ac.jp:18000 ANTHROPIC_AUTH_TOKEN=... 
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | `/health` | 生存確認 + セッション数 |
+| GET | `/health` | 生存確認 + セッション数 + store の件数 |
+| POST | `/session/open` | `{"page_context":{...}}` → 引き継ぎ判定・挨拶・履歴（LLM 不使用） |
+| GET | `/session/history` | 現在の会話の履歴 |
+| GET | `/admin/questions` | 学生の質問一覧（教員向け。backend が権限確認してから呼ぶ） |
 | POST | `/session/message` | `{"text":"...", "choice_id":null}` → 返答（reply / state / diagnosis / clarify / citations / knowledge_mode / banner / viz …） |
 | GET | `/session/summary` | 弱点まとめ |
 | GET | `/session/state` | セッションの有無とデバッグ状態 |
@@ -65,8 +70,11 @@ VLLM_MANAGER_URL=http://hinton.kanazawa-it.ac.jp:18000 ANTHROPIC_AUTH_TOKEN=... 
 
 ## 研究側コードとの差分
 
-`core/deeprag_search.py` のみ `[LMS port]` コメント付きの最小パッチ2点（パス上書き env、`sentence_transformers` の任意化）。
-再同期（`sync_from_agents.sh --code`）後はこの2点を再適用すること。他ファイルは無改変。
+`[LMS port]` コメント付きの最小パッチ。再同期（`sync_from_agents.sh --code`）後は再適用すること。
+- `core/deeprag_search.py`: パス上書き env、`sentence_transformers` の任意化、`search/generate_answer` の `page_context` 引数
+- `core/tutor_session.py`: `page_context` 属性、指示語質問の話題名ヒント（`_page_hint`）、`_compose_answer` からの受け渡し
+
+永続化・引き継ぎ・教科書連携の設計: [`docs/ai-tutor-data.md`](../docs/ai-tutor-data.md)
 
 ## 移植元（2026-08-23 時点）
 
