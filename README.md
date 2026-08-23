@@ -34,12 +34,15 @@ docker compose exec backend poetry run python scripts/seed_users.py
 
 全ユーザーのパスワードは `password`。ログイン後は要変更。
 
-### 4. DB リセット
+### 4. DB リセット（開発環境のみ）
 
 ```bash
 ./scripts/reset.sh   # Linux/macOS
 scripts\reset.bat    # Windows
 ```
+
+> ⚠️ `reset.sh` は `docker compose down -v` で**全ボリューム（DB・アップロード）を削除**します。
+> 開発環境専用です。**本番では絶対に実行しないでください。**
 
 ## 開発環境: フロントエンド起動
 
@@ -66,15 +69,26 @@ docker compose exec backend poetry run python scripts/seed_users.py
 ./scripts/deploy.sh
 ```
 
-教室 Wi-Fi からアクセスできない場合の Docker ネットワーク変更手順は [docs/docker-network.md](docs/docker-network.md) を参照。
+`deploy.sh` はデプロイ前に **DB とアップロードを自動バックアップ**してから
+`up --build`（`-v` を使わないのでデータは保持）を行います。バックアップは
+`db/backups/` に保存され、失敗時はデプロイを中止します。
+
+**詳しい手順は運用手順書を参照してください:**
+
+- 📘 [本番デプロイ手順書](docs/runbook-deploy.md) — デプロイ・バックアップ・復元・ロールバック
+- 🔐 [シークレット・ローテーション手順書](docs/runbook-secret-rotation.md) — `SECRET_KEY` 等の更新
+- 🌐 [Docker ネットワーク設定](docs/docker-network.md) — 教室 Wi-Fi との衝突回避
 
 ### セキュリティ: 秘密情報の取り扱い
 
-- **`SECRET_KEY` と `DOCS_PASSWORD` は必ず環境ごとに新しい値を生成すること**
+- **`SECRET_KEY`・`DOCS_PASSWORD`・`NEXTAUTH_SECRET` は必ず環境ごとに新しい値を生成すること**
   （`openssl rand -hex 32`）。過去に `.env` 本体がコミットされていた時期があり、
-  Git 履歴から旧値を参照できるため、履歴に載った値は使い続けないこと。
-- `SECRET_KEY` を変更すると発行済みの全トークンが無効になり、
-  全ユーザーは再ログインが必要になる（意図的な運用手順として有効）。
+  Git 履歴から旧値を参照できる。加えて一部は公開サンプル値のままなので、
+  本番では**必ず**交換する。手順は [シークレット・ローテーション手順書](docs/runbook-secret-rotation.md)。
+- `SECRET_KEY` / `NEXTAUTH_SECRET` を変更すると発行済みの全トークン・セッションが無効になり、
+  全ユーザーは再ログインが必要になる（漏洩トークンの一括失効として有効）。
+- `.env` を変更したら `restart` ではなく `up -d --force-recreate` で反映する
+  （`restart` は `env_file` を再読込しない）。
 - `.env` 系ファイルは絶対にコミットしない（`.gitignore` 済み）。
 
 本番向け `frontend` は `docker-compose.prod.yml` で以下を上書きしています。

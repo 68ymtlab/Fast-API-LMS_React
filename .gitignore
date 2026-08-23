@@ -61,6 +61,10 @@ backend/static/images/**
 AGENTS.md
 
 # --- docs ---
-**/docs/
+# 運用手順書 (docs/*.md) は追跡する。作業用スクラッチのみ無視する。
+docs/plan/
+docs/responsive-shots/
+docs/responsive-check.sh
+docs/improvement-report.md
 # DB/アップロードのバックアップ（本番運用時に生成）
 db/backups/
