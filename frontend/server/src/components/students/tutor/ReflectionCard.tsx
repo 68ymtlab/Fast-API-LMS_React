@@ -53,20 +53,29 @@ function Bullets({ items }: { items: string[] }) {
 	);
 }
 
+const SCOPE_TITLE: Record<string, { title: string; did: string }> = {
+	current: { title: "この会話の振り返り", did: "この会話でやったこと" },
+	previous: { title: "前回の会話の振り返り", did: "前回やったこと" },
+	all: { title: "これまでの振り返り（直近30日）", did: "これまでにやったこと" },
+};
+
 export function ReflectionCard({
 	r,
 	level,
 	goal,
+	scope = "current",
 }: {
 	r: Reflection;
 	level?: string;
 	goal?: string;
+	scope?: string;
 }) {
+	const t = SCOPE_TITLE[scope] ?? SCOPE_TITLE.current;
 	return (
 		<div className="rounded-xl border bg-muted/30 px-4 py-3">
 			<div className="mb-3 flex items-center gap-2">
 				<Sparkles className="h-4 w-4" />
-				<span className="text-sm font-semibold">振り返り</span>
+				<span className="text-sm font-semibold">{t.title}</span>
 				{level ? (
 					<span className="ml-auto text-[11px] text-muted-foreground">
 						理解度: {level}
@@ -75,10 +84,7 @@ export function ReflectionCard({
 				) : null}
 			</div>
 			<div className="grid gap-4 md:grid-cols-2">
-				<Section
-					icon={<BookOpen className="h-3.5 w-3.5" />}
-					title="今日やったこと"
-				>
+				<Section icon={<BookOpen className="h-3.5 w-3.5" />} title={t.did}>
 					<Bullets items={r.did} />
 				</Section>
 				<Section

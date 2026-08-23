@@ -495,6 +495,8 @@ def get_history(limit: int = Query(default=40, ge=1, le=200), student_id: str = 
 class ReflectRequest(BaseModel):
     """backend が LMS 側の事実（演習の結果）を添えて呼ぶ。"""
     exercise: list[dict[str, Any]] = Field(default_factory=list)   # [{title, status, attempts, last_at}]
+    scope: str = Field(default="current", pattern="^(current|previous|all)$")
+    days: int = Field(default=30, ge=1, le=365)
 
 
 @app.get("/session/summary", response_model=SummaryResponse)
@@ -511,9 +513,15 @@ def post_reflect(body: ReflectRequest, student_id: str = Depends(_auth)):
     entry = manager.get(student_id)
     sid = _to_int(student_id)
     with entry.lock:
-        turns = store.load_turns(entry.conversation_id, 60) if entry.conversation_id else []
         profile = store.load_profile(sid) if sid is not None else None
-        out = reflect(entry.session, turns=turns, exercise=body.exercise, profile=profile)
+        if body.scope == "current":
+            turns = store.load_turns(entry.conversation_id, 60) if entry.conversation_id else []
+        elif body.scope == "previous":
+            prev_id = store.previous_conversation_id(sid, entry.conversation_id) if sid is not None else None
+            turns = store.load_recent_turns(sid, days=365, limit=80, only_conversation_id=prev_id) if prev_id else []
+        else:
+            turns = store.load_recent_turns(sid, days=body.days, limit=120) if sid is not None else []
+        out = reflect(entry.session, turns=turns, exercise=body.exercise, profile=profile, scope=body.scope, days=body.days)
         out["state"] = entry.session.debug_state()
         return out
 

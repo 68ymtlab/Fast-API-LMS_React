@@ -154,6 +154,7 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 (3) LMS の最近の演習結果（`student_answers`、backend が `exercise` として添付）、(4) KG の前提／発展（焦点エンティティの `get_dependencies` / `get_dependents`、節名で集約）。
 LLM 1 回（`response_format` の JSON Schema で拘束）で `{did, understood, stuck, next[{topic,why,how}], message}` を生成し、フロントは `ReflectionCard` で描画（Markdown に頼らない）。
 失敗時は研究側テンプレ `summarize_weak_points()` にフォールバック。演習問題の生成はしない（次に学ぶことの提案だけ）。実装: `tutor/app/reflection.py`。
+範囲（`scope`）: `current`=この会話 / `previous`=前回の会話（1 つ前） / `all`=直近 `days` 日（既定 30）の全会話（`tutor.turns` を会話横断で集め、日付・会話名つきで時系列に）。UI は上部バーの「学習の振り返り ▾」から選ぶ。空の会話からでも使える。
 
 # 次にやること
 

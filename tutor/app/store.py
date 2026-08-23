@@ -265,6 +265,42 @@ class TutorStore:
             ).fetchall()
         return list(rows)
 
+    def load_recent_turns(self, student_id: int, *, days: int = 30, limit: int = 80, exclude_conversation_id: int | None = None,
+                          only_conversation_id: int | None = None) -> list[dict[str, Any]]:
+        """振り返り用: 期間内の会話をまたいだ発話（会話タイトル・日時つき、古い順）。"""
+        if not self.enabled:
+            return []
+        where = ["c.student_id = %s", "COALESCE(c.end_reason,'') <> 'deleted'", "t.created_at >= CURRENT_TIMESTAMP - make_interval(days => %s)"]
+        args: list[Any] = [student_id, days]
+        if exclude_conversation_id is not None:
+            where.append("c.id <> %s"); args.append(exclude_conversation_id)
+        if only_conversation_id is not None:
+            where.append("c.id = %s"); args.append(only_conversation_id)
+        args.append(limit)
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            rows = conn.execute(
+                f"""SELECT * FROM (
+                      SELECT t.id, t.conversation_id, c.title AS conversation_title, c.page_title, t.seq, t.role, t.text, t.choice_id,
+                             t.turn_class, t.focus_concept, t.understanding_level, t.knowledge_mode, t.clarify, t.created_at
+                      FROM tutor.turns t JOIN tutor.conversations c ON c.id = t.conversation_id
+                      WHERE {' AND '.join(where)} ORDER BY t.created_at DESC LIMIT %s) s
+                    ORDER BY created_at ASC""",
+                args,
+            ).fetchall()
+        return list(rows)
+
+    def previous_conversation_id(self, student_id: int, current_id: int | None) -> int | None:
+        """直前の会話（現在の会話を除く、発話のあるもの）。"""
+        if not self.enabled:
+            return None
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            row = conn.execute(
+                """SELECT id FROM tutor.conversations WHERE student_id = %s AND COALESCE(end_reason,'') <> 'deleted' AND turn_count > 0
+                   AND (%s::bigint IS NULL OR id <> %s) ORDER BY last_activity_at DESC LIMIT 1""",
+                (student_id, current_id, current_id),
+            ).fetchone()
+        return int(row["id"]) if row else None
+
     def start_conversation(self, student_id: int, context: dict[str, Any] | None) -> int | None:
         if not self.enabled:
             return None

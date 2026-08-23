@@ -78,6 +78,7 @@ class TutorSummaryResponse(BaseModel):
     state: dict[str, Any]
     structured: Optional[dict[str, Any]] = None   # 深い振り返り（did / understood / stuck / next / message）
     source: Optional[str] = None
+    scope: Optional[str] = None
 
 
 def _headers(user: Users) -> dict[str, str]:
@@ -531,13 +532,17 @@ async def _recent_exercise_outcomes(db: AsyncSession, user_id: int, *, days: int
 
 @tutor_router.get("/summary", response_model=TutorSummaryResponse)
 async def tutor_summary(
+    scope: str = Query(default="current", pattern="^(current|previous|all)$"),
+    days: int = Query(default=30, ge=1, le=365),
     current_user: Users = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """振り返り（深い版）: 会話ログ・理解度・演習結果・教科書の依存関係から LLM が構造化。失敗時はテンプレ。"""
-    exercise = await _recent_exercise_outcomes(db, current_user.id)
-    data = await _forward("POST", "/session/reflect", current_user, json={"exercise": exercise})
-    return {"summary": data.get("summary") or "", "state": data.get("state") or {}, "structured": data.get("structured"), "source": data.get("source")}
+    """振り返り（深い版）: 会話ログ・理解度・演習結果・教科書の依存関係から LLM が構造化。失敗時はテンプレ。
+    scope: current=この会話 / previous=前回の会話 / all=直近 days 日の全会話"""
+    exercise = await _recent_exercise_outcomes(db, current_user.id, days=days if scope == "all" else 30)
+    data = await _forward("POST", "/session/reflect", current_user, json={"exercise": exercise, "scope": scope, "days": days})
+    return {"summary": data.get("summary") or "", "state": data.get("state") or {}, "structured": data.get("structured"),
+            "source": data.get("source"), "scope": scope}
 
 
 @tutor_router.get("/state")

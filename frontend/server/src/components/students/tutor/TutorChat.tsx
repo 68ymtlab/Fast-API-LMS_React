@@ -12,11 +12,11 @@ import {
 	ChevronDown,
 	Loader2,
 	MessageSquare,
+	NotebookPen,
 	PanelLeft,
 	PanelLeftClose,
 	Pencil,
 	Plus,
-	RotateCcw,
 	SlidersHorizontal,
 	Sparkles,
 	Trash2,
@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
@@ -49,6 +50,28 @@ export type TutorContext = {
 };
 
 export type AnswerLength = "short" | "normal" | "long";
+export type ReflectionScope = "current" | "previous" | "all";
+const REFLECTION_SCOPES: {
+	value: ReflectionScope;
+	label: string;
+	hint: string;
+}[] = [
+	{
+		value: "current",
+		label: "この会話",
+		hint: "いま開いている会話でやったこと・次の一歩",
+	},
+	{
+		value: "previous",
+		label: "前回の会話",
+		hint: "1つ前の会話をふり返る（続きを始めるときに）",
+	},
+	{
+		value: "all",
+		label: "これまで全体（30日）",
+		hint: "最近の学習の流れと、今後の重点",
+	},
+];
 const LENGTH_OPTIONS: { value: AnswerLength; label: string; hint: string }[] = [
 	{ value: "short", label: "短め", hint: "結論を2〜4文で" },
 	{ value: "normal", label: "ふつう", hint: "理解度に合わせた長さ" },
@@ -114,7 +137,7 @@ export interface ChatMessage {
 	relatedQuestions?: RelatedQuestion[];
 	relatedMeta?: RelatedMeta | null;
 	reflection?: Reflection | null;
-	reflectionMeta?: { level?: string; goal?: string };
+	reflectionMeta?: { level?: string; goal?: string; scope?: ReflectionScope };
 }
 
 const CITATION_HEADING = "## 参考（教科書）";
@@ -411,7 +434,7 @@ export function TutorChat({
 		}
 	};
 
-	const onSummary = async () => {
+	const onSummary = async (scope: ReflectionScope = "current") => {
 		if (sending) return;
 		setSending(true);
 		setError(null);
@@ -420,7 +443,7 @@ export function TutorChat({
 				summary: string;
 				structured?: Reflection | null;
 				state?: Record<string, unknown>;
-			}>("/tutor/summary");
+			}>("/tutor/summary", { params: { scope, days: 30 } });
 			const ls = (res.data.state?.learner_state ?? {}) as {
 				understanding_level?: string;
 				goal?: string;
@@ -446,6 +469,7 @@ export function TutorChat({
 					reflectionMeta: {
 						level: LV[ls.understanding_level ?? ""],
 						goal: GL[ls.goal ?? ""],
+						scope,
 					},
 				});
 			} else {
@@ -685,26 +709,49 @@ export function TutorChat({
 						{currentTitle ?? (compact ? "" : "AIチューター")}
 					</div>
 					<Button
-						variant="ghost"
+						variant="outline"
 						size="sm"
-						onClick={onSummary}
+						className="gap-1.5 rounded-full"
+						onClick={onNewConversation}
 						disabled={sending || opening}
-						title="この会話の振り返り"
+						title="新しい会話を始める（いまの会話は履歴に残ります）"
 					>
-						振り返り
+						<Plus className="h-4 w-4" />
+						<span className={compact ? "sr-only" : ""}>新しい会話</span>
 					</Button>
-					{!showSidebar ? (
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={onNewConversation}
-							disabled={sending || opening}
-							title="新しい会話"
-							aria-label="新しい会話"
-						>
-							<RotateCcw className="h-4 w-4" />
-						</Button>
-					) : null}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="outline"
+								size="sm"
+								className="gap-1.5 rounded-full"
+								disabled={sending || opening}
+								title="学習の振り返り（やったこと・できていること・次に勉強するとよいこと）"
+							>
+								<NotebookPen className="h-4 w-4" />
+								<span className={compact ? "sr-only" : ""}>学習の振り返り</span>
+								<ChevronDown className="h-3 w-3 opacity-70" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-72">
+							<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+								何を振り返りますか？（やったこと・できていること・つまずき・次に勉強するとよいこと）
+							</DropdownMenuLabel>
+							<DropdownMenuSeparator />
+							{REFLECTION_SCOPES.map((o) => (
+								<DropdownMenuItem
+									key={o.value}
+									className="flex-col items-start gap-0 py-2"
+									onSelect={() => void onSummary(o.value)}
+								>
+									<span className="text-sm">{o.label}</span>
+									<span className="text-xs text-muted-foreground">
+										{o.hint}
+									</span>
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 
 				{/* メッセージ列 */}
@@ -758,6 +805,7 @@ export function TutorChat({
 										r={m.reflection}
 										level={m.reflectionMeta?.level}
 										goal={m.reflectionMeta?.goal}
+										scope={m.reflectionMeta?.scope}
 									/>
 								) : /^##\s/m.test(m.text) ? (
 									// 振り返りなど見出し付きの長文はカードで（幅いっぱい・通常サイズ）

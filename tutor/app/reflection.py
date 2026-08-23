@@ -76,23 +76,41 @@ def _kg_neighbors(session: TutorSession, entity_id: str) -> tuple[list[str], lis
     return pre, post
 
 
-def build_facts(session: TutorSession, *, turns: list[dict[str, Any]], exercise: list[dict[str, Any]], profile: dict[str, Any] | None) -> dict[str, Any]:
+SCOPE_LABEL = {"current": "この会話", "previous": "前回の会話", "all": "これまで（期間内）"}
+
+
+def build_facts(session: TutorSession, *, turns: list[dict[str, Any]], exercise: list[dict[str, Any]], profile: dict[str, Any] | None,
+                scope: str = "current", days: int = 30) -> dict[str, Any]:
     st = session.state
     ls = st.learner_state
     questions = [t for t in turns if t.get("role") == "student" and not t.get("choice_id")]
     clarifies = [t for t in turns if t.get("role") == "tutor" and (t.get("clarify") or {}).get("choices")]
     pre, post = _kg_neighbors(session, st.focus_entity_id)
+    if scope == "all":
+        # 会話をまたぐ: 「会話タイトル（日付）: 質問」の形で時系列に
+        asked = []
+        for q in questions[-40:]:
+            d = q.get("created_at")
+            ds = d.strftime("%m/%d") if hasattr(d, "strftime") else ""
+            asked.append(f"[{ds} {str(q.get('conversation_title') or '')[:14]}] {str(q.get('text') or '')[:60]}")
+        asked_key = f"この{days}日間に聞いたこと（時系列）"
+    else:
+        asked = [str(q.get("text") or "")[:80] for q in questions][-12:]
+        asked_key = "この会話で聞いたこと（時系列）" if scope == "current" else "前回の会話で聞いたこと（時系列）"
+    topic_log = (st.topic_level_log or {}) if scope == "current" else ((profile or {}).get("topic_level_log") or st.topic_level_log or {})
     return {
+        "振り返りの範囲": SCOPE_LABEL.get(scope, scope) + (f"（直近{days}日）" if scope == "all" else ""),
         "理解度": LEVEL_JA.get(str(ls.understanding_level), str(ls.understanding_level)),
         "目的": GOAL_JA.get(str(ls.goal), str(ls.goal)),
         "焦点概念": st.focus_concept or "",
         "焦点の節": (st.focus_section or "").lstrip("# "),
-        "この会話で聞いたこと（時系列）": [str(q.get("text") or "")[:80] for q in questions][-12:],
+        asked_key: asked,
+        "会話の数（範囲内）": len({t.get("conversation_id") for t in turns}) if scope == "all" else 1,
         "聞き直し・言い直しの回数": sum(1 for t in turns if t.get("turn_class") in ("confused", "clarify_answer")),
         "つまずきの位置特定（clarify）の回数": len(clarifies),
         "トピック別の到達": {
             t: {"レベル": LEVEL_JA.get(str(d.get("level")), str(d.get("level"))), "やりとり": d.get("turns", 0), "混乱": d.get("confused", 0)}
-            for t, d in list((st.topic_level_log or {}).items())[-8:]
+            for t, d in list(topic_log.items())[-10:]
         },
         "既知のトピック": list(st.known_topics or [])[-10:],
         "演習の結果（最近）": exercise[:10],
@@ -102,10 +120,13 @@ def build_facts(session: TutorSession, *, turns: list[dict[str, Any]], exercise:
     }
 
 
-def render_markdown(r: dict[str, Any], facts: dict[str, Any]) -> str:
-    lines = ["## 振り返り", ""]
+DID_HEADING = {"current": "この会話でやったこと", "previous": "前回やったこと", "all": "これまでにやったこと"}
+
+
+def render_markdown(r: dict[str, Any], facts: dict[str, Any], scope: str = "current") -> str:
+    lines = [f"## 振り返り（{SCOPE_LABEL.get(scope, scope)}）", ""]
     if r.get("did"):
-        lines.append("### 今日やったこと")
+        lines.append(f"### {DID_HEADING.get(scope, 'やったこと')}")
         lines += [f"- {x}" for x in r["did"]]
         lines.append("")
     if r.get("understood"):
@@ -131,13 +152,19 @@ def render_markdown(r: dict[str, Any], facts: dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
-def reflect(session: TutorSession, *, turns: list[dict[str, Any]], exercise: list[dict[str, Any]], profile: dict[str, Any] | None) -> dict[str, Any]:
-    facts = build_facts(session, turns=turns, exercise=exercise, profile=profile)
-    user = "## 記録\n" + json.dumps(facts, ensure_ascii=False, indent=1) + "\n\n## 出力\nJSON のみ。"
+def reflect(session: TutorSession, *, turns: list[dict[str, Any]], exercise: list[dict[str, Any]], profile: dict[str, Any] | None,
+            scope: str = "current", days: int = 30) -> dict[str, Any]:
+    facts = build_facts(session, turns=turns, exercise=exercise, profile=profile, scope=scope, days=days)
+    if scope != "current" and not turns and not exercise:
+        return {"summary": "まだ振り返る記録がありません。質問をしてみてください。", "structured": None, "facts": facts, "source": "empty", "scope": scope}
+    hint = {"current": "「この会話」だけを対象にします。",
+            "previous": "「前回の会話」（今開いている会話の 1 つ前）だけを対象にします。did の主語は前回の学習です。",
+            "all": f"直近 {days} 日の全会話を対象にします。did は日付や会話名を添えて、学習の流れ（何から何へ進んだか）が分かるように。"}[scope if scope in ("current","previous","all") else "current"]
+    user = "## 振り返りの範囲\n" + hint + "\n\n## 記録\n" + json.dumps(facts, ensure_ascii=False, indent=1) + "\n\n## 出力\nJSON のみ。"
     try:
-        r = _chat_json(session.client, SYSTEM, user, max_tokens=900, temperature=0.3, response_format=SCHEMA)
+        r = _chat_json(session.client, SYSTEM, user, max_tokens=1000, temperature=0.3, response_format=SCHEMA)
         if not isinstance(r, dict) or r.get("_parse_error") or not r.get("did"):
             raise ValueError("bad reflection")
-        return {"summary": render_markdown(r, facts), "structured": r, "facts": facts, "source": "llm"}
+        return {"summary": render_markdown(r, facts, scope), "structured": r, "facts": facts, "source": "llm", "scope": scope}
     except Exception as exc:  # noqa: BLE001
-        return {"summary": session.summarize_weak_points(), "structured": None, "facts": facts, "source": f"fallback:{type(exc).__name__}"}
+        return {"summary": session.summarize_weak_points(), "structured": None, "facts": facts, "source": f"fallback:{type(exc).__name__}", "scope": scope}
