@@ -70,6 +70,7 @@ class TutorMessageResponse(BaseModel):
     viz: Optional[dict[str, Any]] = None
     conversation_id: Optional[int] = None
     related_questions: list[dict[str, Any]] = Field(default_factory=list)
+    related_meta: Optional[dict[str, Any]] = None
 
 
 class TutorSummaryResponse(BaseModel):
@@ -250,15 +251,16 @@ async def _related_questions(
     user_id: Optional[int] = None,
     tag: Optional[str] = None,
     record: bool = True,
-) -> list[dict[str, Any]]:
-    """いまの話題に近い既存問題。
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """いまの話題に近い既存問題。戻り値は (問題リスト, メタ{suppressed, topic_tags})。
 
     backend の仕事: 候補（public.questions）と学生の解答履歴・習熟度を集めて tutor に渡し、返ってきた問題を学生向けの形にする。
     選定（類似度の閾値、既に出した問題の除外 — 不正解は例外 —、加点・並べ替え、提示の記録）は tutor サービス側。
     """
     query = (query or "").strip()
+    empty_meta: dict[str, Any] = {"suppressed": 0, "topic_tags": []}
     if not query:
-        return []
+        return [], empty_meta
     stmt = select(questions_model.Questions).options(selectinload(questions_model.Questions.tags)).where(
         questions_model.Questions.is_active == True  # noqa: E712
     )
@@ -267,7 +269,7 @@ async def _related_questions(
         tag_l = tag.strip().lower()
         qs = [q for q in qs if any((t.name or "").lower() == tag_l or (t.slug or "").lower() == tag_l for t in (q.tags or []))]
     if not qs:
-        return []
+        return [], empty_meta
     by_id = {q.id: q for q in qs}
     statuses = await _answer_status(db, user_id, list(by_id)) if user_id is not None else {}
     mastery = await _mastery_for_course(db, user_id, course_id) if user_id is not None else None
@@ -292,10 +294,12 @@ async def _related_questions(
                 headers=headers,
             )
         if res.status_code != 200:
-            return []
-        ranked = res.json().get("items") or []
+            return [], empty_meta
+        payload = res.json()
+        ranked = payload.get("items") or []
+        meta_out = {"suppressed": len(payload.get("suppressed") or []), "topic_tags": payload.get("topic_tags") or []}
     except httpx.HTTPError:
-        return []
+        return [], empty_meta
     # 問題が入っている演習セット（あれば「演習ページで解く」リンク先）
     sets = (await db.execute(select(exercises_model.ExerciseSets))).scalars().all()
     set_by_q: dict[int, exercises_model.ExerciseSets] = {}
@@ -330,7 +334,7 @@ async def _related_questions(
             item["exercise_set"] = {"id": st.id, "title": st.title, "course_id": st.course_id,
                                     "url": f"/weekflows/{st.course_id}/{first_lesson[st.course_id]}/set/{st.id}"}
         out.append(item)
-    return out
+    return out, meta_out
 
 
 class RelatedEventRequest(BaseModel):
@@ -355,7 +359,8 @@ async def tutor_related_questions(
     db: AsyncSession = Depends(get_db),
 ):
     """いまの話題に近い既存の演習問題（教員作成）。学生の解答履歴で並べ替え、tag で絞り込める。"""
-    return {"items": await _related_questions(q, db, limit=limit, course_id=course_id, user_id=current_user.id, tag=tag)}
+    items, meta = await _related_questions(q, db, limit=limit, course_id=course_id, user_id=current_user.id, tag=tag)
+    return {"items": items, "meta": meta}
 
 
 @tutor_router.post("/open")
@@ -430,11 +435,14 @@ async def tutor_message(
         focus = str(state.get("focus_concept") or "").strip()
         query = " ".join(p for p in (focus, (body.text or "").strip()) if p)
         try:
-            data["related_questions"] = await _related_questions(
+            items, meta = await _related_questions(
                 query, db, limit=3, course_id=body.context.course_id if body.context else None, user_id=current_user.id
             )
+            data["related_questions"] = items
+            data["related_meta"] = meta
         except Exception:  # 付加情報なので失敗しても回答は返す
             data["related_questions"] = []
+            data["related_meta"] = {"suppressed": 0, "topic_tags": []}
     return data
 
 

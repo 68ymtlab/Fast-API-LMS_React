@@ -530,7 +530,7 @@ class RelatedRankRequest(BaseModel):
     query: str = Field(max_length=2000)
     candidates: list[RelatedCandidate] = Field(default_factory=list, max_length=2000)
     top_k: int = Field(default=3, ge=1, le=20)
-    min_score: float = 0.48
+    min_score: float = 0.53           # bge-m3 の実測: 無関係 ≈0.50 / 関係あり 0.55〜0.66
     max_gap: float = 0.07            # 上位との類似度差がこれより大きい候補は別話題とみなして落とす
     mastery: float | None = None     # 科目の習熟度（0..1）。難易度の並びに使う
     record: bool = True              # 返した問題を「提示した」として記録する
@@ -554,6 +554,23 @@ def related_rank(
     if ranked:
         top = float(ranked[0]["score"])
         ranked = [r for r in ranked if float(r["score"]) >= top - body.max_gap]
+    # トピック固定: 問い合わせ（焦点概念＋発話）に単元タグ名が含まれていれば、そのタグの問題だけにする。
+    # 「不正解なら再提示」もこの中だけで効くので、隣のトピック（単位行列の話題中に行列式など）は混ざらない。
+    # 候補の大半に付いているタグ（線形代数 など教科名）は単元を表さないので無視する
+    q_lower = body.query.lower()
+    n_cand = max(len(body.candidates), 1)
+    tag_freq: dict[str, int] = {}
+    for c in body.candidates:
+        for t in set(c.tags):
+            tag_freq[t] = tag_freq.get(t, 0) + 1
+    topic_tags = {t for t, n in tag_freq.items() if len(t) >= 2 and n / n_cand <= 0.5 and t.lower() in q_lower}
+    if topic_tags:
+        locked = [r for r in ranked if set(cands[r["id"]].tags) & topic_tags]
+        if locked:
+            ranked = locked
+    # ここまでで「いまの話題に関係ある問題」だけに絞れている（min_score と上位差、タグ一致）。
+    # 以降の「不正解なら再提示」「不正解に加点」は、この絞り込みを通った問題にしか効かない
+    # → 話題と関係ない不正解問題が浮いてくることはない。
     # 既に出した問題は外す。ただし「前回不正解」はもう一度出す
     exposures = store.load_exposures(sid, EXPOSURE_COOLDOWN_DAYS) if sid is not None else {}
     suppressed: list[int] = []
@@ -564,7 +581,6 @@ def related_rank(
             suppressed.append(r["id"])
             continue
         kept.append(r)
-    q_lower = body.query.lower()
     for r in kept:
         c = cands[r["id"]]
         adj = float(r["score"]) + STATUS_BONUS.get(c.status, 0.0)
@@ -585,7 +601,8 @@ def related_rank(
             e = manager._entries.get(str(sid))
             conv_id = e.conversation_id if e else None
         store.record_exposures(sid, conv_id, [(r["id"], r["status"]) for r in kept])
-    return {"items": kept, "suppressed": suppressed, "model": model_id, "cooldown_days": EXPOSURE_COOLDOWN_DAYS}
+    return {"items": kept, "suppressed": suppressed, "topic_tags": sorted(topic_tags), "model": model_id,
+            "cooldown_days": EXPOSURE_COOLDOWN_DAYS}
 
 
 class RelatedEventRequest(BaseModel):

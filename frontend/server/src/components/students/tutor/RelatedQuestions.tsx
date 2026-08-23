@@ -173,13 +173,32 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 	);
 }
 
-export function RelatedQuestions({ items }: { items: RelatedQuestion[] }) {
-	if (!items?.length) return null;
+export type RelatedMeta = { suppressed?: number; topic_tags?: string[] };
+
+export function RelatedQuestions({
+	items,
+	meta,
+}: {
+	items: RelatedQuestion[];
+	meta?: RelatedMeta | null;
+}) {
+	if (!items?.length) {
+		// この話題の問題はすべて提示済み（間違えた問題があれば再提示される）
+		if (meta?.suppressed) {
+			return (
+				<p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+					<ListChecks className="h-3.5 w-3.5" />
+					この話題の演習問題はすべて提示済みです。間違えた問題があれば、また出します。
+				</p>
+			);
+		}
+		return null;
+	}
 	return (
 		<div className="mt-3 rounded-xl border bg-muted/30 p-2">
 			<div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
 				<ListChecks className="h-3.5 w-3.5" />
-				関連する演習問題（教員が作成した問題から。間違えた問題は再提示、出した問題は繰り返さない）
+				この話題の演習問題（教員が作成した問題から。間違えた問題は優先、出した問題は繰り返さない）
 			</div>
 			<ul className="space-y-1.5">
 				{items.map((q) => (
