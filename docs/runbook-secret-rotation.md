@@ -88,3 +88,14 @@ print(urllib.request.urlopen(r).status)"'
 - `.env` 系は `.gitignore` 済み。**絶対にコミットしない。**
 - `deploy.sh` が `CHANGE_ME` の残存を検知して警告する。
 - ローカル開発機の `.env` も、漏洩値ではなく各自で生成した値を使う（本番と別値でよい）。
+
+## AI チューター（tutor サービス）のシークレット
+
+| 名前 | 場所 | 用途 |
+|---|---|---|
+| `TUTOR_SERVICE_TOKEN` | `backend/.env` と `tutor/.env`（同じ値） | backend → tutor の内部呼び出しの認証。無いと tutor は誰からでも叩ける |
+| `TUTOR_DB_PASSWORD` / `TUTOR_DATABASE_URL` | `tutor/.env` | `tutor_app` ロール（`tutor` スキーマ専用）の接続 |
+| `ANTHROPIC_AUTH_TOKEN` / `VLLM_MANAGER_TOKEN` | `tutor/.env` | LLM ゲートウェイ／リランカー |
+
+生成・ローテーション: `./scripts/setup_tutor_secrets.sh`（初回）／`./scripts/setup_tutor_secrets.sh --rotate`（再生成）。
+反映は `docker compose up -d backend tutor`（`restart` では env_file が再読込されない）。

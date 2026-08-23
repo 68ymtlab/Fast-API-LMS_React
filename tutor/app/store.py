@@ -67,6 +67,27 @@ DDL = [
       status_at_show TEXT, shown_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       revealed_at TIMESTAMPTZ, clicked_at TIMESTAMPTZ)""",
     "CREATE INDEX IF NOT EXISTS ix_tutor_exposures_student ON tutor.question_exposures (student_id, shown_at DESC)",
+    """CREATE TABLE IF NOT EXISTS tutor.turn_feedback (
+      id BIGSERIAL PRIMARY KEY, turn_id BIGINT REFERENCES tutor.turns(id) ON DELETE CASCADE, conversation_id BIGINT,
+      student_id INTEGER NOT NULL, rating SMALLINT NOT NULL CHECK (rating IN (-1, 1)), comment TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE (turn_id, student_id))""",
+    """CREATE TABLE IF NOT EXISTS tutor.settings (
+      key TEXT PRIMARY KEY, value JSONB NOT NULL, updated_by INTEGER, updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    """CREATE OR REPLACE VIEW tutor.v_weekly_quality AS
+      SELECT date_trunc('week', t.created_at)::date AS week,
+             COUNT(*) FILTER (WHERE t.role = 'tutor') AS answers,
+             COUNT(DISTINCT c.student_id) AS students,
+             COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.knowledge_mode = 'extra') AS extra_knowledge,
+             COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.turn_class = 'confused') AS confused,
+             COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.clarify IS NOT NULL) AS clarify,
+             ROUND(AVG(t.latency_ms) FILTER (WHERE t.role = 'tutor'))::int AS avg_latency_ms,
+             COALESCE(fb.thumbs_up, 0) AS thumbs_up,
+             COALESCE(fb.thumbs_down, 0) AS thumbs_down
+      FROM tutor.turns t JOIN tutor.conversations c ON c.id = t.conversation_id
+      LEFT JOIN (SELECT date_trunc('week', created_at)::date AS week,
+                        COUNT(*) FILTER (WHERE rating = 1) AS thumbs_up, COUNT(*) FILTER (WHERE rating = -1) AS thumbs_down
+                 FROM tutor.turn_feedback GROUP BY 1) fb ON fb.week = date_trunc('week', t.created_at)::date
+      GROUP BY 1, fb.thumbs_up, fb.thumbs_down ORDER BY 1 DESC""",
     """CREATE OR REPLACE VIEW tutor.v_student_questions AS
       SELECT t.id, t.created_at, c.student_id, c.course_id, c.lesson_item_id,
              COALESCE(t.lesson_page_id, c.lesson_page_id) AS lesson_page_id,
@@ -111,7 +132,11 @@ class TutorStore:
             try:
                 self.pool = ConnectionPool(self.dsn, min_size=1, max_size=4, kwargs={"row_factory": dict_row}, open=True)
                 with self.pool.connection() as conn:
+                    # tutor_app のような専用ロールは DB に CREATE 権限が無いので、スキーマは「無いときだけ」作る
+                    has_schema = conn.execute("SELECT 1 FROM information_schema.schemata WHERE schema_name = 'tutor'").fetchone()
                     for stmt in DDL:
+                        if stmt.startswith("CREATE SCHEMA") and has_schema:
+                            continue
                         conn.execute(stmt)
                     conn.commit()
                 last_exc = None
@@ -362,10 +387,10 @@ class TutorStore:
         lesson_page_id: int | None,
         latency_ms: int,
         llm_model: str,
-    ) -> None:
-        """学生発話＋チュータ返答を1組として保存し、会話スナップショットとプロファイルを更新する。"""
+    ) -> int | None:
+        """学生発話＋チュータ返答を1組として保存し、会話スナップショットとプロファイルを更新する。チュータ返答の turn id を返す。"""
         if not self.enabled or conversation_id is None:
-            return
+            return None
         ls = debug_state.get("learner_state") or {}
         reply = str(turn.get("reply") or "")
         idx = reply.find("## 参考（教科書）")
@@ -387,18 +412,19 @@ class TutorStore:
                  debug_state.get("focus_concept"), debug_state.get("focus_section"),
                  ls.get("understanding_level"), ls.get("goal"), lesson_page_id),
             )
-            conn.execute(
+            tutor_row = conn.execute(
                 """INSERT INTO tutor.turns (conversation_id, seq, role, text, turn_class, explain_mode, phase, knowledge_mode,
                        retrieval_path, banner, focus_concept, focus_section, understanding_level, goal, lesson_page_id,
                        diagnosis, clarify, viz, citations, latency_ms, llm_model)
-                   VALUES (%s, %s, 'tutor', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, 'tutor', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                 (conversation_id, seq + 1, reply_body, turn.get("turn_class") or debug_state.get("turn_class"),
                  debug_state.get("explain_mode"), debug_state.get("phase"), turn.get("knowledge_mode"),
                  turn.get("retrieval_path"), turn.get("banner") or None, debug_state.get("focus_concept"),
                  debug_state.get("focus_section"), ls.get("understanding_level"), ls.get("goal"), lesson_page_id,
                  _jsonb(turn.get("diagnosis")), _jsonb(turn.get("clarify")), _jsonb(turn.get("viz")),
                  _jsonb(citations), latency_ms, llm_model),
-            )
+            ).fetchone()
+            tutor_turn_id = int(tutor_row["id"]) if tutor_row else None
             auto_title = (student_text or "").strip().replace("\n", " ")[:40] or None
             conn.execute(
                 """UPDATE tutor.conversations SET last_activity_at = CURRENT_TIMESTAMP, turn_count = %s, state_json = %s,
@@ -422,6 +448,7 @@ class TutorStore:
                  debug_state.get("focus_concept"), debug_state.get("focus_section"), lesson_page_id, conversation_id),
             )
             conn.commit()
+        return tutor_turn_id
 
     # ---- 提示した演習問題の記録 ----
     def load_exposures(self, student_id: int, cooldown_days: int) -> dict[int, dict[str, Any]]:
@@ -471,6 +498,91 @@ class TutorStore:
                 )
             conn.commit()
         return True
+
+    # ---- フィードバック / 設定 ----
+    def save_feedback(self, student_id: int, turn_id: int, rating: int, comment: str | None, conversation_id: int | None) -> bool:
+        if not self.enabled:
+            return False
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            conn.execute(
+                """INSERT INTO tutor.turn_feedback (turn_id, conversation_id, student_id, rating, comment) VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (turn_id, student_id) DO UPDATE SET rating = EXCLUDED.rating, comment = COALESCE(EXCLUDED.comment, tutor.turn_feedback.comment),
+                        created_at = CURRENT_TIMESTAMP""",
+                (turn_id, conversation_id, student_id, rating, comment),
+            )
+            conn.commit()
+        return True
+
+    def get_settings(self) -> dict[str, Any]:
+        if not self.enabled:
+            return {}
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            rows = conn.execute("SELECT key, value, updated_by, updated_at FROM tutor.settings").fetchall()
+        return {r["key"]: r["value"] for r in rows}
+
+    def set_setting(self, key: str, value: Any, updated_by: int | None) -> None:
+        if not self.enabled:
+            return
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            conn.execute(
+                """INSERT INTO tutor.settings (key, value, updated_by) VALUES (%s, %s, %s)
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP""",
+                (key, _jsonb(value), updated_by),
+            )
+            conn.commit()
+
+    # ---- 教員ビュー用の集計 ----
+    def teacher_stats(self, *, days: int = 30, course_id: int | None = None) -> dict[str, Any]:
+        """ページ別／学生別／概念別の集計と、つまずきの多い問題。"""
+        if not self.enabled:
+            return {"enabled": False}
+        where = ["t.created_at >= CURRENT_TIMESTAMP - make_interval(days => %s)"]
+        args: list[Any] = [days]
+        if course_id is not None:
+            where.append("c.course_id = %s"); args.append(course_id)
+        W = " AND ".join(where)
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            by_page = conn.execute(
+                f"""SELECT COALESCE(t.lesson_page_id, c.lesson_page_id) AS lesson_page_id, MAX(c.page_title) AS page_title,
+                           COUNT(*) FILTER (WHERE t.role='student') AS questions, COUNT(DISTINCT c.student_id) AS students,
+                           COUNT(*) FILTER (WHERE t.role='tutor' AND t.turn_class='confused') AS confused
+                    FROM tutor.turns t JOIN tutor.conversations c ON c.id=t.conversation_id WHERE {W}
+                    GROUP BY 1 ORDER BY questions DESC LIMIT 30""", args).fetchall()
+            by_student = conn.execute(
+                f"""SELECT c.student_id, COUNT(*) FILTER (WHERE t.role='student') AS questions,
+                           COUNT(DISTINCT c.id) AS conversations, MAX(t.created_at) AS last_at,
+                           COUNT(*) FILTER (WHERE t.role='tutor' AND t.turn_class='confused') AS confused,
+                           (SELECT understanding_level FROM tutor.learner_profiles p WHERE p.student_id=c.student_id) AS level,
+                           (SELECT last_focus_concept FROM tutor.learner_profiles p WHERE p.student_id=c.student_id) AS last_focus
+                    FROM tutor.turns t JOIN tutor.conversations c ON c.id=t.conversation_id WHERE {W}
+                    GROUP BY c.student_id ORDER BY questions DESC LIMIT 200""", args).fetchall()
+            by_concept = conn.execute(
+                f"""SELECT t.focus_concept AS concept, COUNT(*) FILTER (WHERE t.role='student') AS questions,
+                           COUNT(DISTINCT c.student_id) AS students,
+                           COUNT(*) FILTER (WHERE t.role='tutor' AND t.turn_class='confused') AS confused
+                    FROM tutor.turns t JOIN tutor.conversations c ON c.id=t.conversation_id
+                    WHERE {W} AND COALESCE(t.focus_concept,'') <> ''
+                    GROUP BY 1 ORDER BY questions DESC LIMIT 20""", args).fetchall()
+            hard_questions = conn.execute(
+                f"""SELECT e.question_id, COUNT(*) AS shown, COUNT(*) FILTER (WHERE e.status_at_show='wrong') AS shown_as_wrong,
+                           COUNT(DISTINCT e.student_id) AS students, COUNT(*) FILTER (WHERE e.revealed_at IS NOT NULL) AS revealed
+                    FROM tutor.question_exposures e WHERE e.shown_at >= CURRENT_TIMESTAMP - make_interval(days => %s)
+                    GROUP BY 1 ORDER BY shown_as_wrong DESC, shown DESC LIMIT 20""", [days]).fetchall()
+            weekly = conn.execute("SELECT * FROM tutor.v_weekly_quality LIMIT 12").fetchall()
+            feedback_recent = conn.execute(
+                """SELECT f.id, f.rating, f.comment, f.created_at, f.student_id, t.text AS answer, t.focus_concept,
+                          (SELECT text FROM tutor.turns s WHERE s.conversation_id=t.conversation_id AND s.seq=t.seq-1) AS question
+                   FROM tutor.turn_feedback f JOIN tutor.turns t ON t.id=f.turn_id ORDER BY f.created_at DESC LIMIT 30""").fetchall()
+        def fix(rows):
+            out=[]
+            for r in rows:
+                d=dict(r)
+                for k,v in d.items():
+                    if hasattr(v,"isoformat"): d[k]=v.isoformat()
+                out.append(d)
+            return out
+        return {"enabled": True, "days": days, "by_page": fix(by_page), "by_student": fix(by_student), "by_concept": fix(by_concept),
+                "hard_questions": fix(hard_questions), "weekly": fix(weekly), "feedback_recent": fix(feedback_recent)}
 
     # ---- teacher / admin views ----
     def list_questions(self, *, limit: int = 100, course_id: int | None = None, student_id: int | None = None,

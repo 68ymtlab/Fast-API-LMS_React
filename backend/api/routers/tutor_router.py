@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings
-from api.core.security import get_current_active_user, require_teacher_or_higher
+from api.core.security import get_current_active_user, require_admin, require_teacher_or_higher
 from api.db.session import get_db
 from api.models import adaptive_model, courses_model, exercises_model, lessons_model, questions_model
 from api.models.users_model import Users
@@ -71,6 +71,8 @@ class TutorMessageResponse(BaseModel):
     conversation_id: Optional[int] = None
     related_questions: list[dict[str, Any]] = Field(default_factory=list)
     related_meta: Optional[dict[str, Any]] = None
+    turn_id: Optional[int] = None
+    page_section: Optional[str] = None
 
 
 class TutorSummaryResponse(BaseModel):
@@ -417,6 +419,100 @@ async def tutor_questions(
     if since is not None:
         qs.append(f"since={since.isoformat()}")
     return await _forward("GET", "/admin/questions?" + "&".join(qs), current_user)
+
+
+# ---- 👍👎 フィードバック ----
+class TutorFeedbackRequest(BaseModel):
+    turn_id: int
+    rating: int = Field(ge=-1, le=1)
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+@tutor_router.post("/feedback")
+async def tutor_feedback(body: TutorFeedbackRequest, current_user: Users = Depends(get_current_active_user)):
+    return await _forward("POST", "/session/feedback", current_user, json=body.model_dump())
+
+
+# ---- 教員ビュー（集計・品質・対応表・設定） ----
+async def _forward_service(method: str, path: str, json: Any = None, user: Optional[Users] = None) -> Any:
+    """学生 ID を伴わない管理系の中継。"""
+    url = f"{settings.TUTOR_SERVICE_URL.rstrip('/')}{path}"
+    headers = {"X-Tutor-Token": settings.TUTOR_SERVICE_TOKEN} if settings.TUTOR_SERVICE_TOKEN else {}
+    if user is not None:
+        headers["X-Student-Id"] = str(user.id)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            res = await client.request(method, url, json=json, headers=headers)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="チューターサービスに接続できません。")
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail="チューターでエラーが発生しました。")
+    return res.json()
+
+
+@tutor_router.get("/admin/stats", dependencies=[Depends(require_teacher_or_higher)])
+async def tutor_admin_stats(days: int = Query(default=30, ge=1, le=365), course_id: Optional[int] = None,
+                            db: AsyncSession = Depends(get_db)):
+    """教員ビュー: ページ別／学生別／概念別の集計、つまずきの多い問題、週次品質、最近のフィードバック。学生名・問題名を付ける。"""
+    data = await _forward_service("GET", f"/admin/stats?days={days}" + (f"&course_id={course_id}" if course_id is not None else ""))
+    # 学生名
+    sids = [r["student_id"] for r in data.get("by_student", []) if r.get("student_id") is not None]
+    if sids:
+        rows = (await db.execute(select(Users.id, Users.username, Users.email).where(Users.id.in_(sids)))).all()
+        names = {r[0]: (r[1] or r[2]) for r in rows}
+        for r in data["by_student"]:
+            r["name"] = names.get(r["student_id"], f"user {r['student_id']}")
+    # 問題名
+    qids = [r["question_id"] for r in data.get("hard_questions", [])]
+    if qids:
+        rows = (await db.execute(select(questions_model.Questions.id, questions_model.Questions.title).where(questions_model.Questions.id.in_(qids)))).all()
+        titles = {r[0]: r[1] for r in rows}
+        for r in data["hard_questions"]:
+            r["title"] = titles.get(r["question_id"], f"問題 {r['question_id']}")
+    # ページ名の補完
+    pids = [r["lesson_page_id"] for r in data.get("by_page", []) if r.get("lesson_page_id")]
+    if pids:
+        rows = (await db.execute(select(lessons_model.LessonPages.id, lessons_model.LessonPages.title).where(lessons_model.LessonPages.id.in_(pids)))).all()
+        pt = {r[0]: r[1] for r in rows}
+        for r in data["by_page"]:
+            r["page_title"] = r.get("page_title") or pt.get(r.get("lesson_page_id")) or "（ページ外）"
+    return data
+
+
+@tutor_router.get("/admin/sections", dependencies=[Depends(require_teacher_or_higher)])
+async def tutor_admin_sections(course_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    """LMS のページ → KG の節 の対応表。"""
+    stmt = select(lessons_model.LessonPages.id, lessons_model.LessonPages.title, lessons_model.LessonPages.lesson_id).where(
+        lessons_model.LessonPages.is_active == True  # noqa: E712
+    )
+    if course_id is not None:
+        stmt = stmt.join(lessons_model.CourseLessons, lessons_model.CourseLessons.id == lessons_model.LessonPages.lesson_id).where(
+            lessons_model.CourseLessons.course_id == course_id
+        )
+    rows = (await db.execute(stmt.order_by(lessons_model.LessonPages.lesson_id, lessons_model.LessonPages.page_number))).all()
+    pages = [{"lesson_page_id": r[0], "title": r[1], "lesson_id": r[2]} for r in rows]
+    data = await _forward_service("POST", "/admin/sections", json={"pages": pages})
+    return data
+
+
+@tutor_router.get("/admin/settings", dependencies=[Depends(require_teacher_or_higher)])
+async def tutor_admin_settings_get():
+    s = await _forward_service("GET", "/admin/settings")
+    m = await _forward_service("GET", "/admin/models")
+    return {**s, "models": m.get("models", []), "models_source": m.get("source"), "models_error": m.get("error")}
+
+
+class TutorSettingsRequest(BaseModel):
+    llm_model: Optional[str] = Field(default=None, max_length=200)
+    page_section_overrides: Optional[dict[str, str]] = None
+
+
+@tutor_router.put("/admin/settings")
+async def tutor_admin_settings_put(body: TutorSettingsRequest, current_user: Users = Depends(require_admin)):
+    """モデルの切替など（管理者のみ）。再起動なしで反映・保存。"""
+    payload = body.model_dump(exclude_none=True)
+    payload["updated_by"] = current_user.id
+    return await _forward_service("PUT", "/admin/settings", json=payload)
 
 
 @tutor_router.get("/health")

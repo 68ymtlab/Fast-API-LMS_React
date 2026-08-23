@@ -156,6 +156,14 @@ LLM 1 回（`response_format` の JSON Schema で拘束）で `{did, understood,
 失敗時は研究側テンプレ `summarize_weak_points()` にフォールバック。演習問題の生成はしない（次に学ぶことの提案だけ）。実装: `tutor/app/reflection.py`。
 範囲（`scope`）: `current`=この会話 / `previous`=前回の会話（1 つ前） / `all`=直近 `days` 日（既定 30）の全会話（`tutor.turns` を会話横断で集め、日付・会話名つきで時系列に）。UI は上部バーの「学習の振り返り ▾」から選ぶ。空の会話からでも使える。
 
+## 教員ビュー・フィードバック・対応表・設定・運用（実装済み）
+
+- **教員ビュー** `/t/tutor`（教員・管理者）: 質問一覧（`/api/tutor/questions`）、ページ別／学生別／概念別の集計、つまずく演習問題（`question_exposures`）、週次の品質（`tutor.v_weekly_quality`）、最近のフィードバック、ページ→節の対応表、モデル設定。backend `/api/tutor/admin/stats|sections|settings`（学生名・問題名は backend が `public` から補完）
+- **👍👎**（`tutor.turn_feedback`）: 回答ごと。👎 は任意コメント。`POST /api/tutor/feedback`。週次ビューに up/down が乗る → 研究側の品質ループは `SELECT * FROM tutor.v_weekly_quality` と `turn_feedback` を見る
+- **ページ→KG 節の対応**（`tutor/app/sections.py`）: LMS の `lesson_pages.title` と KG の節名を正規化して一致／前方一致、無ければ**その語を定義しているエンティティ**の節を優先して推定（定義 → 定義での言及 → 言及数）。結果は `page_context.section` として検索に渡り、`DeepRAGSearcher.search` がその節のエンティティ（最大 20）を一次候補に必ず含める（最終順位はリランカー）。教員ビューで上書き可（`tutor.settings.page_section_overrides`、`-` は対応なし）
+- **モデル設定**（`tutor.settings.llm_model`）: 管理者が画面から切替 → tutor は `deeprag_search.LLM_MODEL` / `tutor_session.LLM_MODEL` を書き換えて即反映（再起動不要）、DB に保存して次回起動時にも適用。候補はゲートウェイの `/v1/models`（401 なら env `TUTOR_MODEL_CHOICES`）＋自由入力。埋め込み・リランカーは知識ベースに紐づくので画面では変えない
+- **専用 DB ロール／シークレット**: `scripts/setup_tutor_secrets.sh` が `TUTOR_SERVICE_TOKEN`（backend/tutor 共通）を生成し、`tutor_app` ロール（`tutor` スキーマのみ。`public` は REVOKE）を作って `TUTOR_DATABASE_URL` を差し替える。`--rotate` で再生成。反映は `docker compose up -d backend tutor`（`restart` は env を再読込しない）
+
 # 次にやること
 
 1. **教員ビューの画面**（`/t/...`）: `GET /api/tutor/questions` を表で出す。ページ別・学生別の集計 SQL は `v_student_questions` に対する GROUP BY で足りる

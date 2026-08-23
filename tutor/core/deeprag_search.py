@@ -1203,7 +1203,9 @@ class DeepRAGSearcher:
 
     def _search_with_fail_decompose(self, query, **kwargs):
         """弱いヒットのときだけサブクエリ dense を union → 再 rerank（最大1回）。"""
-        first = self._search_once(query, **kwargs)
+        # [LMS port] search() から渡る extra_candidate_ids（節ヒント）を両パスで引き継ぐ
+        extra0 = list(kwargs.pop("extra_candidate_ids", None) or [])
+        first = self._search_once(query, extra_candidate_ids=extra0 or None, **kwargs)
         path = first["metadata"].get("retrieval_path", self.pipeline)
         if not self.fail_decompose or not first["metadata"].get("weak_hit"):
             first["metadata"]["retrieval_path"] = path
@@ -1231,7 +1233,7 @@ class DeepRAGSearcher:
                 seen.add(eid)
                 union_ids.append(eid)
 
-        second = self._search_once(query, extra_candidate_ids=union_ids, **kwargs)
+        second = self._search_once(query, extra_candidate_ids=list(dict.fromkeys(extra0 + list(union_ids))), **kwargs)
         still_weak = second["metadata"].get("weak_hit", True)
         second["knowledge_mode"] = self.assess_knowledge_mode(
             second.get("results") or [],
@@ -1296,6 +1298,13 @@ class DeepRAGSearcher:
             use_sparse_rrf=use_sparse_rrf,
             audience=audience,
         )
+        # [LMS port] 学生が開いている教科書ページが KG の節に対応付いていれば、その節のエンティティを
+        # 一次候補に必ず含める（最終順位はリランカーに任せる。ページ文脈の検索を「その節に寄せる」）
+        section_hint = (page_context or {}).get("section") if isinstance(page_context, dict) else None
+        if section_hint:
+            sec_ids = [eid for eid, e in self.entities.items() if e.get("section") == section_hint]
+            if sec_ids:
+                kwargs["extra_candidate_ids"] = sec_ids[:20]
         do_decompose = self.fail_decompose if allow_fail_decompose is None else allow_fail_decompose
         if do_decompose:
             result = self._search_with_fail_decompose(query, **kwargs)

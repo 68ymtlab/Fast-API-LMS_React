@@ -28,8 +28,11 @@ for d in (str(CORE_DIR), str(APP_DIR)):
 from fastapi import Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
-from deeprag_search import LLM_MODEL  # noqa: E402
+import deeprag_search  # noqa: E402
+import tutor_session as tutor_session_mod  # noqa: E402
+from deeprag_search import LLM_BASE_URL, LLM_API_KEY  # noqa: E402
 from reflection import reflect  # noqa: E402
+from sections import SectionMatcher  # noqa: E402
 from related import rank as rank_related  # noqa: E402
 from state_io import restore_state  # noqa: E402
 from store import TutorStore  # noqa: E402
@@ -68,12 +71,17 @@ class SessionManager:
         self._searcher = None
         self._entries: dict[str, _Entry] = {}
         self._guard = threading.Lock()
+        self.sections = SectionMatcher([])
 
     def warmup(self) -> None:
         with self._guard:
             if self._searcher is None:
                 self._searcher = TutorSession().searcher
         self.store.connect(STAGE4_DIR, len(getattr(self._searcher, "entities", {}) or {}) or None)
+        # LMS ページ → KG 節 の対応表（KG の節名から）
+        ents = getattr(self._searcher, "entities", {}) or {}
+        self.sections = SectionMatcher([e.get("section") for e in ents.values()], ents)
+        apply_settings(self.store.get_settings())
 
     @property
     def ready(self) -> bool:
@@ -205,6 +213,25 @@ def _to_int(s: str) -> int | None:
         return None
 
 
+def current_model() -> str:
+    return str(deeprag_search.LLM_MODEL)
+
+
+def apply_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    """tutor.settings を実行時に反映（再起動不要）。対象: llm_model / page_section_overrides。"""
+    applied: dict[str, Any] = {}
+    model = settings.get("llm_model")
+    if isinstance(model, str) and model.strip():
+        deeprag_search.LLM_MODEL = model.strip()
+        tutor_session_mod.LLM_MODEL = model.strip()   # tutor_session は値を import しているので両方に書く
+        applied["llm_model"] = model.strip()
+    ov = settings.get("page_section_overrides")
+    if isinstance(ov, dict):
+        manager.sections.set_overrides(ov)
+        applied["page_section_overrides"] = len(ov)
+    return applied
+
+
 store = TutorStore(os.environ.get("TUTOR_DATABASE_URL"))
 manager = SessionManager(store)
 
@@ -278,6 +305,8 @@ class MessageResponse(BaseModel):
     turn_class: str = ""
     viz: dict[str, Any] | None = None
     conversation_id: int | None = None
+    turn_id: int | None = None          # フィードバック用（チュータ返答の turns.id）
+    page_section: str | None = None     # 開いていたページに対応付いた KG の節
 
 
 class SummaryResponse(BaseModel):
@@ -296,7 +325,8 @@ def _apply_page_context(session: TutorSession, pc: PageContext | None) -> None:
     if pc is None or not (pc.title or pc.text):
         session.page_context = None
         return
-    session.page_context = {"lesson_page_id": pc.lesson_page_id, "title": pc.title, "text": pc.text}
+    section = manager.sections.match(pc.title, pc.lesson_page_id)   # 対応する KG の節（検索の一次候補をこの節に寄せる）
+    session.page_context = {"lesson_page_id": pc.lesson_page_id, "title": pc.title, "text": pc.text, "section": section}
 
 
 def _concept_label(focus: str | None) -> str:
@@ -339,7 +369,7 @@ def _history_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out = []
     for r in rows:
         out.append({
-            "seq": r["seq"], "role": r["role"], "text": r["text"], "choice_id": r.get("choice_id"),
+            "id": r.get("id"), "seq": r["seq"], "role": r["role"], "text": r["text"], "choice_id": r.get("choice_id"),
             "banner": r.get("banner") or "", "citations": r.get("citations") or [], "viz": r.get("viz"),
             "diagnosis": r.get("diagnosis"), "clarify": r.get("clarify"), "knowledge_mode": r.get("knowledge_mode"),
             "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
@@ -460,12 +490,13 @@ def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
         latency_ms = int((time.monotonic() - t0) * 1000)
         state = turn.get("state") or session.debug_state()
         sid = _to_int(student_id)
+        turn_id = None
         if sid is not None:
             try:
-                store.record_turn_pair(
+                turn_id = store.record_turn_pair(
                     conversation_id=entry.conversation_id, student_id=sid, student_text=text, choice_id=choice_id,
                     turn=turn, state=session.export_state(), debug_state=session.debug_state(),
-                    lesson_page_id=entry.lesson_page_id, latency_ms=latency_ms, llm_model=LLM_MODEL,
+                    lesson_page_id=entry.lesson_page_id, latency_ms=latency_ms, llm_model=current_model(),
                 )
             except Exception as exc:  # 永続化失敗で対話を止めない
                 print(f"  [store] record failed: {exc}", flush=True)
@@ -481,6 +512,8 @@ def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
         turn_class=str(turn.get("turn_class") or ""),
         viz=turn.get("viz"),
         conversation_id=entry.conversation_id,
+        turn_id=turn_id,
+        page_section=(session.page_context or {}).get("section") if session.page_context else None,
     )
 
 
@@ -647,7 +680,85 @@ def related_event(body: RelatedEventRequest, student_id: str = Depends(_auth)):
     return {"ok": ok}
 
 
+class FeedbackRequest(BaseModel):
+    turn_id: int
+    rating: int = Field(ge=-1, le=1)
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+@app.post("/session/feedback")
+def post_feedback(body: FeedbackRequest, student_id: str = Depends(_auth)):
+    """チュータ返答への 👍👎（rating=1/-1）と任意コメント。"""
+    if body.rating not in (-1, 1):
+        raise HTTPException(status_code=400, detail="rating は 1 か -1")
+    sid = _to_int(student_id)
+    entry = manager.get(student_id)
+    ok = store.save_feedback(sid, body.turn_id, body.rating, (body.comment or "").strip() or None, entry.conversation_id) if sid is not None else False
+    return {"ok": ok}
+
+
 # ---- 教員／管理用（LMS backend が教員権限を確認してから呼ぶ） ----
+@app.get("/admin/stats")
+def admin_stats(days: int = Query(default=30, ge=1, le=365), course_id: int | None = None, _: None = Depends(_service_auth)):
+    return store.teacher_stats(days=days, course_id=course_id)
+
+
+@app.get("/admin/settings")
+def admin_get_settings(_: None = Depends(_service_auth)):
+    saved = store.get_settings()
+    return {"settings": saved, "effective": {"llm_model": current_model(), "llm_base_url": LLM_BASE_URL,
+            "embed_model": getattr(manager._searcher, "embed_model_id", None), "rerank_model": getattr(manager._searcher, "rerank_model_id", None),
+            "kb_version_id": store.kb_version_id, "persistence": store.enabled}}
+
+
+class SettingsRequest(BaseModel):
+    llm_model: str | None = Field(default=None, max_length=200)
+    page_section_overrides: dict[str, str] | None = None
+    updated_by: int | None = None
+
+
+@app.put("/admin/settings")
+def admin_put_settings(body: SettingsRequest, _: None = Depends(_service_auth)):
+    """再起動なしで反映し、tutor.settings に保存（次回起動時にも適用）。"""
+    changes: dict[str, Any] = {}
+    if body.llm_model is not None:
+        changes["llm_model"] = body.llm_model.strip()
+    if body.page_section_overrides is not None:
+        changes["page_section_overrides"] = body.page_section_overrides
+    for k, v in changes.items():
+        store.set_setting(k, v, body.updated_by)
+    applied = apply_settings(changes)
+    return {"ok": True, "applied": applied, "effective_model": current_model()}
+
+
+@app.get("/admin/models")
+def admin_models(_: None = Depends(_service_auth)):
+    """LiteLLM ゲートウェイが提供するチャットモデル一覧（選択肢）。"""
+    import urllib.error
+    import urllib.request
+    try:
+        req = urllib.request.Request(f"{LLM_BASE_URL.rstrip('/')}/v1/models", headers={"Authorization": f"Bearer {LLM_API_KEY}"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            import json as _json
+            data = _json.loads(resp.read().decode("utf-8"))
+        ids = sorted({m.get("id") for m in data.get("data", []) if m.get("id")})
+    except Exception as exc:  # noqa: BLE001
+        # ゲートウェイが一覧を出さない（401 など）場合は env の候補リストにフォールバック
+        choices = [m.strip() for m in os.environ.get("TUTOR_MODEL_CHOICES", "").split(",") if m.strip()]
+        return {"models": sorted(set(choices + [current_model()])), "error": str(exc)[:200], "current": current_model(), "source": "env"}
+    return {"models": ids, "current": current_model(), "source": "gateway"}
+
+
+class SectionsRequest(BaseModel):
+    pages: list[dict[str, Any]] = Field(default_factory=list)   # [{lesson_page_id, title}]
+
+
+@app.post("/admin/sections")
+def admin_sections(body: SectionsRequest, _: None = Depends(_service_auth)):
+    """LMS のページ → KG の節 の対応表（教員ビュー用）。"""
+    return {"items": manager.sections.table(body.pages), "sections": manager.sections.sections}
+
+
 @app.get("/admin/questions")
 def admin_questions(
     limit: int = Query(default=100, ge=1, le=1000),

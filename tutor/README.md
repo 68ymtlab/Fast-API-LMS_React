@@ -20,6 +20,7 @@ tutor/
 
 ```bash
 cp tutor/.env.example tutor/.env          # トークンを埋める
+./scripts/setup_tutor_secrets.sh          # 共有シークレットと専用 DB ロール（tutor_app）を作る
 ./tutor/scripts/sync_from_agents.sh       # 研究側から embeddings / KG / qdrant を取り込む
 docker compose up -d --build tutor        # 学外からは proxy の build-arg を空にする（下記）
 curl http://127.0.0.1:8765/health         # {"ok":true,...}

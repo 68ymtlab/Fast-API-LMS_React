@@ -108,6 +108,43 @@ CREATE TABLE IF NOT EXISTS tutor.question_exposures (
 );
 CREATE INDEX IF NOT EXISTS ix_tutor_exposures_student ON tutor.question_exposures (student_id, shown_at DESC);
 
+-- 👍👎 フィードバック（チュータ返答ごと）。週次の品質ループの入力
+CREATE TABLE IF NOT EXISTS tutor.turn_feedback (
+  id              BIGSERIAL PRIMARY KEY,
+  turn_id         BIGINT REFERENCES tutor.turns(id) ON DELETE CASCADE,
+  conversation_id BIGINT,
+  student_id      INTEGER NOT NULL,
+  rating          SMALLINT NOT NULL CHECK (rating IN (-1, 1)),
+  comment         TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (turn_id, student_id)
+);
+
+-- 実行時設定（管理画面から変更。再起動なしで反映し、再起動後も保持）
+CREATE TABLE IF NOT EXISTS tutor.settings (
+  key         TEXT PRIMARY KEY,
+  value       JSONB NOT NULL,
+  updated_by  INTEGER,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 週次の品質ビュー（教員ビュー／研究側の品質ループ用）
+CREATE OR REPLACE VIEW tutor.v_weekly_quality AS
+SELECT date_trunc('week', t.created_at)::date AS week,
+       COUNT(*) FILTER (WHERE t.role = 'tutor') AS answers,
+       COUNT(DISTINCT c.student_id) AS students,
+       COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.knowledge_mode = 'extra') AS extra_knowledge,
+       COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.turn_class = 'confused') AS confused,
+       COUNT(*) FILTER (WHERE t.role = 'tutor' AND t.clarify IS NOT NULL) AS clarify,
+       ROUND(AVG(t.latency_ms) FILTER (WHERE t.role = 'tutor'))::int AS avg_latency_ms,
+       COALESCE(fb.thumbs_up, 0) AS thumbs_up,
+       COALESCE(fb.thumbs_down, 0) AS thumbs_down
+FROM tutor.turns t JOIN tutor.conversations c ON c.id = t.conversation_id
+LEFT JOIN (SELECT date_trunc('week', created_at)::date AS week,
+                  COUNT(*) FILTER (WHERE rating = 1) AS thumbs_up, COUNT(*) FILTER (WHERE rating = -1) AS thumbs_down
+           FROM tutor.turn_feedback GROUP BY 1) fb ON fb.week = date_trunc('week', t.created_at)::date
+GROUP BY 1, fb.thumbs_up, fb.thumbs_down ORDER BY 1 DESC;
+
 -- 教員ビュー用: 学生の質問一覧（チュータ返答を除外）
 CREATE OR REPLACE VIEW tutor.v_student_questions AS
 SELECT t.id, t.created_at, c.student_id, c.course_id, c.lesson_item_id,

@@ -2,6 +2,7 @@
 
 import {
 	Book,
+	Bot,
 	ClipboardList,
 	FileType,
 	Home,
@@ -43,6 +44,11 @@ const sidebarGroups: SidebarGroups[] = [
 				title: "演習問題管理",
 				url: "/t/exercises",
 				icon: ClipboardList,
+			},
+			{
+				title: "AIチューター分析",
+				url: "/t/tutor",
+				icon: Bot,
 			},
 		],
 	},
@@ -96,6 +102,7 @@ const adminSidebarGroups: SidebarGroups[] = [
 			{ title: "科目", url: "/t/home", icon: Book },
 			{ title: "お知らせ管理", url: "/t/announcements", icon: Megaphone },
 			{ title: "演習問題管理", url: "/t/exercises", icon: ClipboardList },
+			{ title: "AIチューター分析", url: "/t/tutor", icon: Bot },
 			{ title: "ユーザー登録", url: "/t/users/add", icon: Users },
 		],
 	},

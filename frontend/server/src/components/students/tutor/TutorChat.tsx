@@ -19,6 +19,8 @@ import {
 	Plus,
 	SlidersHorizontal,
 	Sparkles,
+	ThumbsDown,
+	ThumbsUp,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -94,9 +96,11 @@ interface TutorMessageResponse {
 	conversation_id?: number | null;
 	related_questions?: RelatedQuestion[];
 	related_meta?: RelatedMeta | null;
+	turn_id?: number | null;
 }
 
 interface HistoryItem {
+	id?: number;
 	seq: number;
 	role: "student" | "tutor";
 	text: string;
@@ -138,6 +142,7 @@ export interface ChatMessage {
 	relatedMeta?: RelatedMeta | null;
 	reflection?: Reflection | null;
 	reflectionMeta?: { level?: string; goal?: string; scope?: ReflectionScope };
+	turnId?: number | null;
 }
 
 const CITATION_HEADING = "## 参考（教科書）";
@@ -216,6 +221,78 @@ function historyToMessages(
 		pending: pending?.choices?.length ? pending : null,
 		pendingKind: last?.diagnosis ? "diagnosis" : "clarify",
 	};
+}
+
+// 👍👎（回答ごと）。👎 のときだけ一言コメント欄を出す。保存先は tutor.turn_feedback（週次の品質ループの入力）
+function FeedbackButtons({ turnId }: { turnId: number }) {
+	const [rating, setRating] = useState<1 | -1 | null>(null);
+	const [comment, setComment] = useState("");
+	const [open, setOpen] = useState(false);
+	const [done, setDone] = useState(false);
+	const send = async (r: 1 | -1, c?: string) => {
+		setRating(r);
+		try {
+			await axios.post("/tutor/feedback", {
+				turn_id: turnId,
+				rating: r,
+				comment: c || null,
+			});
+			if (r === 1 || c) setDone(true);
+		} catch {
+			/* 付加情報なので失敗は無視 */
+		}
+	};
+	return (
+		<div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+			<button
+				type="button"
+				className={`rounded-full p-1 hover:bg-muted ${rating === 1 ? "text-emerald-600" : ""}`}
+				aria-label="役に立った"
+				title="役に立った"
+				onClick={() => {
+					setOpen(false);
+					void send(1);
+				}}
+			>
+				<ThumbsUp className="h-3.5 w-3.5" />
+			</button>
+			<button
+				type="button"
+				className={`rounded-full p-1 hover:bg-muted ${rating === -1 ? "text-red-600" : ""}`}
+				aria-label="分かりにくかった"
+				title="分かりにくかった"
+				onClick={() => {
+					setOpen(true);
+					void send(-1);
+				}}
+			>
+				<ThumbsDown className="h-3.5 w-3.5" />
+			</button>
+			{done ? <span>ありがとうございます。改善に使います。</span> : null}
+			{open && !done ? (
+				<span className="flex items-center gap-1">
+					<input
+						className="h-7 w-64 rounded border bg-background px-2 text-xs"
+						placeholder="どこが分かりにくかったか（任意）"
+						value={comment}
+						onChange={(e) => setComment(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && !e.nativeEvent.isComposing)
+								void send(-1, comment.trim());
+						}}
+					/>
+					<Button
+						variant="ghost"
+						size="sm"
+						className="h-7 px-2 text-xs"
+						onClick={() => send(-1, comment.trim())}
+					>
+						送信
+					</Button>
+				</span>
+			) : null}
+		</div>
+	);
 }
 
 type Props = {
@@ -392,6 +469,7 @@ export function TutorChat({
 					viz: data.viz ?? null,
 					relatedQuestions: data.related_questions ?? [],
 					relatedMeta: data.related_meta ?? null,
+					turnId: data.turn_id ?? null,
 				});
 				setChoices(
 					bundle?.choices?.length
@@ -851,6 +929,7 @@ export function TutorChat({
 												meta={m.relatedMeta}
 											/>
 										) : null}
+										{m.turnId ? <FeedbackButtons turnId={m.turnId} /> : null}
 										{m.citations && m.citations.length > 0 ? (
 											<details className="mt-2 text-xs text-muted-foreground">
 												<summary className="cursor-pointer select-none">
