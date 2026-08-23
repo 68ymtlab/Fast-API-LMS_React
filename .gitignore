@@ -51,6 +51,26 @@ backend/static/images/**
 # --- Logs ---
 *.log
 
+# --- OS junk ---
+.DS_Store
+**/.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 一時ファイル / マージ残骸 ---
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# --- ビルド生成物 (フロント) ---
+**/.next/
+*.tsbuildinfo
+storybook-static/
+coverage/
+test-results/
+playwright-report/
+
 # --- IDE / Editor ---
 .claude
 .cursor
@@ -59,6 +79,9 @@ backend/static/images/**
 *.swo
 .geminiignore
 AGENTS.md
+# VSCode: 共有フォーマッタ設定 (settings.json) だけ追跡し、個人設定は無視
+.vscode/*
+!.vscode/settings.json
 
 # --- docs ---
 # 運用手順書 (docs/*.md) は追跡する。作業用スクラッチのみ無視する。
