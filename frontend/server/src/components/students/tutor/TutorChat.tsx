@@ -9,12 +9,14 @@
 import {
 	ArrowUp,
 	Check,
+	ChevronDown,
 	Loader2,
 	MessageSquare,
 	PanelLeft,
 	Pencil,
 	Plus,
 	RotateCcw,
+	SlidersHorizontal,
 	Sparkles,
 	Trash2,
 	X,
@@ -22,6 +24,15 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MathJax } from "@/components/shared/MathJax";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import axios from "@/lib/axios";
 import {
 	type RelatedMeta,
@@ -784,10 +795,55 @@ export function TutorChat({
 								</div>
 							</div>
 						) : null}
+						{/* 回答の長さ: 普段は小さなボタンだけ。押したときに3択（説明付き）が開く */}
+						<div className="flex items-center justify-between px-1">
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground"
+									>
+										<SlidersHorizontal className="h-3.5 w-3.5" />
+										回答の長さ:{" "}
+										<span className="font-medium text-foreground">
+											{
+												LENGTH_OPTIONS.find((o) => o.value === answerLength)
+													?.label
+											}
+										</span>
+										<ChevronDown className="h-3 w-3" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start" className="w-72">
+									<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+										回答の長さ（次の回答から反映。設定は保存されます）
+									</DropdownMenuLabel>
+									<DropdownMenuSeparator />
+									<DropdownMenuRadioGroup
+										value={answerLength}
+										onValueChange={(v) => onChangeLength(v as AnswerLength)}
+									>
+										{LENGTH_OPTIONS.map((o) => (
+											<DropdownMenuRadioItem
+												key={o.value}
+												value={o.value}
+												className="flex-col items-start gap-0 py-2"
+											>
+												<span className="text-sm">{o.label}</span>
+												<span className="text-xs text-muted-foreground">
+													{o.hint}
+												</span>
+											</DropdownMenuRadioItem>
+										))}
+									</DropdownMenuRadioGroup>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</div>
 						{error ? (
 							<p className="px-1 text-xs text-destructive">{error}</p>
 						) : null}
-						<div className="rounded-2xl border bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring">
+						<div className="flex items-end gap-2 rounded-2xl border bg-background py-1.5 pr-1.5 pl-2 shadow-sm focus-within:ring-1 focus-within:ring-ring">
 							<textarea
 								ref={textareaRef}
 								value={input}
@@ -809,45 +865,21 @@ export function TutorChat({
 								}
 								rows={1}
 								disabled={sending || opening}
-								className="block w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm outline-none placeholder:text-muted-foreground"
+								className="block min-h-[2.25rem] w-full resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
 							/>
-							<div className="flex items-center justify-between gap-2 px-2 pb-2">
-								<div
-									className="flex items-center gap-0.5 rounded-full bg-muted p-0.5"
-									role="radiogroup"
-									aria-label="回答の長さ"
-								>
-									{LENGTH_OPTIONS.map((o) => (
-										<button
-											key={o.value}
-											type="button"
-											aria-pressed={answerLength === o.value}
-											title={o.hint}
-											onClick={() => onChangeLength(o.value)}
-											className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-												answerLength === o.value
-													? "bg-background shadow-sm"
-													: "text-muted-foreground hover:text-foreground"
-											}`}
-										>
-											{o.label}
-										</button>
-									))}
-								</div>
-								<Button
-									onClick={onSubmit}
-									disabled={sending || opening || !input.trim()}
-									size="icon"
-									className="h-8 w-8 rounded-full"
-									aria-label="送信"
-								>
-									{sending ? (
-										<Loader2 className="h-4 w-4 animate-spin" />
-									) : (
-										<ArrowUp className="h-4 w-4" />
-									)}
-								</Button>
-							</div>
+							<Button
+								onClick={onSubmit}
+								disabled={sending || opening || !input.trim()}
+								size="icon"
+								className="h-8 w-8 rounded-full"
+								aria-label="送信"
+							>
+								{sending ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<ArrowUp className="h-4 w-4" />
+								)}
+							</Button>
 						</div>
 						{!compact ? (
 							<p className="px-1 text-center text-[11px] text-muted-foreground">
