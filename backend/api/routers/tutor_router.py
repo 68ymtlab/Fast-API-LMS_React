@@ -76,6 +76,8 @@ class TutorMessageResponse(BaseModel):
 class TutorSummaryResponse(BaseModel):
     summary: str
     state: dict[str, Any]
+    structured: Optional[dict[str, Any]] = None   # 深い振り返り（did / understood / stuck / next / message）
+    source: Optional[str] = None
 
 
 def _headers(user: Users) -> dict[str, str]:
@@ -496,9 +498,46 @@ async def tutor_preferences(body: TutorPreferencesRequest, current_user: Users =
     return await _forward("POST", "/session/preferences", current_user, json=body.model_dump())
 
 
+async def _recent_exercise_outcomes(db: AsyncSession, user_id: int, *, days: int = 30, limit: int = 15) -> list[dict[str, Any]]:
+    """振り返りの材料: 最近解いた問題ごとの最新の正誤（タイトル付き）。"""
+    from datetime import timedelta
+
+    since = datetime.now() - timedelta(days=days)
+    rows = (await db.execute(
+        select(exercises_model.StudentAnswers.question_id, exercises_model.StudentAnswers.is_correct,
+               exercises_model.StudentAnswers.id, exercises_model.ExerciseSessions.started_at)
+        .join(exercises_model.ExerciseSessions, exercises_model.ExerciseSessions.id == exercises_model.StudentAnswers.session_id)
+        .where(exercises_model.ExerciseSessions.user_id == user_id)
+        .where(exercises_model.ExerciseSessions.started_at >= since)
+        .order_by(exercises_model.StudentAnswers.id.asc())
+    )).all()
+    agg: dict[int, dict[str, Any]] = {}
+    for qid, ok, _id, started in rows:
+        a = agg.setdefault(qid, {"attempts": 0, "last_correct": None, "last_at": None})
+        a["attempts"] += 1
+        a["last_correct"] = bool(ok)
+        a["last_at"] = started.isoformat() if started else None
+    if not agg:
+        return []
+    qs = (await db.execute(select(questions_model.Questions).where(questions_model.Questions.id.in_(list(agg))))).scalars().all()
+    titles = {q.id: q.title for q in qs}
+    out = [
+        {"title": titles.get(qid, f"問題 {qid}"), "status": "正解" if a["last_correct"] else "不正解", "attempts": a["attempts"], "last_at": a["last_at"]}
+        for qid, a in agg.items()
+    ]
+    out.sort(key=lambda x: (x["status"] == "正解", -(x["attempts"])))  # 不正解・試行回数多を先に
+    return out[:limit]
+
+
 @tutor_router.get("/summary", response_model=TutorSummaryResponse)
-async def tutor_summary(current_user: Users = Depends(get_current_active_user)):
-    return await _forward("GET", "/session/summary", current_user)
+async def tutor_summary(
+    current_user: Users = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """振り返り（深い版）: 会話ログ・理解度・演習結果・教科書の依存関係から LLM が構造化。失敗時はテンプレ。"""
+    exercise = await _recent_exercise_outcomes(db, current_user.id)
+    data = await _forward("POST", "/session/reflect", current_user, json={"exercise": exercise})
+    return {"summary": data.get("summary") or "", "state": data.get("state") or {}, "structured": data.get("structured"), "source": data.get("source")}
 
 
 @tutor_router.get("/state")

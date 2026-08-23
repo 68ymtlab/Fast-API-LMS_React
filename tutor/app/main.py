@@ -29,6 +29,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from deeprag_search import LLM_MODEL  # noqa: E402
+from reflection import reflect  # noqa: E402
 from related import rank as rank_related  # noqa: E402
 from state_io import restore_state  # noqa: E402
 from store import TutorStore  # noqa: E402
@@ -491,11 +492,30 @@ def get_history(limit: int = Query(default=40, ge=1, le=200), student_id: str = 
     return {"conversation_id": entry.conversation_id, "items": _history_items(store.load_turns(entry.conversation_id, limit))}
 
 
+class ReflectRequest(BaseModel):
+    """backend が LMS 側の事実（演習の結果）を添えて呼ぶ。"""
+    exercise: list[dict[str, Any]] = Field(default_factory=list)   # [{title, status, attempts, last_at}]
+
+
 @app.get("/session/summary", response_model=SummaryResponse)
 def get_summary(student_id: str = Depends(_auth)):
+    """互換: 研究側テンプレの振り返り（LLM 不使用）。"""
     entry = manager.get(student_id)
     with entry.lock:
         return SummaryResponse(summary=entry.session.summarize_weak_points(), state=entry.session.debug_state())
+
+
+@app.post("/session/reflect")
+def post_reflect(body: ReflectRequest, student_id: str = Depends(_auth)):
+    """深い振り返り: 会話ログ・理解度・演習結果・KG を材料に LLM で構造化（1 回の呼び出し）。失敗時はテンプレに戻す。"""
+    entry = manager.get(student_id)
+    sid = _to_int(student_id)
+    with entry.lock:
+        turns = store.load_turns(entry.conversation_id, 60) if entry.conversation_id else []
+        profile = store.load_profile(sid) if sid is not None else None
+        out = reflect(entry.session, turns=turns, exercise=body.exercise, profile=profile)
+        out["state"] = entry.session.debug_state()
+        return out
 
 
 @app.get("/session/state")

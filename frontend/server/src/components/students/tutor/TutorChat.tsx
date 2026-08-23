@@ -34,6 +34,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import axios from "@/lib/axios";
+import { type Reflection, ReflectionCard } from "./ReflectionCard";
 import {
 	type RelatedMeta,
 	type RelatedQuestion,
@@ -112,6 +113,8 @@ export interface ChatMessage {
 	viz?: VizSpec | null;
 	relatedQuestions?: RelatedQuestion[];
 	relatedMeta?: RelatedMeta | null;
+	reflection?: Reflection | null;
+	reflectionMeta?: { level?: string; goal?: string };
 }
 
 const CITATION_HEADING = "## 参考（教科書）";
@@ -413,11 +416,44 @@ export function TutorChat({
 		setSending(true);
 		setError(null);
 		try {
-			const res = await axios.get<{ summary: string }>("/tutor/summary");
-			push({
-				role: "system",
-				text: res.data.summary || "（まだ記録がありません）",
-			});
+			const res = await axios.get<{
+				summary: string;
+				structured?: Reflection | null;
+				state?: Record<string, unknown>;
+			}>("/tutor/summary");
+			const ls = (res.data.state?.learner_state ?? {}) as {
+				understanding_level?: string;
+				goal?: string;
+			};
+			const LV: Record<string, string> = {
+				none: "はじめて",
+				heard: "聞いたことがある",
+				can_compute: "計算できる",
+				can_prove: "証明・一般化まで",
+			};
+			const GL: Record<string, string> = {
+				intuition: "イメージをつかむ",
+				application: "使い方を知る",
+				definition: "定義を正確に",
+				proof: "証明を理解する",
+				generalization: "一般化・条件を知る",
+			};
+			if (res.data.structured?.did?.length) {
+				push({
+					role: "system",
+					text: "振り返り",
+					reflection: res.data.structured,
+					reflectionMeta: {
+						level: LV[ls.understanding_level ?? ""],
+						goal: GL[ls.goal ?? ""],
+					},
+				});
+			} else {
+				push({
+					role: "system",
+					text: res.data.summary || "（まだ記録がありません）",
+				});
+			}
 		} catch {
 			setError("まとめの取得に失敗しました。");
 		} finally {
@@ -716,17 +752,30 @@ export function TutorChat({
 						) : null}
 						{messages.map((m) =>
 							m.role === "system" ? (
-								<div key={m.id} className="flex justify-center">
+								m.reflection ? (
+									<ReflectionCard
+										key={m.id}
+										r={m.reflection}
+										level={m.reflectionMeta?.level}
+										goal={m.reflectionMeta?.goal}
+									/>
+								) : /^##\s/m.test(m.text) ? (
+									// 振り返りなど見出し付きの長文はカードで（幅いっぱい・通常サイズ）
 									<div
-										className={`max-w-[90%] bg-muted px-3 py-1 text-xs text-muted-foreground ${/[#$]/.test(m.text) ? "rounded-xl text-left" : "rounded-full"}`}
+										key={m.id}
+										className="rounded-xl border bg-muted/30 px-4 py-3 text-sm"
 									>
-										{/[#$]/.test(m.text) ? (
+										<div className="prose prose-sm max-w-none dark:prose-invert">
 											<MathJax text={protectMath(m.text)} />
-										) : (
-											m.text
-										)}
+										</div>
 									</div>
-								</div>
+								) : (
+									<div key={m.id} className="flex justify-center">
+										<div className="max-w-[90%] rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+											{m.text}
+										</div>
+									</div>
+								)
 							) : m.role === "student" ? (
 								<div key={m.id} className="flex justify-end">
 									<div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-muted px-4 py-2 text-sm">

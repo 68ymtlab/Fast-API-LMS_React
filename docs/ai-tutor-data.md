@@ -147,6 +147,14 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 - その場で解く（実装済み）: カードには **1 問だけ**出し、numeric / multiple_numeric はその場で解答・採点（採点規則は既存演習ページ `checkAnswer` と同じ許容誤差つき数値比較）。保存は既存 API（`POST /exercise-sets/{id}/sessions` → `POST /exercise-sessions/{id}/answers`、`answer_data.source="tutor"` 付き）なので `student_answers` に入り、次回の「前回不正解／正解済み」判定と再提示ルールにそのまま効く。続けて解きたいときは「他の問題も解く（あと N 問）」で既存の演習ページへ（`related_meta.more` = 今回出さなかった解ける問題の数）。演習セットに入っていない問題は採点のみ（記録されない旨を表示）。答えは一度解答を試した後に見られる
 - 次の段階: 教員が `difficulty` を付ければ習熟度連動が効く。不正解が続く問題は教員ビューで可視化
 
+## 振り返り（深い版）
+
+「振り返り」ボタンは tutor の `POST /session/reflect` を呼ぶ（backend `GET /api/tutor/summary` 経由）。材料は
+(1) この会話の発話ログ（`tutor.turns`）、(2) SessionState（理解度・目的・トピック別到達・既知トピック）、
+(3) LMS の最近の演習結果（`student_answers`、backend が `exercise` として添付）、(4) KG の前提／発展（焦点エンティティの `get_dependencies` / `get_dependents`、節名で集約）。
+LLM 1 回（`response_format` の JSON Schema で拘束）で `{did, understood, stuck, next[{topic,why,how}], message}` を生成し、フロントは `ReflectionCard` で描画（Markdown に頼らない）。
+失敗時は研究側テンプレ `summarize_weak_points()` にフォールバック。演習問題の生成はしない（次に学ぶことの提案だけ）。実装: `tutor/app/reflection.py`。
+
 # 次にやること
 
 1. **教員ビューの画面**（`/t/...`）: `GET /api/tutor/questions` を表で出す。ページ別・学生別の集計 SQL は `v_student_questions` に対する GROUP BY で足りる
