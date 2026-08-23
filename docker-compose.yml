@@ -103,6 +103,8 @@ services:
       - ./db/init/03-students-columns-migration.sql:/docker-entrypoint-initdb.d/03-students-columns-migration.sql:ro
       - ./db/init/02-assignments.sql:/docker-entrypoint-initdb.d/04-assignments.sql:ro
       - ./db/init/05-soft-delete-email-migration.sql:/docker-entrypoint-initdb.d/05-soft-delete-email-migration.sql:ro
+      # AI チューター（tutor スキーマ）。新規 volume 用。既存 volume には tutor サービス起動時の IF NOT EXISTS DDL が同じ内容を適用する
+      - ./db/init/06-tutor-schema.sql:/docker-entrypoint-initdb.d/06-tutor-schema.sql:ro
       - postgres-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
