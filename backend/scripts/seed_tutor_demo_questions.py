@@ -28,6 +28,9 @@ PREFIX = "線形代数 デモ"
 COURSE_ID = int(os.environ.get("DEMO_COURSE_ID", "3"))
 SET_TITLE = "線形代数 演習（AIチューター デモ）"
 
+# 各問題に付けるタグ（tags / question_tags）。タイトルの先頭語（単位行列・行列式 …）を単元タグにする
+TAGS_COMMON = ["線形代数"]
+
 QUESTIONS = [
     ("単位行列 Q1", "# Q1 $E$ を2次の単位行列、$A=\\begin{pmatrix}1&2\\\\\\\\3&4\\end{pmatrix}$ とする。$AE$ の $(1,2)$ 成分を求めよ。(半角で入力)", 2, "単位行列を掛けても行列は変わらない（$AE=A$）。"),
     ("単位行列 Q2", "# Q2 3次の単位行列 $E_3$ の対角成分の和（トレース）を求めよ。(半角で入力)", 3, "対角成分はすべて 1。"),
@@ -50,22 +53,35 @@ async def main(remove: bool) -> None:
         if remove:
             await conn.execute(text("DELETE FROM exercise_sets WHERE title = :t"), {"t": SET_TITLE})
             r = await conn.execute(text("DELETE FROM questions WHERE title LIKE :p"), {"p": PREFIX + "%"})
-            print(f"removed {r.rowcount} questions and the demo exercise set")
+            # デモ問題にしか付いていないタグも片付ける
+            await conn.execute(text("DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM question_tags)"))
+            print(f"removed {r.rowcount} questions, the demo exercise set, and orphan tags")
             return
+        async def tag_id(name: str) -> int:
+            slug = name  # 日本語名はそのまま slug に（既存データと同じく一意ならよい）
+            row = (await conn.execute(text("SELECT id FROM tags WHERE name = :n"), {"n": name})).first()
+            if row:
+                return row[0]
+            return (await conn.execute(text("INSERT INTO tags (name, slug) VALUES (:n, :s) RETURNING id"), {"n": name, "s": slug})).first()[0]
+
         ids = []
         for title, q, ans, hint in QUESTIONS:
             full = f"{PREFIX} {title}"
             row = (await conn.execute(text("SELECT id FROM questions WHERE title = :t"), {"t": full})).first()
             if row:
-                ids.append(row[0])
-                continue
-            cd = {"question": q, "answers": [ans], "tolerance": 0, "hint": hint}
-            row = (await conn.execute(
-                text("INSERT INTO questions (title, question_type, difficulty, content_data, is_active) "
-                     "VALUES (:t, 'numeric', 1, CAST(:cd AS jsonb), TRUE) RETURNING id"),
-                {"t": full, "cd": json.dumps(cd, ensure_ascii=False)},
-            )).first()
-            ids.append(row[0])
+                qid = row[0]
+            else:
+                cd = {"question": q, "answers": [ans], "tolerance": 0, "hint": hint}
+                qid = (await conn.execute(
+                    text("INSERT INTO questions (title, question_type, difficulty, content_data, is_active) "
+                         "VALUES (:t, 'numeric', 1, CAST(:cd AS jsonb), TRUE) RETURNING id"),
+                    {"t": full, "cd": json.dumps(cd, ensure_ascii=False)},
+                )).first()[0]
+            ids.append(qid)
+            unit = title.split(" ")[0]  # 例: 「単位行列 Q1」→「単位行列」
+            for tname in TAGS_COMMON + [unit]:
+                tid = await tag_id(tname)
+                await conn.execute(text("INSERT INTO question_tags (question_id, tag_id) VALUES (:q, :t) ON CONFLICT DO NOTHING"), {"q": qid, "t": tid})
         exists = (await conn.execute(text("SELECT id FROM exercise_sets WHERE title = :t"), {"t": SET_TITLE})).first()
         if exists:
             await conn.execute(text("UPDATE exercise_sets SET question_ids = CAST(:q AS jsonb) WHERE id = :id"),

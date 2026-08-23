@@ -137,7 +137,10 @@ tutor サービス側（内部）: `/session/open|message|history|summary|state|
 
 - `GET /api/tutor/related-questions?q=…&course_id=…` 単体でも呼べる
 - デモ用データ: `backend/scripts/seed_tutor_demo_questions.py`（線形代数 12 問 + 演習セット。`--remove` で撤去）。数式の行区切りは LMS の流儀で `\\\\` と二重化して保存する
-- 次の段階: 学生の正誤（`student_answers`）や `student_competencies` を使って「未回答／間違えた問題を優先」する、タグ（`question_tags`）で教科・単元を絞る
+- 並べ替え（実装済み）: 類似度を土台に、学生の解答履歴（`student_answers` ⋈ `exercise_sessions`）で **前回不正解 +0.08 / 未回答 +0.03 / 正解済み −0.05**、問い合わせ文にタグ名が含まれていれば +0.05、`student_competencies.mastery_level`（科目単位）があれば同点付近で難易度の並びを調整（高いほど難しい問題が先）。カードに「前回 不正解／未回答／正解済み」チップとタグを表示
+- 絞り込み: `GET /api/tutor/related-questions?tag=行列式` でタグ一致の問題だけ。埋め込みテキストにもタグ名を含める（類似度が上がる）
+- デモ seed はタグ（`線形代数` + 単元名）も投入する（`--remove` で孤立タグも片付ける）
+- 次の段階: 学生が「解いた／答えを見た」を tutor 側にも記録して重複提示を避ける、教員が `difficulty` を付ければ習熟度連動が効く
 
 # 次にやること
 

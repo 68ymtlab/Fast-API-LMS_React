@@ -18,12 +18,30 @@ export type RelatedQuestion = {
 	hint?: string;
 	answers: { label: string; answers: unknown }[];
 	score?: number;
+	status?: "wrong" | "unanswered" | "correct" | "unknown";
+	attempts?: number;
+	tags?: string[];
 	exercise_set?: {
 		id: number;
 		title: string;
 		course_id: number;
 		url: string;
 	} | null;
+};
+
+const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
+	wrong: {
+		label: "前回 不正解",
+		cls: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
+	},
+	unanswered: {
+		label: "未回答",
+		cls: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
+	},
+	correct: {
+		label: "正解済み",
+		cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+	},
 };
 
 // 問題文の先頭の見出し（# Q1 …）と入力注記は本文から外して読みやすくする
@@ -46,6 +64,13 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 				aria-expanded={open}
 			>
 				<span className="min-w-0 flex-1 truncate">{q.title}</span>
+				{q.status && STATUS_CHIP[q.status] ? (
+					<span
+						className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${STATUS_CHIP[q.status].cls}`}
+					>
+						{STATUS_CHIP[q.status].label}
+					</span>
+				) : null}
 				{q.difficulty ? (
 					<span className="shrink-0 text-[11px] text-muted-foreground">
 						難易度 {q.difficulty}
@@ -87,6 +112,18 @@ function RelatedItem({ q }: { q: RelatedQuestion }) {
 							) : null}
 						</div>
 					) : null}
+					{q.tags?.length ? (
+						<div className="flex flex-wrap gap-1">
+							{q.tags.map((t) => (
+								<span
+									key={t}
+									className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+								>
+									#{t}
+								</span>
+							))}
+						</div>
+					) : null}
 					<div className="flex flex-wrap items-center gap-2">
 						<Button
 							variant="outline"
@@ -122,7 +159,7 @@ export function RelatedQuestions({ items }: { items: RelatedQuestion[] }) {
 		<div className="mt-3 rounded-xl border bg-muted/30 p-2">
 			<div className="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
 				<ListChecks className="h-3.5 w-3.5" />
-				関連する演習問題（教員が作成した問題から）
+				関連する演習問題（教員が作成した問題から。間違えた問題・未回答を優先）
 			</div>
 			<ul className="space-y-1.5">
 				{items.map((q) => (

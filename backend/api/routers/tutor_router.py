@@ -18,10 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.core.config import settings
 from api.core.security import get_current_active_user, require_teacher_or_higher
 from api.db.session import get_db
-from api.models import exercises_model, lessons_model, questions_model
+from api.models import adaptive_model, courses_model, exercises_model, lessons_model, questions_model
 from api.models.users_model import Users
 from api.repositories.contents_repo import ContentRepository
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from api.repositories.lessons_repo import LessonRepository
 
 tutor_router = APIRouter(prefix="/tutor", tags=["AIチューター"])
@@ -158,9 +159,12 @@ _MD_NOISE_RE = re.compile(r"^#+\s*|\\fbox\{[^}]*\}|\(半角で入力\)", re.M)
 
 
 def _question_text(q: questions_model.Questions) -> str:
-    """埋め込み用のテキスト（タイトル + 問題文 + 空欄ラベル）。"""
+    """埋め込み用のテキスト（タイトル + タグ + 問題文 + 空欄ラベル）。"""
     cd = q.content_data or {}
     parts = [q.title or ""]
+    tag_names = [t.name for t in (getattr(q, "tags", None) or [])]
+    if tag_names:
+        parts.append("タグ: " + " ".join(tag_names))
     if isinstance(cd, dict):
         if cd.get("question"):
             parts.append(str(cd["question"]))
@@ -188,16 +192,84 @@ def _question_public(q: questions_model.Questions) -> dict[str, Any]:
         "question": str(cd.get("question") or ""),
         "hint": str(cd.get("hint") or ""),
         "answers": answers,
+        "tags": [t.name for t in (getattr(q, "tags", None) or [])],
     }
 
 
-async def _related_questions(query: str, db: AsyncSession, *, limit: int = 3, course_id: Optional[int] = None) -> list[dict[str, Any]]:
+# 学生の解答履歴に基づく優先度（前回不正解 > 未回答 > 正解済み）。類似度への加点として効かせる
+_STATUS_BONUS = {"wrong": 0.08, "unanswered": 0.03, "correct": -0.05}
+
+
+async def _answer_status(db: AsyncSession, user_id: int, question_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """question_id → {status, attempts, last_correct}。最新の解答（id が大きいもの）で判定。"""
+    if not question_ids:
+        return {}
+    rows = (await db.execute(
+        select(exercises_model.StudentAnswers.question_id, exercises_model.StudentAnswers.is_correct, exercises_model.StudentAnswers.id)
+        .join(exercises_model.ExerciseSessions, exercises_model.ExerciseSessions.id == exercises_model.StudentAnswers.session_id)
+        .where(exercises_model.ExerciseSessions.user_id == user_id)
+        .where(exercises_model.StudentAnswers.question_id.in_(question_ids))
+        .order_by(exercises_model.StudentAnswers.id.asc())
+    )).all()
+    out: dict[int, dict[str, Any]] = {}
+    for qid, is_correct, _ in rows:
+        st = out.setdefault(qid, {"attempts": 0, "last_correct": None, "ever_correct": False})
+        st["attempts"] += 1
+        st["last_correct"] = is_correct
+        st["ever_correct"] = st["ever_correct"] or bool(is_correct)
+    for qid in question_ids:
+        st = out.setdefault(qid, {"attempts": 0, "last_correct": None, "ever_correct": False})
+        if st["attempts"] == 0:
+            st["status"] = "unanswered"
+        elif st["last_correct"]:
+            st["status"] = "correct"
+        else:
+            st["status"] = "wrong"
+    return out
+
+
+async def _mastery_for_course(db: AsyncSession, user_id: int, course_id: Optional[int]) -> Optional[float]:
+    """student_competencies（科目単位の習熟度）を、コース→科目で引く。無ければ None。"""
+    if course_id is None:
+        return None
+    subject_id = (await db.execute(
+        select(courses_model.Courses.subject_id).where(courses_model.Courses.id == course_id)
+    )).scalar_one_or_none()
+    if subject_id is None:
+        return None
+    m = (await db.execute(
+        select(adaptive_model.StudentCompetencies.mastery_level)
+        .where(adaptive_model.StudentCompetencies.user_id == user_id)
+        .where(adaptive_model.StudentCompetencies.subject_id == subject_id)
+    )).scalar_one_or_none()
+    return float(m) if m is not None else None
+
+
+async def _related_questions(
+    query: str,
+    db: AsyncSession,
+    *,
+    limit: int = 3,
+    course_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    tag: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """いまの話題に近い既存問題。類似度（bge-m3）を土台に、学生の解答履歴・タグ・習熟度で並べ替える。
+
+    - 解答履歴: 前回不正解 +0.08 / 未回答 +0.03 / 正解済み -0.05（類似度に加点。話題の関連性は類似度の閾値で担保）
+    - タグ: 問い合わせ文にタグ名が含まれていれば +0.05。tag= 指定時はそのタグの問題だけ
+    - 習熟度（student_competencies）: 同点付近の並びを、高いほど難しい問題が先になるよう調整
+    """
     query = (query or "").strip()
     if not query:
         return []
-    qs = (await db.execute(
-        select(questions_model.Questions).where(questions_model.Questions.is_active == True)  # noqa: E712
-    )).scalars().all()
+    stmt = select(questions_model.Questions).options(selectinload(questions_model.Questions.tags)).where(
+        questions_model.Questions.is_active == True  # noqa: E712
+    )
+    qs = (await db.execute(stmt)).scalars().unique().all()
+    if tag:
+        tag_l = tag.strip().lower()
+        qs = [q for q in qs if any((t.name or "").lower() == tag_l or (t.slug or "").lower() == tag_l for t in (q.tags or []))]
     if not qs:
         return []
     by_id = {q.id: q for q in qs}
@@ -205,7 +277,7 @@ async def _related_questions(query: str, db: AsyncSession, *, limit: int = 3, co
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
             res = await client.post(
                 f"{settings.TUTOR_SERVICE_URL.rstrip('/')}/related/rank",
-                json={"query": query, "candidates": [{"id": q.id, "text": _question_text(q)} for q in qs], "top_k": limit, "min_score": 0.48},
+                json={"query": query, "candidates": [{"id": q.id, "text": _question_text(q)} for q in qs], "top_k": max(limit * 4, 12), "min_score": 0.48},
                 headers={"X-Tutor-Token": settings.TUTOR_SERVICE_TOKEN} if settings.TUTOR_SERVICE_TOKEN else {},
             )
         if res.status_code != 200:
@@ -217,6 +289,24 @@ async def _related_questions(query: str, db: AsyncSession, *, limit: int = 3, co
     if ranked:
         top = float(ranked[0].get("score") or 0)
         ranked = [r for r in ranked if float(r.get("score") or 0) >= top - 0.07]
+    # 学生の解答履歴・タグ・習熟度で並べ替え
+    statuses = await _answer_status(db, user_id, [r["id"] for r in ranked]) if user_id is not None else {}
+    mastery = await _mastery_for_course(db, user_id, course_id) if user_id is not None else None
+    q_lower = query.lower()
+    for r in ranked:
+        q = by_id.get(r["id"])
+        st = statuses.get(r["id"], {}).get("status", "unanswered") if statuses else "unknown"
+        adj = float(r.get("score") or 0) + _STATUS_BONUS.get(st, 0.0)
+        if q is not None and any((t.name or "").lower() in q_lower for t in (q.tags or []) if t.name):
+            adj += 0.05
+        # 習熟度が高い学生には難しめ、低い学生には易しめを同点付近で先に
+        diff = float(q.difficulty or 0) if q is not None else 0.0
+        if mastery is not None:
+            adj += (diff - 2.5) * 0.01 * (1 if mastery >= 0.7 else -1)
+        r["adj_score"] = round(adj, 4)
+        r["status"] = st
+    ranked.sort(key=lambda r: -r["adj_score"])
+    ranked = ranked[:limit]
     # 問題が入っている演習セット（あれば「演習ページで解く」リンク先）
     sets = (await db.execute(select(exercises_model.ExerciseSets))).scalars().all()
     set_by_q: dict[int, exercises_model.ExerciseSets] = {}
@@ -237,6 +327,8 @@ async def _related_questions(query: str, db: AsyncSession, *, limit: int = 3, co
             continue
         item = _question_public(q)
         item["score"] = r.get("score")
+        item["status"] = r.get("status")  # wrong / unanswered / correct / unknown
+        item["attempts"] = statuses.get(q.id, {}).get("attempts", 0) if statuses else 0
         st = set_by_q.get(q.id)
         if st is not None:
             if st.course_id not in first_lesson:
@@ -256,11 +348,12 @@ async def tutor_related_questions(
     q: str = Query(min_length=1, max_length=2000),
     limit: int = Query(default=3, ge=1, le=10),
     course_id: Optional[int] = None,
+    tag: Optional[str] = Query(default=None, max_length=50),
     current_user: Users = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """いまの話題に近い既存の演習問題（教員作成）。"""
-    return {"items": await _related_questions(q, db, limit=limit, course_id=course_id)}
+    """いまの話題に近い既存の演習問題（教員作成）。学生の解答履歴で並べ替え、tag で絞り込める。"""
+    return {"items": await _related_questions(q, db, limit=limit, course_id=course_id, user_id=current_user.id, tag=tag)}
 
 
 @tutor_router.post("/open")
@@ -335,7 +428,9 @@ async def tutor_message(
         focus = str(state.get("focus_concept") or "").strip()
         query = " ".join(p for p in (focus, (body.text or "").strip()) if p)
         try:
-            data["related_questions"] = await _related_questions(query, db, limit=3, course_id=body.context.course_id if body.context else None)
+            data["related_questions"] = await _related_questions(
+                query, db, limit=3, course_id=body.context.course_id if body.context else None, user_id=current_user.id
+            )
         except Exception:  # 付加情報なので失敗しても回答は返す
             data["related_questions"] = []
     return data
