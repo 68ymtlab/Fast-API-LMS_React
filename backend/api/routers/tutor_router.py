@@ -161,9 +161,13 @@ async def _resolve_page_context(ctx: Optional[TutorContext], db: AsyncSession) -
 
 
 async def _recent_tutor_evidence(
-    db: AsyncSession, user_id: int, course_id: int | None, *, limit: int = 8
+    db: AsyncSession, user_id: int, course_id: int | None, *, limit: int = 40
 ) -> list[dict[str, Any]]:
-    """Return bounded recent exercise evidence for planning; never include raw answers."""
+    """Return a recent candidate pool with per-question attempt summaries.
+
+    Relevance is selected later using the current utterance, page, and KG. Raw
+    answers are deliberately excluded from this cross-service payload.
+    """
     stmt = (
         select(exercises_model.StudentAnswers, questions_model.Questions, exercises_model.ExerciseSessions.started_at)
         .join(exercises_model.ExerciseSessions, exercises_model.ExerciseSessions.id == exercises_model.StudentAnswers.session_id)
@@ -174,25 +178,27 @@ async def _recent_tutor_evidence(
     )
     if course_id is not None:
         stmt = stmt.where(exercises_model.ExerciseSets.course_id == course_id)
-    rows = (await db.execute(stmt.order_by(exercises_model.StudentAnswers.id.desc()).limit(40))).all()
-    evidence: list[dict[str, Any]] = []
-    seen_questions: set[int] = set()
+    rows = (await db.execute(stmt.order_by(exercises_model.StudentAnswers.id.desc()).limit(400))).all()
+    by_question: dict[int, dict[str, Any]] = {}
     for answer, question, started_at in rows:
-        if question.id in seen_questions:
-            continue
-        seen_questions.add(question.id)
         outcome = "unknown" if answer.is_correct is None else ("correct" if answer.is_correct else "incorrect")
-        evidence.append({
-            "ref": f"exercise:{question.id}:{answer.id}",
-            "source": "exercise",
-            "topic_tags": [tag.name for tag in (question.tags or []) if tag.name][:8],
-            "item_title": question.title or "",
-            "result": outcome,
-            "recorded_at": started_at.isoformat() if started_at else "",
-        })
-        if len(evidence) >= limit:
-            break
-    return evidence
+        record = by_question.get(question.id)
+        if record is None:
+            record = {
+                "ref": f"exercise:{question.id}:{answer.id}",
+                "source": "exercise",
+                "topic_tags": [tag.name for tag in (question.tags or []) if tag.name][:8],
+                "item_title": question.title or "",
+                "result": outcome,
+                "recorded_at": started_at.isoformat() if started_at else "",
+                "attempt_count": 0,
+                "recent_outcomes": [],
+            }
+            by_question[question.id] = record
+        record["attempt_count"] = min(50, record["attempt_count"] + 1)
+        if len(record["recent_outcomes"]) < 6:
+            record["recent_outcomes"].append(outcome)
+    return list(by_question.values())[:max(0, min(40, limit))]
 
 
 # ---- 類似問題（教員が作った既存問題を、いまの話題に近い順に出す。LLM 生成はしない） ----

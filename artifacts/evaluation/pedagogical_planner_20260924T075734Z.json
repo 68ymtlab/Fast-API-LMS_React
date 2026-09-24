@@ -1,0 +1,4573 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-09-24T07:57:34.053676+00:00",
+    "model": "Qwen/Qwen3.8-27B-FP8",
+    "model_version": null,
+    "temperature": 0.1,
+    "planner_prompt_version": "pedagogical_planner_prompt_v2",
+    "planner_schema_version": "2",
+    "dataset_version": "planner_counterfactual_v1",
+    "dataset_path": "/app/evaluation/counterfactual_cases.jsonl",
+    "dataset_sha256": "87922d68b0034671e54c4b44c6422d2b6eb92bdd492c71cca876234dbabbbc5e",
+    "baseline_definition": "pre-Planner adaptive_v1 classify/state-machine/_should_diagnose_legacy/retrieval-answer path; no planner LLM call",
+    "evaluation_scope": "planner_decisions_with_stubbed_retrieval_and_answer_generation",
+    "token_usage_available": false
+  },
+  "modes": {
+    "baseline": {
+      "summary": {
+        "case_count": 18,
+        "evidence_utilization_rate": null,
+        "irrelevant_evidence_rejection_rate": null,
+        "pedagogical_adaptation_rate": null,
+        "counterfactual_pair_adaptation": null,
+        "counterfactual_pair_details": [],
+        "unsupported_personalization_rate": null,
+        "diagnostic_rate": 0.9444,
+        "diagnostic_expectation_accuracy": {
+          "passed": 2,
+          "total": 18,
+          "rate": 0.1111
+        },
+        "page_grounding_rate": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "page_counterfactual_accuracy": {
+          "passed": 0,
+          "total": 3,
+          "rate": 0.0
+        },
+        "no_stale_page_rate": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "retrieval_usage_rate": 0.0556,
+        "fallback_rate": 0.0,
+        "latency_ms": {
+          "mean": 0.0,
+          "p50": 0.0,
+          "p95": 0.0,
+          "planner_mean": null,
+          "planner_p95": null
+        },
+        "llm_calls": 0,
+        "token_usage": null
+      },
+      "cases": [
+        {
+          "case_id": "greeting_morning",
+          "category": "social",
+          "counterfactual_group": "greeting",
+          "counterfactual_role": null,
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "source_scope": "no_retrieval",
+            "retrieval_expected": false,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "source_scope": null,
+            "retrieval_usage": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "おはよう",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "explicit_diagnostic_request",
+          "category": "diagnostic",
+          "counterfactual_group": "diagnostic_request",
+          "counterfactual_role": "explicit_request",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値について理解度を確認して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_no_history",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "no_history",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "retrieval_expected": true,
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "retrieval_usage": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_prereq_success",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "prerequisite_success",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:101:1001"
+            ],
+            "move_not_any": [
+              "prerequisite_repair"
+            ],
+            "support_not": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false,
+            "move_not_any": null,
+            "support_not": null,
+            "adaptation": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_prereq_failure",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:102:1002"
+            ],
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false,
+            "pedagogical_move": null,
+            "support_level": null,
+            "adaptation": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_irrelevant_calculus",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "irrelevant_only",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "reject_refs": [
+              "exercise:103:1003"
+            ],
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "irrelevant_evidence_rejection": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "determinant_definition_direct_errors",
+          "category": "concept",
+          "counterfactual_group": "determinant_definition",
+          "counterfactual_role": "direct_failure",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:104:1004"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "行列式って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_why_determinant_prereq",
+          "category": "why",
+          "counterfactual_group": "eigenvalue_why",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:105:1005"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "なぜ固有値は det(A-λI)=0 で求められるの？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_no_history",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "no_history",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "source_scope": "rag",
+            "retrieval_expected": true,
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "source_scope": null,
+            "retrieval_usage": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_direct_success",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "direct_success",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:106:1006"
+            ],
+            "pedagogical_move": "guided_question",
+            "support_level": "minimal",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false,
+            "pedagogical_move": null,
+            "support_level": null,
+            "adaptation": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_prereq_failure",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:107:1007"
+            ],
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": false,
+            "evidence_utilization": false,
+            "pedagogical_move": null,
+            "support_level": null,
+            "adaptation": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "ambiguous_learning_difficulty_with_history",
+          "category": "difficulty",
+          "counterfactual_group": "difficulty",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:108:1008"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値の問題が全然分からない",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値 とは何か",
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "open_page_explicit_reference",
+          "category": "page",
+          "counterfactual_group": "page_reference",
+          "counterfactual_role": "page_a",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "explicit_reference",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "page_grounding": false,
+            "retrieval_usage": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この式はなぜこうなる？",
+              "page_id_sent": 7001,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "same_ambiguous_question_page_a",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "page_a",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "page_grounding": false,
+            "retrieval_usage": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": 7011,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "page_b_ambiguous_reference",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "page_b",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "page_grounding": false,
+            "retrieval_usage": false
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": 7002,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "same_ambiguous_question_no_page",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "no_page",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "retrieval_usage": false,
+            "no_stale_page": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "closed_page_no_stale_context",
+          "category": "page",
+          "counterfactual_group": "page_close",
+          "counterfactual_role": "no_page",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "retrieval_usage": false,
+            "no_stale_page": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値について説明して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        },
+        {
+          "case_id": "page_switch_close_sequence",
+          "category": "page_sequence",
+          "counterfactual_group": "page_close_sequence",
+          "counterfactual_role": "no_page",
+          "mode": "baseline",
+          "mode_requested": "baseline",
+          "mode_effective": "baseline",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": false,
+            "page_relation": null,
+            "source_scope": null,
+            "retrieval_usage": false,
+            "no_stale_page": true
+          },
+          "plan": null,
+          "selected_evidence_refs": [],
+          "evidence_selection": null,
+          "reason_codes": [],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 0,
+          "planner_latency_ms": [
+            0,
+            0,
+            0
+          ],
+          "total_latency_ms": 0,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この式は？",
+              "page_id_sent": 7101,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            },
+            {
+              "text": "この式は？",
+              "page_id_sent": 7102,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            },
+            {
+              "text": "固有値について説明して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "baseline",
+              "mode_effective": "baseline",
+              "planner": {
+                "mode_requested": "baseline",
+                "mode_effective": "baseline",
+                "status": "baseline",
+                "planner_called": false,
+                "latency_ms": 0,
+                "model": null,
+                "prompt_version": null,
+                "schema_version": null,
+                "temperature": null,
+                "model_version": null,
+                "token_usage": null,
+                "plan": null
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    "planner": {
+      "summary": {
+        "case_count": 18,
+        "evidence_utilization_rate": {
+          "passed": 7,
+          "total": 7,
+          "rate": 1.0
+        },
+        "irrelevant_evidence_rejection_rate": {
+          "passed": 1,
+          "total": 1,
+          "rate": 1.0
+        },
+        "pedagogical_adaptation_rate": {
+          "passed": 4,
+          "total": 4,
+          "rate": 1.0
+        },
+        "counterfactual_pair_adaptation": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "counterfactual_pair_details": [
+          {
+            "group": "eigenvalue_definition",
+            "meaningful_difference": true,
+            "failure_direction": true,
+            "success_not_overhelped": true,
+            "passed": true
+          },
+          {
+            "group": "eigenvalue_next_step",
+            "meaningful_difference": true,
+            "failure_direction": true,
+            "success_not_overhelped": true,
+            "passed": true
+          },
+          {
+            "group": "eigenvalue_next_step",
+            "meaningful_difference": true,
+            "failure_direction": null,
+            "success_not_overhelped": null,
+            "passed": true
+          }
+        ],
+        "unsupported_personalization_rate": {
+          "violations": 0,
+          "total": 11,
+          "rate": 0.0
+        },
+        "diagnostic_rate": 0.0556,
+        "diagnostic_expectation_accuracy": {
+          "passed": 18,
+          "total": 18,
+          "rate": 1.0
+        },
+        "page_grounding_rate": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "page_counterfactual_accuracy": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "no_stale_page_rate": {
+          "passed": 3,
+          "total": 3,
+          "rate": 1.0
+        },
+        "retrieval_usage_rate": 0.8889,
+        "fallback_rate": 0.0,
+        "latency_ms": {
+          "mean": 5697.17,
+          "p50": 4981.0,
+          "p95": 15294.0,
+          "planner_mean": 5126.9,
+          "planner_p95": 6369.0
+        },
+        "llm_calls": 20,
+        "token_usage": null
+      },
+      "cases": [
+        {
+          "case_id": "greeting_morning",
+          "category": "social",
+          "counterfactual_group": "greeting",
+          "counterfactual_role": null,
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "source_scope": "no_retrieval",
+            "retrieval_expected": false,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "source_scope": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "social"
+            ],
+            "target_concepts": [],
+            "action": "social_response",
+            "page_relation": "no_open_page",
+            "source_scope": "no_retrieval",
+            "pedagogical_move": "social_response",
+            "support_level": "minimal",
+            "reason_codes": [
+              "social_turn"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "social_turn"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "none"
+            },
+            "retrieval": {
+              "queries": [],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "social_turn"
+          ],
+          "diagnostic": false,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            3953
+          ],
+          "total_latency_ms": 3953,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "おはよう",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 3953,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "social"
+                  ],
+                  "target_concepts": [],
+                  "action": "social_response",
+                  "page_relation": "no_open_page",
+                  "source_scope": "no_retrieval",
+                  "pedagogical_move": "social_response",
+                  "support_level": "minimal",
+                  "reason_codes": [
+                    "social_turn"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "social_turn"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "meta",
+              "latency_ms": 3953
+            }
+          ]
+        },
+        {
+          "case_id": "explicit_diagnostic_request",
+          "category": "diagnostic",
+          "counterfactual_group": "diagnostic_request",
+          "counterfactual_role": "explicit_request",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "線形写像"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "explicit_diagnostic_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": true,
+              "target": "固有値",
+              "reason": "explicit_diagnostic_request"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義と意味",
+                "固有値の計算方法",
+                "固有値の幾何学的解釈"
+              ],
+              "prerequisite_concepts": [
+                "行列",
+                "線形方程式"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "explicit_diagnostic_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": true,
+          "retrieval_used": false,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            6518
+          ],
+          "total_latency_ms": 6519,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値について理解度を確認して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": true,
+              "retrieval_calls": 0,
+              "retrieval_query": null,
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 6518,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "線形写像"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "explicit_diagnostic_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": true,
+                    "target": "固有値",
+                    "reason": "explicit_diagnostic_request"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義と意味",
+                      "固有値の計算方法",
+                      "固有値の幾何学的解釈"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列",
+                      "線形方程式"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "",
+              "latency_ms": 6519
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_no_history",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "no_history",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "retrieval_expected": true,
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "線形写像",
+              "行列"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義",
+                "固有値と固有ベクトルの関係",
+                "行列の固有値の直感的意味"
+              ],
+              "prerequisite_concepts": [
+                "行列",
+                "ベクトル"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            5141
+          ],
+          "total_latency_ms": 5141,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 固有値と固有ベクトルの関係 行列の固有値の直感的意味 行列 ベクトル",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5141,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "線形写像",
+                    "行列"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義",
+                      "固有値と固有ベクトルの関係",
+                      "行列の固有値の直感的意味"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列",
+                      "ベクトル"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5141
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_prereq_success",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "prerequisite_success",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:101:1001"
+            ],
+            "move_not_any": [
+              "prerequisite_repair"
+            ],
+            "support_not": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true,
+            "move_not_any": true,
+            "support_not": true,
+            "adaptation": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "線形変換"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "relevant_prerequisite_success",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:101:1001"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義",
+                "固有値と線形変換の関係",
+                "固有値の直感的意味"
+              ],
+              "prerequisite_concepts": [
+                "線形変換",
+                "行列"
+              ]
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:101:1001"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 1
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "relevant_prerequisite_success",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4935
+          ],
+          "total_latency_ms": 4935,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 固有値と線形変換の関係 固有値の直感的意味 線形変換 行列",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4935,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 1
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "線形変換"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "relevant_prerequisite_success",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:101:1001"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義",
+                      "固有値と線形変換の関係",
+                      "固有値の直感的意味"
+                    ],
+                    "prerequisite_concepts": [
+                      "線形変換",
+                      "行列"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4935
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_prereq_failure",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:102:1002"
+            ],
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true,
+            "pedagogical_move": true,
+            "support_level": true,
+            "adaptation": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "線形変換"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "relevant_prerequisite_failures",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:102:1002"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義",
+                "固有値と線形変換の関係",
+                "固有値の幾何学的意味"
+              ],
+              "prerequisite_concepts": [
+                "線形変換",
+                "行列"
+              ]
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:102:1002"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 1
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "relevant_prerequisite_failures",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            5585
+          ],
+          "total_latency_ms": 5586,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 固有値と線形変換の関係 固有値の幾何学的意味 線形変換 行列",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5585,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 1
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "線形変換"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "prerequisite_repair",
+                  "support_level": "high",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "relevant_prerequisite_failures",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:102:1002"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義",
+                      "固有値と線形変換の関係",
+                      "固有値の幾何学的意味"
+                    ],
+                    "prerequisite_concepts": [
+                      "線形変換",
+                      "行列"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5586
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_definition_irrelevant_calculus",
+          "category": "concept",
+          "counterfactual_group": "eigenvalue_definition",
+          "counterfactual_role": "irrelevant_only",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "reject_refs": [
+              "exercise:103:1003"
+            ],
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "irrelevant_evidence_rejection": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "irrelevant_evidence_rejected"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "none"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義",
+                "固有値の基本的な意味"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 0,
+            "rejected_count": 1,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "irrelevant_evidence_rejected"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4533
+          ],
+          "total_latency_ms": 4534,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 固有値の基本的な意味",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4533,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 0,
+                  "rejected_count": 1,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "irrelevant_evidence_rejected"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義",
+                      "固有値の基本的な意味"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4534
+            }
+          ]
+        },
+        {
+          "case_id": "determinant_definition_direct_errors",
+          "category": "concept",
+          "counterfactual_group": "determinant_definition",
+          "counterfactual_role": "direct_failure",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:104:1004"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "行列式の定義",
+              "行列式の幾何学的意味"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "explain_then_example",
+            "support_level": "high",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "repeated_task_failures",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:104:1004"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "行列式の定義",
+                "行列式の基本的な性質",
+                "行列式の幾何学的解釈"
+              ],
+              "prerequisite_concepts": [
+                "行列の定義",
+                "行列の積"
+              ]
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:104:1004"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 1,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "repeated_task_failures",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            5539
+          ],
+          "total_latency_ms": 5539,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "行列式って何？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "行列式の定義 行列式の基本的な性質 行列式の幾何学的解釈 行列の定義 行列の積",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5539,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 1,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "行列式の定義",
+                    "行列式の幾何学的意味"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "explain_then_example",
+                  "support_level": "high",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "repeated_task_failures",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:104:1004"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "行列式の定義",
+                      "行列式の基本的な性質",
+                      "行列式の幾何学的解釈"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列の定義",
+                      "行列の積"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5539
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_why_determinant_prereq",
+          "category": "why",
+          "counterfactual_group": "eigenvalue_why",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:105:1005"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "行列式",
+              "線形写像"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "relevant_prerequisite_failures",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:105:1005"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義と意味",
+                "行列式がゼロになる条件",
+                "固有値方程式の導出"
+              ],
+              "prerequisite_concepts": [
+                "行列式",
+                "線形写像"
+              ]
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:105:1005"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 1
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "relevant_prerequisite_failures",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            6369
+          ],
+          "total_latency_ms": 6369,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "なぜ固有値は det(A-λI)=0 で求められるの？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義と意味 行列式がゼロになる条件 固有値方程式の導出 行列式 線形写像",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 6369,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 1
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "行列式",
+                    "線形写像"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "prerequisite_repair",
+                  "support_level": "high",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "relevant_prerequisite_failures",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:105:1005"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義と意味",
+                      "行列式がゼロになる条件",
+                      "固有値方程式の導出"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列式",
+                      "線形写像"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 6369
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_no_history",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "no_history",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "source_scope": "rag",
+            "retrieval_expected": true,
+            "personalization_expected": false,
+            "adaptation_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "source_scope": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "problem_solving"
+            ],
+            "target_concepts": [
+              "固有値問題の解法手順",
+              "固有値・固有ベクトルの計算"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "guided_question",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "problem_solving_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "学生が次の手順を尋ねているが、具体的な問題文や現在の計算状況が不明。診断よりも、一般的な固有値問題の解法フローを確認する質問や、問題文の提示を促す方が適切。"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値問題 解法 手順",
+                "固有値 固有ベクトル 計算方法"
+              ],
+              "prerequisite_concepts": [
+                "行列の行列式",
+                "連立一次方程式の解法"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "problem_solving_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4941
+          ],
+          "total_latency_ms": 4942,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値問題 解法 手順 固有値 固有ベクトル 計算方法 行列の行列式 連立一次方程式の解法",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4941,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "problem_solving"
+                  ],
+                  "target_concepts": [
+                    "固有値問題の解法手順",
+                    "固有値・固有ベクトルの計算"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "guided_question",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "problem_solving_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "学生が次の手順を尋ねているが、具体的な問題文や現在の計算状況が不明。診断よりも、一般的な固有値問題の解法フローを確認する質問や、問題文の提示を促す方が適切。"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値問題 解法 手順",
+                      "固有値 固有ベクトル 計算方法"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列の行列式",
+                      "連立一次方程式の解法"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4941
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_direct_success",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "direct_success",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:106:1006"
+            ],
+            "pedagogical_move": "guided_question",
+            "support_level": "minimal",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true,
+            "pedagogical_move": true,
+            "support_level": true,
+            "adaptation": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "problem_solving"
+            ],
+            "target_concepts": [
+              "固有値問題の解法手順",
+              "固有値の計算"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "guided_question",
+            "support_level": "minimal",
+            "reason_codes": [
+              "no_page_context",
+              "problem_solving_request",
+              "repeated_task_success",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "学生は具体的な問題解決の次のステップを求めている。診断よりも、現在の問題文や計算状況に基づいた直接的な支援が優先される。"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:106:1006"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値問題 解法手順",
+                "固有値を求める 基本的なステップ"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:106:1006"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 1,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "problem_solving_request",
+            "repeated_task_success",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4980
+          ],
+          "total_latency_ms": 4981,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値問題 解法手順 固有値を求める 基本的なステップ",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4980,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 1,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "problem_solving"
+                  ],
+                  "target_concepts": [
+                    "固有値問題の解法手順",
+                    "固有値の計算"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "guided_question",
+                  "support_level": "minimal",
+                  "reason_codes": [
+                    "no_page_context",
+                    "problem_solving_request",
+                    "repeated_task_success",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "学生は具体的な問題解決の次のステップを求めている。診断よりも、現在の問題文や計算状況に基づいた直接的な支援が優先される。"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:106:1006"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値問題 解法手順",
+                      "固有値を求める 基本的なステップ"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4981
+            }
+          ]
+        },
+        {
+          "case_id": "eigenvalue_problem_prereq_failure",
+          "category": "problem_solving",
+          "counterfactual_group": "eigenvalue_next_step",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:107:1007"
+            ],
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "personalization_expected": true,
+            "adaptation_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true,
+            "pedagogical_move": true,
+            "support_level": true,
+            "adaptation": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "problem_solving"
+            ],
+            "target_concepts": [
+              "固有値問題の解法手順",
+              "固有値の計算",
+              "固有ベクトルの計算"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "reason_codes": [
+              "no_page_context",
+              "problem_solving_request",
+              "relevant_prerequisite_failures",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "学生は具体的な次の手順を求めているため、一般的な解法フローの提示が優先される。"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:107:1007"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値問題の解法ステップ",
+                "固有値と固有ベクトルの求め方"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:107:1007"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 1
+          },
+          "reason_codes": [
+            "no_page_context",
+            "problem_solving_request",
+            "relevant_prerequisite_failures",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            5000
+          ],
+          "total_latency_ms": 5001,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この固有値問題、次にどうすればいい？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値問題の解法ステップ 固有値と固有ベクトルの求め方",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5000,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 1
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "problem_solving"
+                  ],
+                  "target_concepts": [
+                    "固有値問題の解法手順",
+                    "固有値の計算",
+                    "固有ベクトルの計算"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "prerequisite_repair",
+                  "support_level": "high",
+                  "reason_codes": [
+                    "no_page_context",
+                    "problem_solving_request",
+                    "relevant_prerequisite_failures",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "学生は具体的な次の手順を求めているため、一般的な解法フローの提示が優先される。"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:107:1007"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値問題の解法ステップ",
+                      "固有値と固有ベクトルの求め方"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5001
+            }
+          ]
+        },
+        {
+          "case_id": "ambiguous_learning_difficulty_with_history",
+          "category": "difficulty",
+          "counterfactual_group": "difficulty",
+          "counterfactual_role": "prerequisite_failure",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "selected_refs": [
+              "exercise:108:1008"
+            ],
+            "personalization_expected": true
+          },
+          "checks": {
+            "diagnostic": true,
+            "evidence_utilization": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "problem_solving"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "線形変換"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "prerequisite_repair",
+            "support_level": "high",
+            "reason_codes": [
+              "no_page_context",
+              "problem_solving_request",
+              "ambiguous_learning_difficulty",
+              "relevant_prerequisite_failures",
+              "relevant_observed_evidence"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "学生が固有値の問題が分からないと明示しており、前提概念（線形変換）の失敗証拠があるため、診断ではなく前提補修を含む説明を行う。"
+            },
+            "learner_context": {
+              "use_relevant_evidence": true,
+              "evidence_refs": [
+                "exercise:108:1008"
+              ],
+              "connection_basis": "observed_evidence"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値 固有ベクトル 定義 線形変換との関係",
+                "線形変換 固有値 計算手順 基礎"
+              ],
+              "prerequisite_concepts": [
+                "線形変換",
+                "行列の積",
+                "スカラー倍"
+              ]
+            }
+          },
+          "selected_evidence_refs": [
+            "exercise:108:1008"
+          ],
+          "evidence_selection": {
+            "candidate_count": 1,
+            "selected_count": 1,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 1
+          },
+          "reason_codes": [
+            "no_page_context",
+            "problem_solving_request",
+            "ambiguous_learning_difficulty",
+            "relevant_prerequisite_failures",
+            "relevant_observed_evidence"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            5633
+          ],
+          "total_latency_ms": 5633,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値の問題が全然分からない",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値 固有ベクトル 定義 線形変換との関係 線形変換 固有値 計算手順 基礎 線形変換 行列の積 スカラー倍",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5633,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 1,
+                  "selected_count": 1,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 1
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "problem_solving"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "線形変換"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "prerequisite_repair",
+                  "support_level": "high",
+                  "reason_codes": [
+                    "no_page_context",
+                    "problem_solving_request",
+                    "ambiguous_learning_difficulty",
+                    "relevant_prerequisite_failures",
+                    "relevant_observed_evidence"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "学生が固有値の問題が分からないと明示しており、前提概念（線形変換）の失敗証拠があるため、診断ではなく前提補修を含む説明を行う。"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": true,
+                    "evidence_refs": [
+                      "exercise:108:1008"
+                    ],
+                    "connection_basis": "observed_evidence"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値 固有ベクトル 定義 線形変換との関係",
+                      "線形変換 固有値 計算手順 基礎"
+                    ],
+                    "prerequisite_concepts": [
+                      "線形変換",
+                      "行列の積",
+                      "スカラー倍"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5633
+            }
+          ]
+        },
+        {
+          "case_id": "open_page_explicit_reference",
+          "category": "page",
+          "counterfactual_group": "page_reference",
+          "counterfactual_role": "page_a",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "explicit_reference",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "page_grounding": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値の定義",
+              "det(A-λI)=0 の導出"
+            ],
+            "action": "answer",
+            "page_relation": "explicit_reference",
+            "source_scope": "active_page_first",
+            "pedagogical_move": "explain_then_example",
+            "support_level": "standard",
+            "reason_codes": [
+              "explicit_page_reference",
+              "direct_concept_request",
+              "learner_history_absent"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "none"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義 Av=λv",
+                "det(A-λI)=0 の導出過程"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "explicit_page_reference",
+            "direct_concept_request",
+            "learner_history_absent"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": true,
+          "page_ids_passed_to_retrieval": [
+            7001
+          ],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4516
+          ],
+          "total_latency_ms": 4517,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この式はなぜこうなる？",
+              "page_id_sent": 7001,
+              "page_ids_passed_to_retrieval": [
+                7001
+              ],
+              "citations": [
+                {
+                  "section": "固有値の定義",
+                  "type": "active_page",
+                  "entity_id": "lesson_page:7001",
+                  "excerpt": "固有値 λ は Av=λv を満たすときの値。ページ後半では det(A-λI)=0 から候補を求める。",
+                  "page": null,
+                  "rerank_score": 1.0
+                }
+              ],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 Av=λv det(A-λI)=0 の導出過程",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4516,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値の定義",
+                    "det(A-λI)=0 の導出"
+                  ],
+                  "action": "answer",
+                  "page_relation": "explicit_reference",
+                  "source_scope": "active_page_first",
+                  "pedagogical_move": "explain_then_example",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "explicit_page_reference",
+                    "direct_concept_request",
+                    "learner_history_absent"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義 Av=λv",
+                      "det(A-λI)=0 の導出過程"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4517
+            }
+          ]
+        },
+        {
+          "case_id": "same_ambiguous_question_page_a",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "page_a",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "page_grounding": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値の定義",
+              "線形写像の作用"
+            ],
+            "action": "answer",
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "page_related_question",
+              "direct_concept_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義 意味",
+                "Av=λv の幾何学的意味"
+              ],
+              "prerequisite_concepts": [
+                "行列とベクトルの積",
+                "スカラー倍"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "page_related_question",
+            "direct_concept_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": true,
+          "page_ids_passed_to_retrieval": [
+            7011
+          ],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            6016
+          ],
+          "total_latency_ms": 6017,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": 7011,
+              "page_ids_passed_to_retrieval": [
+                7011
+              ],
+              "citations": [
+                {
+                  "section": "固有値の定義",
+                  "type": "active_page",
+                  "entity_id": "lesson_page:7011",
+                  "excerpt": "固有値 λ は Av=λv を満たすときの値。",
+                  "page": null,
+                  "rerank_score": 1.0
+                }
+              ],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 意味 Av=λv の幾何学的意味 行列とベクトルの積 スカラー倍",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 6016,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値の定義",
+                    "線形写像の作用"
+                  ],
+                  "action": "answer",
+                  "page_relation": "ambiguous_use_open_page",
+                  "source_scope": "active_page_first",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "page_related_question",
+                    "direct_concept_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義 意味",
+                      "Av=λv の幾何学的意味"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列とベクトルの積",
+                      "スカラー倍"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 6017
+            }
+          ]
+        },
+        {
+          "case_id": "page_b_ambiguous_reference",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "page_b",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "requires_page_grounding": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "page_grounding": true,
+            "retrieval_usage": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "行列式の定義",
+              "2x2行列式の計算式"
+            ],
+            "action": "answer",
+            "page_relation": "ambiguous_use_open_page",
+            "source_scope": "active_page_first",
+            "pedagogical_move": "explain_then_example",
+            "support_level": "standard",
+            "reason_codes": [
+              "page_related_question",
+              "direct_concept_request",
+              "learner_history_absent"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "none"
+            },
+            "retrieval": {
+              "queries": [
+                "行列式 2x2 ad-bc 理由",
+                "行列式 幾何学的意味 面積"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "page_related_question",
+            "direct_concept_request",
+            "learner_history_absent"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": true,
+          "page_ids_passed_to_retrieval": [
+            7002
+          ],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4682
+          ],
+          "total_latency_ms": 4683,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": 7002,
+              "page_ids_passed_to_retrieval": [
+                7002
+              ],
+              "citations": [
+                {
+                  "section": "行列式の定義",
+                  "type": "active_page",
+                  "entity_id": "lesson_page:7002",
+                  "excerpt": "行列式は正方行列に対応するスカラー値。2×2では ad-bc で計算する。",
+                  "page": null,
+                  "rerank_score": 1.0
+                }
+              ],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "行列式の定義 行列式 2x2 ad-bc 理由 行列式 幾何学的意味 面積",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4682,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "行列式の定義",
+                    "2x2行列式の計算式"
+                  ],
+                  "action": "answer",
+                  "page_relation": "ambiguous_use_open_page",
+                  "source_scope": "active_page_first",
+                  "pedagogical_move": "explain_then_example",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "page_related_question",
+                    "direct_concept_request",
+                    "learner_history_absent"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "行列式 2x2 ad-bc 理由",
+                      "行列式 幾何学的意味 面積"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4683
+            }
+          ]
+        },
+        {
+          "case_id": "same_ambiguous_question_no_page",
+          "category": "page_counterfactual",
+          "counterfactual_group": "page_counterfactual",
+          "counterfactual_role": "no_page",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "retrieval_usage": true,
+            "no_stale_page": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "clarification_request"
+            ],
+            "target_concepts": [],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "guided_question",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "learner_history_absent"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "diagnostic_not_necessary_to_start_answering"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "none"
+            },
+            "retrieval": {
+              "queries": [
+                "これはなぜ？"
+              ],
+              "prerequisite_concepts": []
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "learner_history_absent"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4173
+          ],
+          "total_latency_ms": 4173,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "これはなぜ？",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "これはなぜ？",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4173,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "clarification_request"
+                  ],
+                  "target_concepts": [],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "guided_question",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "learner_history_absent"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "diagnostic_not_necessary_to_start_answering"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "これはなぜ？"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "followup",
+              "latency_ms": 4173
+            }
+          ]
+        },
+        {
+          "case_id": "closed_page_no_stale_context",
+          "category": "page",
+          "counterfactual_group": "page_close",
+          "counterfactual_role": "no_page",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "retrieval_usage": true,
+            "no_stale_page": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値",
+              "固有ベクトル",
+              "線形写像"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義と意味",
+                "固有値と固有ベクトルの関係",
+                "線形代数における固有値の基本的な説明"
+              ],
+              "prerequisite_concepts": [
+                "行列",
+                "線形写像",
+                "スカラー倍"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 1,
+          "planner_latency_ms": [
+            4731
+          ],
+          "total_latency_ms": 4732,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "固有値について説明して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義と意味 固有値と固有ベクトルの関係 線形代数における固有値の基本的な説明 行列 線形写像",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4731,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値",
+                    "固有ベクトル",
+                    "線形写像"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義と意味",
+                      "固有値と固有ベクトルの関係",
+                      "線形代数における固有値の基本的な説明"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列",
+                      "線形写像",
+                      "スカラー倍"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4732
+            }
+          ]
+        },
+        {
+          "case_id": "page_switch_close_sequence",
+          "category": "page_sequence",
+          "counterfactual_group": "page_close_sequence",
+          "counterfactual_role": "no_page",
+          "mode": "planner",
+          "mode_requested": "planner",
+          "mode_effective": "planner",
+          "expected": {
+            "diagnostic": false,
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "no_page_expected": true,
+            "retrieval_expected": true,
+            "personalization_expected": false
+          },
+          "checks": {
+            "diagnostic": true,
+            "page_relation": true,
+            "source_scope": true,
+            "retrieval_usage": true,
+            "no_stale_page": true
+          },
+          "plan": {
+            "schema_version": "2",
+            "intent": [
+              "concept_question"
+            ],
+            "target_concepts": [
+              "固有値"
+            ],
+            "action": "answer",
+            "page_relation": "no_open_page",
+            "source_scope": "rag",
+            "pedagogical_move": "direct_explanation",
+            "support_level": "standard",
+            "reason_codes": [
+              "no_page_context",
+              "direct_concept_request",
+              "learner_history_absent",
+              "generic_prerequisite_used"
+            ],
+            "diagnostic": {
+              "needed": false,
+              "target": null,
+              "reason": "answer_concept_question_first"
+            },
+            "learner_context": {
+              "use_relevant_evidence": false,
+              "evidence_refs": [],
+              "connection_basis": "generic_prerequisite"
+            },
+            "retrieval": {
+              "queries": [
+                "固有値の定義",
+                "固有値の計算方法",
+                "固有値の幾何学的意味"
+              ],
+              "prerequisite_concepts": [
+                "行列",
+                "行列式"
+              ]
+            }
+          },
+          "selected_evidence_refs": [],
+          "evidence_selection": {
+            "candidate_count": 0,
+            "selected_count": 0,
+            "rejected_count": 0,
+            "direct_count": 0,
+            "prerequisite_count": 0
+          },
+          "reason_codes": [
+            "no_page_context",
+            "direct_concept_request",
+            "learner_history_absent",
+            "generic_prerequisite_used"
+          ],
+          "diagnostic": false,
+          "retrieval_used": true,
+          "page_grounding": false,
+          "page_ids_passed_to_retrieval": [],
+          "fallback": false,
+          "planner_calls": 3,
+          "planner_latency_ms": [
+            4669,
+            5463,
+            5161
+          ],
+          "total_latency_ms": 15294,
+          "token_usage": null,
+          "turns": [
+            {
+              "text": "この式は？",
+              "page_id_sent": 7101,
+              "page_ids_passed_to_retrieval": [
+                7101
+              ],
+              "citations": [
+                {
+                  "section": "固有値",
+                  "type": "active_page",
+                  "entity_id": "lesson_page:7101",
+                  "excerpt": "Aページの固有値本文。",
+                  "page": null,
+                  "rerank_score": 1.0
+                }
+              ],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値 式の意味 固有値 計算式",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 4669,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値"
+                  ],
+                  "action": "answer",
+                  "page_relation": "explicit_reference",
+                  "source_scope": "active_page_first",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "explicit_page_reference",
+                    "direct_concept_request",
+                    "learner_history_absent"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値 式の意味",
+                      "固有値 計算式"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 4670
+            },
+            {
+              "text": "この式は？",
+              "page_id_sent": 7102,
+              "page_ids_passed_to_retrieval": [
+                7102
+              ],
+              "citations": [
+                {
+                  "section": "行列式",
+                  "type": "active_page",
+                  "entity_id": "lesson_page:7102",
+                  "excerpt": "Bページの行列式本文。",
+                  "page": null,
+                  "rerank_score": 1.0
+                }
+              ],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "行列式 定義 行列式 計算方法",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5463,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "行列式"
+                  ],
+                  "action": "answer",
+                  "page_relation": "explicit_reference",
+                  "source_scope": "active_page_first",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "explicit_page_reference",
+                    "direct_concept_request",
+                    "learner_history_absent"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "none"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "行列式 定義",
+                      "行列式 計算方法"
+                    ],
+                    "prerequisite_concepts": []
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5463
+            },
+            {
+              "text": "固有値について説明して",
+              "page_id_sent": null,
+              "page_ids_passed_to_retrieval": [],
+              "citations": [],
+              "diagnostic": false,
+              "retrieval_calls": 1,
+              "retrieval_query": "固有値の定義 固有値の計算方法 固有値の幾何学的意味 行列 行列式",
+              "mode_requested": "planner",
+              "mode_effective": "planner",
+              "planner": {
+                "mode_requested": "planner",
+                "mode_effective": "planner",
+                "status": "ok",
+                "planner_called": true,
+                "latency_ms": 5161,
+                "model": "Qwen/Qwen3.8-27B-FP8",
+                "prompt_version": "pedagogical_planner_prompt_v2",
+                "schema_version": "2",
+                "temperature": 0.1,
+                "model_version": null,
+                "token_usage": null,
+                "evidence_selection": {
+                  "candidate_count": 0,
+                  "selected_count": 0,
+                  "rejected_count": 0,
+                  "direct_count": 0,
+                  "prerequisite_count": 0
+                },
+                "plan": {
+                  "schema_version": "2",
+                  "intent": [
+                    "concept_question"
+                  ],
+                  "target_concepts": [
+                    "固有値"
+                  ],
+                  "action": "answer",
+                  "page_relation": "no_open_page",
+                  "source_scope": "rag",
+                  "pedagogical_move": "direct_explanation",
+                  "support_level": "standard",
+                  "reason_codes": [
+                    "no_page_context",
+                    "direct_concept_request",
+                    "learner_history_absent",
+                    "generic_prerequisite_used"
+                  ],
+                  "diagnostic": {
+                    "needed": false,
+                    "target": null,
+                    "reason": "answer_concept_question_first"
+                  },
+                  "learner_context": {
+                    "use_relevant_evidence": false,
+                    "evidence_refs": [],
+                    "connection_basis": "generic_prerequisite"
+                  },
+                  "retrieval": {
+                    "queries": [
+                      "固有値の定義",
+                      "固有値の計算方法",
+                      "固有値の幾何学的意味"
+                    ],
+                    "prerequisite_concepts": [
+                      "行列",
+                      "行列式"
+                    ]
+                  }
+                }
+              },
+              "turn_class": "new_topic",
+              "latency_ms": 5161
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -43,12 +43,15 @@ from deeprag_search import (  # noqa: E402
 )
 from pedagogical_planner import (  # noqa: E402
     PLANNER_SYSTEM_PROMPT,
+    PLANNER_PROMPT_VERSION,
+    PLANNER_SCHEMA_VERSION,
     build_planner_input,
     fallback_plan,
     is_social_only,
     planner_prompt_schema,
     validate_and_normalize_plan,
 )
+from learner_evidence import select_relevant_learner_evidence  # noqa: E402
 from tutor_viz import plan_viz  # noqa: E402
 
 Phase = Literal[
@@ -451,7 +454,13 @@ class TutorSession:
             tutor_cfg.get("passive_est_min_confidence", 0.6)
         )
         planner_cfg = tutor_cfg.get("pedagogical_planner") or {}
-        self.planner_enabled = bool(planner_cfg.get("enabled", True))
+        configured_mode = str(planner_cfg.get("mode") or "").strip().lower()
+        if configured_mode not in ("planner", "baseline"):
+            configured_mode = "planner" if bool(planner_cfg.get("enabled", True)) else "baseline"
+        self.planner_mode = configured_mode
+        # `mode` selects the comparator arm; the legacy enabled flag remains a
+        # kill switch that turns a requested planner call into safe fallback.
+        self.planner_enabled = configured_mode == "planner" and bool(planner_cfg.get("enabled", True))
         self.planner_timeout_sec = float(planner_cfg.get("timeout_seconds", 18))
         self.planner_max_tokens = int(planner_cfg.get("max_tokens", 700))
         self.last_level_estimate: dict[str, Any] | None = None
@@ -469,6 +478,8 @@ class TutorSession:
         # page_contextと同様にリクエストスコープであり、SessionStateには保存しない。
         self.learner_evidence: list[dict[str, Any]] = []
         self._last_planner_record: dict[str, Any] | None = None
+        self._planner_evidence: list[dict[str, Any]] = []
+        self._evidence_selection: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # public API
@@ -484,6 +495,8 @@ class TutorSession:
         text = (text or "").strip()
         choice_id = (choice_id or "").strip() or None
         self._last_planner_record = None
+        self._planner_evidence = []
+        self._evidence_selection = {}
         _page_hint.title = str((self.page_context or {}).get("title") or "")  # [LMS port]
 
         if not text and not choice_id:
@@ -498,10 +511,14 @@ class TutorSession:
             return self._pack_turn(self.summarize_weak_points())
 
         if self.mode == "adaptive_v1":
+            if self.planner_mode == "baseline":
+                self._record_baseline_mode()
             if self.state.phase == "awaiting_diagnosis":
                 return self._handle_diagnosis_choice(text, choice_id)
             if self.state.phase == "awaiting_clarify":
                 return self._handle_clarify_choice(text, choice_id)
+            if self.planner_mode == "baseline":
+                return self._handle_baseline_turn(text)
             return self._handle_adaptive_turn(text)
 
         # legacy_probe
@@ -824,6 +841,43 @@ class TutorSession:
             query or "",
         ))
 
+    def _should_diagnose_legacy(self, query: str) -> bool:
+        """Pre-Planner adaptive rule, retained only for a genuine baseline arm."""
+        if self.diagnose_when == "never":
+            return False
+        if self.diagnose_when == "always":
+            return True
+        topic = _topic_key_from_query(query)
+        ls = self.state.learner_state
+        if ls.understanding_level == "unknown":
+            if WHAT_IS_RE.search(query) or len(query) <= 20:
+                return True
+            if topic and topic not in self.state.known_topics:
+                return True
+        if SIMPLE_CONFIRM_RE.search(query):
+            return False
+        if ls.understanding_level != "unknown" and self.state.known_topics:
+            for known_topic in self.state.known_topics:
+                if known_topic and (known_topic in query or known_topic in topic or topic in known_topic):
+                    return False
+        return bool(WHAT_IS_RE.search(query) and ls.understanding_level == "unknown")
+
+    def _record_baseline_mode(self) -> None:
+        self._last_planner_record = {
+            "mode_requested": "baseline",
+            "mode_effective": "baseline",
+            "status": "baseline",
+            "planner_called": False,
+            "latency_ms": 0,
+            "model": None,
+            "prompt_version": None,
+            "schema_version": None,
+            "temperature": None,
+            "model_version": None,
+            "token_usage": None,
+            "plan": None,
+        }
+
     def _build_diagnosis(self, query: str) -> tuple[str, list[dict[str, Any]]]:
         topic = _topic_key_from_query(query)
         if topic:
@@ -918,6 +972,8 @@ class TutorSession:
                 self.state.phase = "idle"
                 self.state.pending_clarify = None
                 self.state.confusion_streak = 0
+                if self.planner_mode == "baseline":
+                    return self._handle_baseline_turn(text)
                 return self._handle_adaptive_turn(text)
             ids_str = "〜".join((min(valid_ids), max(valid_ids))) if valid_ids else "A〜D"
             return self._pack_turn(f"{ids_str} のどれかを選ぶか、自由に書いてください。")
@@ -950,6 +1006,13 @@ class TutorSession:
             f"{self.state.focus_concept}について、学習者は「{gap}」でつまずいています。"
             f"そこに焦点を絞って説明し直してください。"
         )
+        if self.planner_mode == "baseline":
+            return self._compose_answer(
+                query,
+                turn_class="clarify_answer",
+                explain_mode="after_clarify",
+                reuse_retrieval=True,
+            )
         # Treat the selected gap as new planning input and search for it afresh.
         # Reusing the previous retrieval can omit the prerequisite the learner named.
         return self._handle_adaptive_turn(query, append_user=False)
@@ -993,13 +1056,33 @@ class TutorSession:
         from time import monotonic
 
         started = monotonic()
-        evidence = list(getattr(self, "learner_evidence", []) or [])[:8]
+        selection = select_relevant_learner_evidence(
+            list(getattr(self, "learner_evidence", []) or []),
+            query=text,
+            page_context=getattr(self, "page_context", None),
+            searcher=self.searcher,
+        )
+        evidence = list(selection["selected"])
+        self._planner_evidence = evidence
+        self._evidence_selection = {key: value for key, value in selection.items() if key != "selected"}
         if not getattr(self, "planner_enabled", True) or getattr(self, "client", None) is None:
             plan = fallback_plan(
                 text=text, page_context=self.page_context, learner_evidence=evidence
             )
             self._last_planner_record = {
-                "status": "disabled", "latency_ms": 0, "model": None, "plan": plan,
+                "mode_requested": "planner",
+                "mode_effective": "fallback",
+                "status": "fallback:planner_disabled_or_client_missing",
+                "planner_called": False,
+                "latency_ms": 0,
+                "model": None,
+                "prompt_version": PLANNER_PROMPT_VERSION,
+                "schema_version": PLANNER_SCHEMA_VERSION,
+                "temperature": 0.1,
+                "model_version": None,
+                "token_usage": None,
+                "evidence_selection": self._evidence_selection,
+                "plan": plan,
             }
             return plan
 
@@ -1028,6 +1111,7 @@ class TutorSession:
                     answer_length=self.answer_length,
                     learner_state=asdict(self.state.learner_state),
                     learner_evidence=evidence,
+                    evidence_selection=self._evidence_selection,
                 ),
                 max_tokens=getattr(self, "planner_max_tokens", 700),
                 temperature=0.1,
@@ -1038,6 +1122,7 @@ class TutorSession:
                 text=text,
                 page_context=self.page_context,
                 learner_evidence=evidence,
+                evidence_selection=self._evidence_selection,
             )
             status = "ok"
         except Exception as exc:  # Planner is advisory; a failure must not stop tutoring.
@@ -1047,12 +1132,90 @@ class TutorSession:
             status = f"fallback:{type(exc).__name__}"
 
         self._last_planner_record = {
+            "mode_requested": "planner",
+            "mode_effective": "planner" if status == "ok" else "fallback",
             "status": status,
+            "planner_called": True,
             "latency_ms": int((monotonic() - started) * 1000),
             "model": LLM_MODEL if status == "ok" else None,
+            "prompt_version": PLANNER_PROMPT_VERSION,
+            "schema_version": PLANNER_SCHEMA_VERSION,
+            "temperature": 0.1,
+            "model_version": None,
+            "token_usage": None,
+            "evidence_selection": self._evidence_selection,
             "plan": plan,
         }
         return plan
+
+    def _handle_baseline_turn(self, text: str) -> dict[str, Any]:
+        """The pre-Planner adaptive path, intentionally without a planner call."""
+        self._record_baseline_mode()
+        turn_class = self._classify_turn(text)
+        self.state.last_turn_class = turn_class
+        self._append_dialogue("user", text)
+        self._maybe_update_level(text, turn_class)
+
+        if turn_class == "ack":
+            self.state.confusion_streak = 0
+            focus = self.state.focus_concept or "いまの内容"
+            reply = (
+                f"よかったです。「{focus}」について、"
+                "次に知りたいことがあればそのまま聞いてください。"
+            )
+            self.state.phase = "idle"
+            self.state.last_banner = ""
+            self.state.viz_last = None
+            self.state.last_citations = []
+            self._append_dialogue("assistant", reply)
+            return self._pack_turn(reply, turn_class="ack", citations=[])
+
+        if turn_class == "confused":
+            self.state.confusion_streak += 1
+            if not self.state.last_explanation:
+                self.state.confusion_streak = 0
+                return self._compose_answer(
+                    text, turn_class="new_topic", explain_mode="first", reuse_retrieval=False
+                )
+            if self.state.confusion_streak >= 2:
+                return self._start_clarify(text)
+            return self._compose_answer(
+                text, turn_class="confused", explain_mode="simplify",
+                reuse_retrieval=True, skip_banner=True,
+            )
+
+        if turn_class == "style_request":
+            self.state.confusion_streak = 0
+            self.state.learner_state.style = "formula" if ("数式" in text or "式" in text) else "intuition"
+            return self._compose_answer(
+                text, turn_class="style_request", explain_mode="style_shift",
+                reuse_retrieval=True, skip_banner=True,
+            )
+
+        if turn_class == "followup":
+            self.state.confusion_streak = 0
+            return self._compose_answer(
+                text, turn_class="followup",
+                explain_mode="simplify" if len(text) < 20 else "first",
+                reuse_retrieval=True, skip_banner=True,
+            )
+
+        self.state.confusion_streak = 0
+        if self._should_diagnose_legacy(text):
+            prompt, choices = self._build_diagnosis(text)
+            self.state.pending_query = text
+            self.state.diagnosis_prompt = prompt
+            self.state.diagnosis_choices = choices
+            self.state.phase = "awaiting_diagnosis"
+            lines = [prompt, ""]
+            lines.extend(f"{choice['id']}. {choice['label']}" for choice in choices)
+            lines.extend(["", "（A〜E のどれかを送ってください）"])
+            reply = "\n".join(lines)
+            self._append_dialogue("assistant", reply)
+            return self._pack_turn(reply)
+        return self._compose_answer(
+            text, turn_class="new_topic", explain_mode="first", reuse_retrieval=False
+        )
 
     def _handle_adaptive_turn(
         self, text: str, *, append_user: bool = True, diagnostic_completed: bool = False
@@ -1157,6 +1320,8 @@ class TutorSession:
                 self.state.phase = "idle"
                 self.state.pending_query = ""
                 self.state.diagnosis_choices = []
+                if self.planner_mode == "baseline":
+                    return self._handle_baseline_turn(text)
                 return self._handle_adaptive_turn(text)
             reply = "A〜E のどれかを選んでください。"
             return self._pack_turn(reply)
@@ -1188,6 +1353,13 @@ class TutorSession:
         self.state.diagnosis_choices = []
         self.state.diagnosis_prompt = ""
 
+        if self.planner_mode == "baseline":
+            return self._compose_answer(
+                query,
+                turn_class="new_topic",
+                explain_mode="first",
+                reuse_retrieval=False,
+            )
         # The state machine consumes the selection; planning then resumes using the
         # student's explicit self-report and the current request-scoped page context.
         return self._handle_adaptive_turn(
@@ -1296,7 +1468,10 @@ class TutorSession:
             }
         evidence_by_ref = {
             str(item.get("ref")): item
-            for item in (getattr(self, "learner_evidence", []) or [])
+            for item in (
+                getattr(self, "_planner_evidence", []) if plan is not None
+                else []
+            )
             if item.get("ref")
         }
         selected_refs = set((plan or {}).get("learner_context", {}).get("evidence_refs") or [])

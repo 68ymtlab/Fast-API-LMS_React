@@ -354,7 +354,7 @@ class MessageRequest(BaseModel):
     choice_id: str | None = Field(default=None)
     page_context: PageContext | None = None
     answer_length: str | None = None  # short / normal / long（指定があれば設定として保存）
-    learner_evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=8)
+    learner_evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=40)
 
 
 class PreferencesRequest(BaseModel):
@@ -410,7 +410,7 @@ def _apply_page_context(session: TutorSession, pc: PageContext | None) -> None:
 def _sanitize_learner_evidence(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Accept only bounded, backend-shaped exercise evidence; never persist it as mastery."""
     safe: list[dict[str, Any]] = []
-    for item in items[:8]:
+    for item in items[:40]:
         if not isinstance(item, dict):
             continue
         ref = str(item.get("ref") or "")
@@ -420,6 +420,11 @@ def _sanitize_learner_evidence(items: list[dict[str, Any]]) -> list[dict[str, An
         result = str(item.get("result") or "unknown")
         if result not in ("correct", "incorrect", "unknown"):
             result = "unknown"
+        outcomes = item.get("recent_outcomes") if isinstance(item.get("recent_outcomes"), list) else []
+        try:
+            attempt_count = min(50, max(1, int(item.get("attempt_count") or 1)))
+        except (TypeError, ValueError):
+            attempt_count = 1
         safe.append({
             "ref": ref,
             "source": "exercise",
@@ -427,6 +432,11 @@ def _sanitize_learner_evidence(items: list[dict[str, Any]]) -> list[dict[str, An
             "item_title": str(item.get("item_title") or "")[:180],
             "result": result,
             "recorded_at": str(item.get("recorded_at") or "")[:40],
+            "attempt_count": attempt_count,
+            "recent_outcomes": [
+                str(value) if str(value) in ("correct", "incorrect", "unknown") else "unknown"
+                for value in outcomes[:6]
+            ] or [result],
         })
     return safe
 

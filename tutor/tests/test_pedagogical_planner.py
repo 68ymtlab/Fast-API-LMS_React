@@ -17,13 +17,14 @@ from pedagogical_planner import (  # noqa: E402
     validate_and_normalize_plan,
 )
 from deeprag_search import select_relevant_page_text  # noqa: E402
+from learner_evidence import select_relevant_learner_evidence  # noqa: E402
 import tutor_session as tutor_session_module  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
 
 
 def candidate_plan(**overrides):
     plan = {
-        "schema_version": "1",
+        "schema_version": "2",
         "intent": ["concept_question"],
         "target_concepts": ["固有値"],
         "action": "answer",
@@ -32,7 +33,8 @@ def candidate_plan(**overrides):
         "pedagogical_move": "explain_then_example",
         "support_level": "standard",
         "diagnostic": {"needed": False, "target": None, "reason": "answer_first"},
-        "learner_context": {"use_relevant_evidence": False, "evidence_refs": []},
+        "reason_codes": ["direct_concept_request"],
+        "learner_context": {"use_relevant_evidence": False, "evidence_refs": [], "connection_basis": "none"},
         "retrieval": {"queries": ["固有値 直感"], "prerequisite_concepts": []},
     }
     plan.update(overrides)
@@ -71,6 +73,16 @@ class PedagogicalPlannerTests(unittest.TestCase):
         )
         self.assertEqual(plan["action"], "answer")
 
+    def test_explicit_diagnostic_request_is_respected_for_a_concept_question(self):
+        plan = validate_and_normalize_plan(
+            candidate_plan(diagnostic={"needed": False, "target": None, "reason": "answer_first"}),
+            text="固有値について理解度を確認して",
+            page_context=None,
+            learner_evidence=[],
+        )
+        self.assertTrue(plan["diagnostic"]["needed"])
+        self.assertIn("explicit_diagnostic_request", plan["reason_codes"])
+
     def test_invalid_or_timed_out_planner_uses_safe_fallback(self):
         class FailingClient:
             def with_options(self, **kwargs):
@@ -86,6 +98,9 @@ class PedagogicalPlannerTests(unittest.TestCase):
                 self.assertEqual(plan["source_scope"], "rag")
                 self.assertFalse(plan["diagnostic"]["needed"])
                 self.assertTrue(session._last_planner_record["status"].startswith("fallback:"))
+                self.assertEqual(session._last_planner_record["mode_requested"], "planner")
+                self.assertEqual(session._last_planner_record["mode_effective"], "fallback")
+                self.assertTrue(session._last_planner_record["planner_called"])
 
     def test_planner_receives_relevant_page_tail_not_only_the_prefix(self):
         class CapturingClient:
@@ -140,11 +155,15 @@ class PedagogicalPlannerTests(unittest.TestCase):
         self.assertEqual(plan["source_scope"], "rag")
 
     def test_only_backend_supplied_evidence_refs_survive_validation(self):
-        evidence = [{"ref": "exercise:12:89", "source": "exercise", "result": "incorrect"}]
+        evidence = [{
+            "ref": "exercise:12:89", "source": "exercise", "result": "incorrect",
+            "relation_to_query": "direct_concept", "recent_outcomes": ["incorrect"],
+        }]
         plan = validate_and_normalize_plan(
             candidate_plan(learner_context={
                 "use_relevant_evidence": True,
                 "evidence_refs": ["exercise:12:89", "exercise:999:999"],
+                "connection_basis": "observed_evidence",
             }),
             text="固有値って何？",
             page_context=None,
@@ -152,6 +171,7 @@ class PedagogicalPlannerTests(unittest.TestCase):
         )
         self.assertEqual(plan["learner_context"]["evidence_refs"], ["exercise:12:89"])
         self.assertTrue(plan["learner_context"]["use_relevant_evidence"])
+        self.assertEqual(plan["learner_context"]["connection_basis"], "observed_evidence")
 
     def test_planner_input_marks_page_request_scoped_and_bounds_history(self):
         payload = build_planner_input(
@@ -224,8 +244,16 @@ class PedagogicalPlannerTests(unittest.TestCase):
             "item_title": "固有値の基礎", "result": "correct", "recorded_at": "2026-09-24",
         }
         session.learner_evidence = [evidence]
-        plan = candidate_plan(learner_context={"use_relevant_evidence": True, "evidence_refs": [evidence["ref"]]})
-        session._make_pedagogical_plan = lambda text: plan
+        plan = candidate_plan(learner_context={
+            "use_relevant_evidence": True,
+            "evidence_refs": [evidence["ref"]],
+            "connection_basis": "observed_evidence",
+        })
+        def make_plan(text):
+            session._planner_evidence = [evidence]
+            return plan
+
+        session._make_pedagogical_plan = make_plan
         session.handle_turn("固有値って何？")
         call = searcher.search_calls[0]
         self.assertEqual(call["answer_query"], "固有値って何？")
@@ -285,6 +313,148 @@ class PedagogicalPlannerTests(unittest.TestCase):
         self.assertEqual(searcher.search_calls[0]["pedagogical_plan"]["page_relation"], "no_open_page")
         self.assertFalse(session._should_diagnose("固有値って何？"))
 
+    def test_relevant_evidence_beats_more_recent_irrelevant_evidence(self):
+        searcher = _FakeSearcher()
+        selected = select_relevant_learner_evidence(
+            [
+                {"ref": "exercise:1:1", "item_title": "微分係数", "topic_tags": ["微分"], "result": "correct"},
+                {"ref": "exercise:2:2", "item_title": "固有値の基礎", "topic_tags": ["線形代数"], "result": "incorrect"},
+            ],
+            query="固有値とは？",
+            page_context=None,
+            searcher=searcher,
+        )
+        self.assertEqual([item["ref"] for item in selected["selected"]], ["exercise:2:2"])
+        self.assertEqual(selected["selected"][0]["relation_to_query"], "direct_concept")
+        self.assertEqual(selected["rejected_count"], 1)
+
+    def test_kg_prerequisite_evidence_is_selected_but_unrelated_history_is_dropped(self):
+        searcher = _FakeSearcher()
+        searcher.entities = {"eigen": {"title": "固有値", "section": "固有値"}}
+        searcher.graph = SimpleNamespace(
+            nodes={"eigen": {"title": "固有値", "section": "固有値"}},
+            get_dependencies=lambda *args, **kwargs: [
+                {"title": "線形変換", "section": "線形変換"}
+            ],
+        )
+        selected = select_relevant_learner_evidence(
+            [
+                {"ref": "exercise:3:3", "item_title": "線形変換の基礎", "topic_tags": [], "result": "correct"},
+                {"ref": "exercise:4:4", "item_title": "微分の計算", "topic_tags": [], "result": "incorrect"},
+            ],
+            query="固有値って何？",
+            page_context=None,
+            searcher=searcher,
+        )
+        self.assertEqual([item["ref"] for item in selected["selected"]], ["exercise:3:3"])
+        self.assertEqual(selected["selected"][0]["relation_to_query"], "prerequisite_concept")
+
+    def test_no_relevant_evidence_means_no_personalization_evidence(self):
+        selected = select_relevant_learner_evidence(
+            [{"ref": "exercise:9:9", "item_title": "微分", "topic_tags": ["微分"], "result": "correct"}],
+            query="固有値とは？",
+            page_context=None,
+            searcher=_FakeSearcher(),
+        )
+        self.assertEqual(selected["selected"], [])
+
+    def test_unrelated_new_topic_does_not_select_evidence_from_open_page(self):
+        selected = select_relevant_learner_evidence(
+            [{"ref": "exercise:8:8", "item_title": "固有値の計算", "topic_tags": ["固有値"], "result": "correct"}],
+            query="別件だけど微分を説明して",
+            page_context={"title": "固有値", "section": "固有値"},
+            searcher=_FakeSearcher(),
+        )
+        self.assertEqual(selected["selected"], [])
+
+    def test_repeated_prerequisite_failures_change_move_and_support_from_observed_evidence(self):
+        evidence = [{
+            "ref": "exercise:20:20", "item_title": "線形変換の基礎", "topic_tags": ["線形変換"],
+            "result": "incorrect", "recent_outcomes": ["incorrect", "incorrect"],
+            "relation_to_query": "prerequisite_concept",
+        }]
+        plan = validate_and_normalize_plan(
+            candidate_plan(
+                pedagogical_move="explain_then_example",
+                support_level="standard",
+                learner_context={"use_relevant_evidence": False, "evidence_refs": [], "connection_basis": "none"},
+            ),
+            text="固有値って何？",
+            page_context=None,
+            learner_evidence=evidence,
+        )
+        self.assertEqual(plan["pedagogical_move"], "prerequisite_repair")
+        self.assertEqual(plan["support_level"], "high")
+        self.assertEqual(plan["learner_context"]["evidence_refs"], ["exercise:20:20"])
+        self.assertIn("relevant_prerequisite_failures", plan["reason_codes"])
+
+    def test_prerequisite_success_prevents_unnecessary_high_level_repair(self):
+        evidence = [{
+            "ref": "exercise:21:21", "item_title": "線形変換の基礎", "topic_tags": ["線形変換"],
+            "result": "correct", "recent_outcomes": ["correct", "correct"],
+            "relation_to_query": "prerequisite_concept",
+        }]
+        plan = validate_and_normalize_plan(
+            candidate_plan(pedagogical_move="prerequisite_repair", support_level="high"),
+            text="固有値って何？",
+            page_context=None,
+            learner_evidence=evidence,
+        )
+        self.assertNotEqual(plan["pedagogical_move"], "prerequisite_repair")
+        self.assertNotEqual(plan["support_level"], "high")
+        self.assertIn("relevant_prerequisite_success", plan["reason_codes"])
+
+    def test_prerequisite_failures_take_priority_over_direct_success_for_next_step(self):
+        evidence = [
+            {"ref": "exercise:31:31", "item_title": "線形変換", "topic_tags": [],
+             "result": "incorrect", "recent_outcomes": ["incorrect", "incorrect"],
+             "relation_to_query": "prerequisite_concept"},
+            {"ref": "exercise:32:32", "item_title": "固有値問題", "topic_tags": [],
+             "result": "correct", "recent_outcomes": ["correct", "correct"],
+             "relation_to_query": "direct_concept"},
+        ]
+        plan = validate_and_normalize_plan(
+            candidate_plan(intent=["problem_solving"], pedagogical_move="guided_question", support_level="minimal"),
+            text="この固有値問題、次にどうすればいい？",
+            page_context=None,
+            learner_evidence=evidence,
+        )
+        self.assertEqual(plan["pedagogical_move"], "prerequisite_repair")
+        self.assertEqual(plan["support_level"], "high")
+
+    def test_baseline_uses_legacy_route_without_calling_planner(self):
+        searcher = _FakeSearcher()
+        session = TutorSession(
+            searcher=searcher,
+            cfg={"tutor": {"pedagogical_planner": {"mode": "baseline"}}},
+        )
+        with patch.object(tutor_session_module, "_chat_json", side_effect=AssertionError("planner called")):
+            turn = session.handle_turn("おはよう")
+        self.assertEqual(turn["planner"]["mode_requested"], "baseline")
+        self.assertEqual(turn["planner"]["mode_effective"], "baseline")
+        self.assertFalse(turn["planner"]["planner_called"])
+        # The comparator deliberately preserves the old short-input diagnostic rule.
+        self.assertIsNotNone(turn["diagnosis"])
+
+    def test_planner_invalid_mode_is_not_misreported_as_baseline(self):
+        session = _make_session(_FakeSearcher())
+        session.client = SimpleNamespace(with_options=lambda **kwargs: SimpleNamespace())
+        with patch.object(tutor_session_module, "_chat_json", side_effect=ValueError("bad schema")):
+            turn = session.handle_turn("固有値って何？")
+        self.assertEqual(turn["planner"]["mode_requested"], "planner")
+        self.assertEqual(turn["planner"]["mode_effective"], "fallback")
+
+    def test_planner_kill_switch_fallback_is_not_logged_as_baseline(self):
+        session = TutorSession(
+            searcher=_FakeSearcher(),
+            cfg={"tutor": {"pedagogical_planner": {"mode": "planner", "enabled": False}}},
+        )
+        with patch.object(tutor_session_module, "_chat_json", side_effect=AssertionError("planner should be disabled")):
+            turn = session.handle_turn("固有値とは何？")
+        self.assertEqual(turn["planner"]["mode_requested"], "planner")
+        self.assertEqual(turn["planner"]["mode_effective"], "fallback")
+        self.assertFalse(turn["planner"]["planner_called"])
+
 
 class _FakeSearcher:
     pipeline = "test"
@@ -313,7 +483,7 @@ class _FakeSearcher:
 def _make_session(searcher):
     return TutorSession(
         searcher=searcher,
-        cfg={"tutor": {"pedagogical_planner": {"enabled": False}}},
+        cfg={"tutor": {"pedagogical_planner": {"mode": "planner", "enabled": True}}},
     )
 
 
