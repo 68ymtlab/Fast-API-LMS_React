@@ -25,6 +25,10 @@ services:
       - ./backend/.env
     environment:
       - UPLOAD_ROOT=/app/uploads
+    networks:
+      default:
+        aliases:
+          - backend
     ports:
       - 8000:8000  # ホストマシンのポート8000を、docker内のポート8000に接続する
     volumes:
@@ -53,16 +57,22 @@ services:
       - DEEPRAG_USE_VLLM_EMBED=1
       - TUTOR_STAGE4_DIR=/app/data/stage4
       - TUTOR_PROD_CFG=/app/config/production_pipeline.json
+    networks:
+      default:
+        aliases:
+          - tutor
     # 開発時のみホストから直接叩けるようにする（本番は prod override で閉じる）
     ports:
       - 127.0.0.1:8765:8765
     volumes:
-      # 実データ（embeddings / KG / qdrant）。tutor/scripts/sync_from_agents.sh で取り込む
+      # embeddings / KG は読み取り専用。Qdrant local は .lock を作るため、その領域だけ書き込み可能にする
       - ./tutor/data:/app/data:ro
+      - ./tutor/data/stage4/qdrant_data:/app/data/stage4/qdrant_data
       # 開発時はコードをバインドしてホットリロード
       - ./tutor/app:/app/app
       - ./tutor/core:/app/core
       - ./tutor/config:/app/config
+      - ./tutor/tests:/app/tests:ro
     command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8765 --reload
 
 # Frontend
@@ -80,6 +90,10 @@ services:
       - NODE_ENV=development
       - NPM_CONFIG_PRODUCTION=false
       - CHOKIDAR_USEPOLLING=true
+    networks:
+      default:
+        aliases:
+          - frontend
     ports:
       - 3000:3000
     volumes:
@@ -95,6 +109,10 @@ services:
     image: postgres:16-alpine
     container_name: lms-db
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - db
     env_file:
       - ./db/.env
     volumes:
@@ -634,6 +652,14 @@ services:
 #         "-c",
 #         "/app/bin/migrate && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"
 #       ]
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.200.0.0/24
+          gateway: 10.200.0.1
 
 volumes:
   node_modules:

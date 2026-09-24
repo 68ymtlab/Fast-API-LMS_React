@@ -177,8 +177,9 @@ if ! grep -qE '^TUTOR_SERVICE_TOKEN=.+' tutor/.env 2>/dev/null; then
     exit 1
 fi
 if ! grep -qE '^TUTOR_DATABASE_URL=.+' tutor/.env 2>/dev/null; then
-    echo "[WARN] tutor/.env の TUTOR_DATABASE_URL が空です。会話は保存されません（メモリのみ）。"
-    echo "       ./scripts/setup_tutor_secrets.sh を実行すると tutor_app ロールで設定されます。"
+    echo "[ERROR] tutor/.env の TUTOR_DATABASE_URL が空です。AIチューターの本番運用には永続化DBが必要です。"
+    echo "        ./scripts/setup_tutor_secrets.sh を実行して tutor_app ロールを設定してください。"
+    exit 1
 fi
 # 知識ベース（研究側から同期するファイル）。無ければ同期を試みる
 if [ ! -f tutor/data/stage4/embeddings.json ] || [ ! -f tutor/data/stage4/knowledge_graph.json ]; then

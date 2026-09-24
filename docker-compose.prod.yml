@@ -30,10 +30,13 @@ services:
   # ---- AI Tutor (本番) ----
   tutor:
     restart: unless-stopped
-    # 本番ではソースバインドマウントを外し、データのみ読み取り専用で与える
+    environment:
+      - TUTOR_REQUIRE_PERSISTENCE=1
+    # 本番ではソースバインドマウントを外し、知識データは読み取り専用、Qdrant local のみ書き込み可能にする
     # （volumes は target 単位でマージされるため !override で dev 側の bind を確実に外す）
     volumes: !override
       - ./tutor/data:/app/data:ro
+      - ./tutor/data/stage4/qdrant_data:/app/data/stage4/qdrant_data
     command: !reset null
     # ホストへのポート公開を削除（backend からの内部呼び出しのみ）
     ports: !reset []

@@ -122,7 +122,7 @@ async def _forward(method: str, path: str, user: Users, json: Any = None) -> Any
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"[ \t\u3000]+")
-PAGE_TEXT_MAX = 6000
+PAGE_TEXT_MAX = 20000
 
 
 def _plain_text(body: str) -> str:
@@ -158,6 +158,41 @@ async def _resolve_page_context(ctx: Optional[TutorContext], db: AsyncSession) -
         if content is not None:
             out["text"] = _plain_text(content.content_body)
     return out
+
+
+async def _recent_tutor_evidence(
+    db: AsyncSession, user_id: int, course_id: int | None, *, limit: int = 8
+) -> list[dict[str, Any]]:
+    """Return bounded recent exercise evidence for planning; never include raw answers."""
+    stmt = (
+        select(exercises_model.StudentAnswers, questions_model.Questions, exercises_model.ExerciseSessions.started_at)
+        .join(exercises_model.ExerciseSessions, exercises_model.ExerciseSessions.id == exercises_model.StudentAnswers.session_id)
+        .join(exercises_model.ExerciseSets, exercises_model.ExerciseSets.id == exercises_model.ExerciseSessions.exercise_set_id)
+        .join(questions_model.Questions, questions_model.Questions.id == exercises_model.StudentAnswers.question_id)
+        .options(selectinload(questions_model.Questions.tags))
+        .where(exercises_model.ExerciseSessions.user_id == user_id)
+    )
+    if course_id is not None:
+        stmt = stmt.where(exercises_model.ExerciseSets.course_id == course_id)
+    rows = (await db.execute(stmt.order_by(exercises_model.StudentAnswers.id.desc()).limit(40))).all()
+    evidence: list[dict[str, Any]] = []
+    seen_questions: set[int] = set()
+    for answer, question, started_at in rows:
+        if question.id in seen_questions:
+            continue
+        seen_questions.add(question.id)
+        outcome = "unknown" if answer.is_correct is None else ("correct" if answer.is_correct else "incorrect")
+        evidence.append({
+            "ref": f"exercise:{question.id}:{answer.id}",
+            "source": "exercise",
+            "topic_tags": [tag.name for tag in (question.tags or []) if tag.name][:8],
+            "item_title": question.title or "",
+            "result": outcome,
+            "recorded_at": started_at.isoformat() if started_at else "",
+        })
+        if len(evidence) >= limit:
+            break
+    return evidence
 
 
 # ---- 類似問題（教員が作った既存問題を、いまの話題に近い順に出す。LLM 生成はしない） ----
@@ -536,11 +571,17 @@ async def tutor_message(
 ):
     if not (body.text or "").strip() and not (body.choice_id or "").strip():
         raise HTTPException(status_code=400, detail="text または choice_id が必要です")
+    learner_evidence = await _recent_tutor_evidence(
+        db,
+        current_user.id,
+        body.context.course_id if body.context else None,
+    ) if (body.text or "").strip() else []
     payload = {
         "text": body.text,
         "choice_id": body.choice_id,
         "page_context": await _resolve_page_context(body.context, db),
         "answer_length": body.answer_length,
+        "learner_evidence": learner_evidence,
     }
     data = await _forward("POST", "/session/message", current_user, json=payload)
     # 回答を返したターン（診断・clarify の待ち受け中でない）だけ、関連する既存問題を添える

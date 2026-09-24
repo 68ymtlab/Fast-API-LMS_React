@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AIチュータリングシステム 図解</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  body { font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; max-width: 1100px; margin: 0 auto; padding: 24px; background: #fafafa; color: #222; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
+  h2 { margin-top: 48px; background: #eff6ff; border-left: 6px solid #2563eb; padding: 8px 12px; }
+  .note { background: #fffbeb; border-left: 5px solid #f59e0b; padding: 10px 14px; font-size: 14px; }
+  .diagram { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; overflow-x: auto; }
+  code { background: #eee; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .explain { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px 18px; font-size: 15px; line-height: 1.9; margin-top: 12px; }
+  .explain .tag { color: #15803d; }
+  .explain h3 { margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<h1>AIチュータリングシステム 図解</h1>
+<p>LMS (Fast-API-LMS_React) に組み込まれた線形代数AIチュータの構造を図で整理したもの。
+コード対応箇所は各図の下に記載。</p>
+
+<h2>図1. システム全体像（コンテナと通信）</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    UI["学生ブラウザ (Next.js)\n/tutor チャット\n教科書ページの🤖パネル"]
+    NG["nginx\n/api/* 中継"]
+    BE["FastAPI backend\nJWT検証・ページ本文解決"]
+    TU["AIチュータサービス :8765\nSessionManager / TutorSession\nDeepRAGSearcher(全学生共有)"]
+    LLM["LLMゲートウェイ :14000\nQwen3.8-27B (chat)\nbge-m3 (embeddings)"]
+    RR["vLLM Manager :18000\nruri-v3-reranker-310m (/rerank)"]
+    PG[("PostgreSQL\ntutor スキーマ")]
+    MEM["メモリ内インデックス\nembeddings.json (bge-m3)\nknowledge_graph.json"]
+    RES["研究環境\nagents/workspace"]
+
+    UI -->|"① HTTPS + JWT"| NG
+    NG -->|"② API中継"| BE
+    BE -->|"③ X-Student-Id + ページ本文"| TU
+    TU -->|"④ chat / embeddings / rerank"| LLM
+    TU -->|"④' /rerank"| RR
+    TU -->|"⑤ 会話の保存・復元"| PG
+    TU --- MEM
+    RES -.->|"sync_from_agents.sh で同期"| MEM
+</pre>
+</div>
+<div class="explain">
+<h3>読み方</h3>
+<p><span class="tag">■ 左から右 ＝ 学生の質問がたどる道。</span></p>
+<ul>
+<li><b>①②:</b> 学生の入力は nginx 経由で FastAPI backend に届く。ここまでは普通のLMS通信（HTTPS＋ログイントークンJWT）。</li>
+<li><b>③:</b> backend が「この人は誰か」をJWTから確定し、学生IDをヘッダーに入れてチュータへ中継。<b>学生IDをブラウザ側から送らせない</b>（なりすまし防止）。ついでに、いま開いている教科書ページの本文もDBから引いて一緒に渡す。</li>
+<li><b>④:</b> チュータは自分ではAIモデルを持たない。外部サーバーに依頼するのは3種類 —— 質問のベクトル化（embeddings）、回答生成（chat）、検索結果の並べ替え（rerank）。</li>
+<li><b>⑤:</b> 会話内容は Postgres に保存。翌日の続き・教員ビューの元データになる。</li>
+<li><b>下段:</b> 教科書知識（embeddings.json）は起動時にメモリへ展開して検索する。元データは研究環境で作り、syncスクリプトで持ってくる（点線）。</li>
+</ul>
+<p><span class="tag">■ なぜ独立コンテナ？</span> backend はマルチプロセス動作のため、重い検索器を組み込むとメモリが4重化して破綻する。だから「<b>検索器は1個だけ全学生で共有、状態だけ学生ごとに分離</b>」。チュータが落ちてもLMS本体は無事。Qdrant/BM25は現状ランタイムでは未使用（embeddings.jsonのメモリ内numpyコサイン検索が実態）。</p>
+</div>
+
+<h2>図2. 理解度レベルはどうやって入るか ★今回の質問</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TD
+    Q["新しい話題の質問<br/>(例: 行列式って何？)"] --> COND{"診断MCQを出す？\n(diagnose_when=conditional)"}
+    COND -->|"YES:\n理解度がまだ unknown\nかつ初めてのトピック"| MCQ["画面に選択肢を提示\nphase = awaiting_diagnosis"]
+    MCQ --> PICK{"学生の選択"}
+    PICK -->|"A"| NONE["none\n『初めて聞いた』"]
+    PICK -->|"B"| HEARD["heard\n『聞いたことはある』"]
+    PICK -->|"C"| COMP["can_compute\n『計算や式は使える』"]
+    PICK -->|"D"| HEARD2["heard + goal=intuition\n『使い方・意味が知りたい』"]
+    PICK -->|"E"| PROVE["can_prove + goal=proof\n『証明・一般化を知りたい』"]
+    COND -->|"NO:\n確認質問や既知トピック等"| DEF["保守デフォルト\nunknown → heard + goal=definition"]
+    NONE & HEARD & COMP & HEARD2 & PROVE --> SET["LearnerState に設定\n(会話内の振る舞いがここで決まる)"]
+    DEF --> SET
+    SET --> SAVE[("tutor.learner_profiles に保存")]
+    SAVE -.->|"翌日も復元"| HI["『おかえりなさい。\n前回は◯◯を学んでいましたね\n（理解度: 聞いたことがある）』"]
+    SET -.->|"passive_level_estimation\n現在は OFF"| EST["発話から自動推定\n(learner_model.py・実装済み未運用)"]
+</pre>
+</div>
+<div class="explain">
+<h3>読み方</h3>
+<p><span class="tag">■ 理解度レベル（none → heard → can_compute → can_prove）の入り口は2つ。</span></p>
+<ul>
+<li><b>経路①（主経路）＝診断MCQの自己申告。</b> 学生が初めての概念を質問すると、チュータはいきなり答えず「いまのあなたの状態に近いものを選んでください」とA〜Eを出す。<b>Bを選ぶこと</b>が「聞いたことがある(heard)」が入る瞬間。Eを選ぶと上位層(can_prove)になり、回答スタイルがたとえ中心から証明の骨子寄りへ変わる。選択後、退避しておいた元の質問で改めて検索・回答する（質問は忘れない）。</li>
+<li><b>経路②＝保守デフォルト。</b> 診断が出ない条件（確認質問「〜で合ってますか？」、既に話したトピック等）で質問が流れ、理解度が未設定(unknown)のままなら自動的に <b>heard</b> 扱いに落とす。「無難に始めて様子見」の安全策。</li>
+<li><b>点線＝自動推定（現在オフ）:</b> 発話内容からレベルを推定し直す仕組み（learner_model.py）は完成済みだが、毎ターン追加のLLM呼び出し＝遅くなるため運用はオフ。</li>
+<li><b>決まった後:</b> learner_profiles テーブルに保存され翌日以降も引き継がれる（挨拶に反映）。ただし<b>一度決まると基本更新されない</b> —— 「初回にA(初めて)を選んだ学生はずっとnone扱い」という弱点がこれ。今後の課題。</li>
+</ul>
+<p><b>要点：</b> 「聞いたことがある」は学生自身のMCQ回答か、診断スキップ時の保守デフォルトで入る。</p>
+</div>
+<p>コード: <code>tutor_session.py:800(_should_diagnose)</code> / <code>:1083(_handle_diagnosis_choice)</code> / <code>:1310(保守デフォルト)</code></p>
+
+<h2>図3. 1ターンのライフサイクル（質問→回答→保存）</h2>
+<div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant S as 学生(ブラウザ)
+    participant B as backend(FastAPI)
+    participant T as tutorサービス
+    participant L as LLM/Embed/Rerank
+    participant DB as Postgres
+
+    S->>B: POST /api/tutor/message {text, lesson_page_id}
+    Note over B: 本文ではなくIDだけ送る(改ざん防止)
+    B->>DB: 教科書ページ本文を取得
+    Note over B: HTML除去・6000字に丸め
+    B->>T: X-Student-Id + page_context {title,text}
+    T->>T: ターン分類(正規表現のみ・LLM不使用)
+    alt 初めての話題で理解度unknown
+        T-->>S: 診断MCQ A〜E を提示
+        S->>T: 「B」を選択
+    end
+    T->>L: クエリをベクトル化 → dense top50
+    T->>L: リランク → 文脈15件/出典5件
+    T->>L: 回答生成(learner_state付き adaptiveプロンプト)
+    L-->>T: 回答本文
+    T->>T: 出典ブロックを機械的に付与(LLMに書かせない)
+    T->>DB: turns保存・state_json更新・profile更新
+    T-->>S: 回答 + 出典 + 図(viz) + バナー
+</pre>
+</div>
+
+<div class="explain">
+<h3>読み方</h3>
+<ul>
+<li><b>(1)(2)(3):</b> フロントは質問文と「どのページを見ているかのID」だけ送る。<b>ページ本文を送らない</b>のは、学生が偽のテキストを送れないように＆常に教員の最新版を使うため。本文は backend がDBから取得し、HTML除去・6000字に丸めて渡す。</li>
+<li><b>(6):</b> チュータは最初に<b>正規表現だけで</b>発話を分類する（相槌？混乱？新話題？）。ここにLLMを使わないのが速さの秘密。LLMは説明生成に集中させる。</li>
+<li><b>alt のブロック:</b> 条件付きで入る診断MCQ（図2）。該当しなければスキップして即検索へ。</li>
+<li><b>(9)-(11):</b> 検索（ベクトル化→上位50件→リランク）は外部サーバーへ。生成プロンプトには学習者の理解度・直前の会話・開いているページが全部注入される。</li>
+<li><b>(13):</b> 「## 参考（教科書）」の出典ブロックは<b>LLMに書かせずシステムが強制挿入</b>する。捏造防止。</li>
+<li><b>(14):</b> 保存は学生発話＋チュータ返答のペアで行単位に。保存が失敗しても対話は止めない。</li>
+</ul>
+</div>
+
+<h2>図4. 対話の状態マシン（Phase遷移）</h2>
+<div class="diagram">
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --> idle
+    idle --> idle: 通常の質問・フォロー・スタイル変更
+    idle --> awaiting_diagnosis: 新話題+初出トピック\n→MCQ提示
+    awaiting_diagnosis --> idle: A〜E選択→理解度設定→検索&回答
+    idle --> awaiting_clarify: 混乱が2回連続
+    awaiting_clarify --> idle: 選択肢/自由記述→つまずき位置で再説明
+    note right of awaiting_clarify: 聞き返しは最大1回\n(D=自由記述で逃げ道を保証)
+</pre>
+</div>
+
+<div class="explain">
+<h3>読み方</h3>
+<p><span class="tag">■ Phase ＝「チュータがいま学生の何を待っているか」。</span> 通常は idle（何でも来い）。</p>
+<ul>
+<li><b>awaiting_diagnosis:</b> MCQを見せている状態。次の入力はA〜Eであるべきで、記号1文字でも正しい選択肢として処理される。自由記述が返ってきたら（「実は授業で習いました」等）、それを新しい質問としてやり直す抜け道もある。</li>
+<li><b>awaiting_clarify:</b> 「どこで止まりましたか？」を見せている状態。選択肢ラベル一致・記号一致・自由記述の3パターンを受け止め、どれにも当てはまらない学生を3択で閉じ込めない。</li>
+<li>設計上、<b>待ち状態に入るのは最大1回だけ</b>。学生を質問攻めにしないため。</li>
+</ul>
+</div>
+
+<h2>図5. 混乱対応の二段構え</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TD
+    C["混乱の発話\n『わからない』『難しい』"] --> JUDGE{"疑問文？"}
+    JUDGE -->|"Yes"| FUP["混乱ではない\n鋭い反論/質問として処理"]
+    JUDGE -->|"No"| ST{"confusion_streak"}
+    ST -->|"1回目"| SIM["simplify\n検索結果を再利用し\n一段やさしく言い直す"]
+    ST -->|"2回目以上"| CLA["clarify 発動\n『どこで止まっていますか？』\n選択肢はKG前提候補からLLM生成"]
+    CLA --> GAP["学生の選択 = gap\n(何が分かっていないか)"]
+    SIM --> GEN
+    GAP -->|"gapを教える指示に変換\n『学習者は◯◯でつまずいています』"| GEN["再生成\n(検索はやり直さない)"]
+    GEN --> RESET["confusion_streak リセット"]
+</pre>
+</div>
+<div class="explain">
+<h3>読み方</h3>
+<ul>
+<li><b>疑問文チェック:</b> 「難しいんですか？」のような質問は混乱ではない（鋭い反論）。誤判定を防ぐフィルタ。</li>
+<li><b>1回目 → simplify:</b> まだ「説明の仕方」が合わなかった可能性が高いので、<b>検索をやり直さず</b>前回と同じ材料で易しく言い直す。別の箇所に飛ぶと学生を見失うため（検索品質は実測で高い＝材料は正しい前提）。</li>
+<li><b>2回目以上 → clarify:</b> それでもダメなら「どこで止まったか」を聞く。旧設計の「たとえが分からない／用語が分からない」（説明スタイルの好みを聞く）から転換し、<b>つまずきの位置</b>を特定する方式へ。選択肢は固定ではなく、知識グラフの前提候補（対角化なら固有値・固有ベクトル等）からLLMが動的生成。「D. 全部あやしい（自由記述OK）」で逃げ道を保証。</li>
+<li><b>gap → 指示:</b> 選ばれた項目は「学習者は◯◯でつまずいています。そこに絞って説明し直してください」という<b>教える側への指示文</b>に変換されて再生成される。ここが一番の工夫ポイント。</li>
+</ul>
+<p><span class="tag">■ 設計原則:</span> 「聞き返しは学生を試すためでなく、分からない場所を特定するため。最大1回」「検索は信頼し、説明を変える」。</p>
+<p>コード: <code>tutor_session.py:992(_handle_adaptive_turn)</code> / <code>:835(_start_clarify)</code></p>
+</div>
+
+<h2>図6. 関連演習問題（backend↔tutor の役割分担）</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart TB
+    subgraph BE["backend = LMSの事実を知る側"]
+        Q1["有効な問題全件 + タグ"]
+        Q2["解答履歴からstatus判定\nunanswered/wrong/correct"]
+        Q3["習熟度 mastery_level"]
+        Q4["演習セットのURL解決"]
+    end
+    BE -->|"候補+履歴を渡す"| RK["tutor /related/rank"]
+    RK --> R1["bge-m3 コサイン類似度\n(下限 ≈0.53)"]
+    RK --> R2["加点: 不正解+0.08 未回答+0.03\n正解−0.05 タグ一致+0.05"]
+    RK --> R3["提示済み30日間除外\n(ただしwrongだけ再提示)"]
+    R1 & R2 & R3 --> ONE["上位1問だけカード表示"]
+    ONE --> SOLVE["その場で解答→採点\nstudent_answersに記録(source=tutor)"]
+    SOLVE -.->|"次回のstatus判定に還流"| Q2
+    Q4 --> ONE
+</pre>
+</div>
+<div class="explain">
+<h3>読み方</h3>
+<ul>
+<li><b>役割分担:</b> 「LMSのデータを持っているのはbackend」「ランキングのロジックはtutor」。backendは集めた候補を丸ごとtutorへ投げ、tutorは意味的な近さで選んで返す。互いの内部を知らないきれいな分離。</li>
+<li><b>加点ルールがミソ:</b> ただの類似度順ではない。<b>前に間違えた問題ほど上</b>に出る（+0.08）、正解済みは後回し（−0.05）。つまり<b>学生ごとに表示順が変わる</b>。</li>
+<li><b>30日除外:</b> 出し終わった問題を繰り返さない。ただし不正解だった問題だけ例外で再提示（「もう一度」チップ付き）。</li>
+<li><b>還流（点線）:</b> カード上で解いた答えは既存の演習API経由で student_answers に入る → 次回のstatus判定が変わり、提示ルールに反映。<b>チュータと演習機能がデータでつながっている</b>のが重要。</li>
+<li><b>方針:</b> LLMに問題を生成させず、教員が作った既存問題を検索して提示するだけ（ハルシネーション回避・品質は教員が担保）。</li>
+</ul>
+<p>コード: <code>tutor_router.py:261(_related_questions)</code> / <code>tutor/app/main.py:602(/related/rank)</code></p>
+</div>
+
+<h2>図7. データの2階層（メモリの状態 vs Postgres）</h2>
+<div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph MEM["メモリ SessionState（学生ごと）"]
+        LS["LearnerState<br/>理解度・目的・スタイル"]
+        FC["focus_concept 今の話題"]
+        LR_["last_results 検索キャッシュ"]
+        CS["confusion_streak"]
+        DL["dialogue 直近6ターン"]
+    end
+    subgraph PGDB["Postgres tutorスキーマ（永続）"]
+        LP["learner_profiles<br/>理解度・既知トピック"]
+        CV["conversations + state_json<br/>会話スナップショット"]
+        TN["turns<br/>発話・出典・ページID・レイテンシ"]
+    end
+    MEM -->|"毎ターン上書き保存"| CV
+    MEM --> LP
+    CV -.->|"再起動・翌日に復元<br/>同じKB版のときだけキャッシュも復元"| MEM
+</pre>
+</div>
+<div class="explain">
+<h3>読み方</h3>
+<p><span class="tag">■ 上段＝揮発性（会話中のみ有効）、下段＝永続（DBに残る）。</span></p>
+<ul>
+<li><b>メモリ側:</b> 毎ターンのやり取りで随時書き換わる「いまの学生の状態」。理解度・今の話題・検索キャッシュ・混乱カウンタ・直近6ターンの会話。ここが「状態更新」の中身。ブラウザを閉じてもプロセス内には残るが、再起動やTTL退避で消える。</li>
+<li><b>Postgres側:</b> 毎ターン state_json にセッション全体を上書き保存するので、再起動・翌日でも復元できる。learner_profiles は学生単位で会話をまたいで残る（リセットしても理解度は消えない）。</li>
+<li><b>復元の条件（点線）:</b> 知識ベース（KG）が作り直されて版が変わった場合、古い検索キャッシュ等のKG依存フィールドは捨てて復元する。理解度・既知トピックなどの学習者情報は常に復元。</li>
+<li><b>壊れない引用:</b> 引用(entity_id)は節名＋抜粋と一緒に文字列保存するので、知識グラフを再構築しても過去ログが人が読めるまま。</li>
+</ul>
+</div>
+
+<hr>
+<p style="color:#888">作成: 2026-08-26 / 出典: tutor/core/*.py, tutor/app/*.py, backend/api/routers/tutor_router.py, docs/ai-tutor*.md</p>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: "default", themeVariables: { fontSize: "14px" } });
+</script>
+</body>
+</html>

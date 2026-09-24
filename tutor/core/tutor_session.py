@@ -39,6 +39,15 @@ from deeprag_search import (  # noqa: E402
     DeepRAGSearcher,
     _load_production_config,
     _strip_thinking_process,
+    select_relevant_page_text,
+)
+from pedagogical_planner import (  # noqa: E402
+    PLANNER_SYSTEM_PROMPT,
+    build_planner_input,
+    fallback_plan,
+    is_social_only,
+    planner_prompt_schema,
+    validate_and_normalize_plan,
 )
 from tutor_viz import plan_viz  # noqa: E402
 
@@ -441,6 +450,10 @@ class TutorSession:
         self.passive_est_min_confidence = float(
             tutor_cfg.get("passive_est_min_confidence", 0.6)
         )
+        planner_cfg = tutor_cfg.get("pedagogical_planner") or {}
+        self.planner_enabled = bool(planner_cfg.get("enabled", True))
+        self.planner_timeout_sec = float(planner_cfg.get("timeout_seconds", 18))
+        self.planner_max_tokens = int(planner_cfg.get("max_tokens", 700))
         self.last_level_estimate: dict[str, Any] | None = None
         self.client = OpenAI(
             base_url=f"{LLM_BASE_URL.rstrip('/')}/v1",
@@ -452,6 +465,10 @@ class TutorSession:
         self.page_context: dict[str, Any] | None = None
         # [LMS port] 学生が選んだ回答の長さ short / normal / long
         self.answer_length: str | None = None
+        # LMS backendが現在の学生・コースで認可して取得した、直近の演習証拠。
+        # page_contextと同様にリクエストスコープであり、SessionStateには保存しない。
+        self.learner_evidence: list[dict[str, Any]] = []
+        self._last_planner_record: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # public API
@@ -466,6 +483,7 @@ class TutorSession:
         """構造化ターン結果（Web / 評価用）。"""
         text = (text or "").strip()
         choice_id = (choice_id or "").strip() or None
+        self._last_planner_record = None
         _page_hint.title = str((self.page_context or {}).get("title") or "")  # [LMS port]
 
         if not text and not choice_id:
@@ -667,6 +685,7 @@ class TutorSession:
             "turn_class": self.state.last_turn_class,
             "viz": self.state.viz_last,
             "answer_body": extra.get("answer_body", ""),
+            "planner": self._last_planner_record,
         }
         payload.update(extra)
         self._last_turn = payload
@@ -798,24 +817,12 @@ class TutorSession:
         return "new_topic"
 
     def _should_diagnose(self, query: str) -> bool:
-        if self.diagnose_when == "never":
-            return False
-        if self.diagnose_when == "always":
-            return True
-        topic = _topic_key_from_query(query)
-        ls = self.state.learner_state
-        if ls.understanding_level == "unknown":
-            if WHAT_IS_RE.search(query) or len(query) <= 20:
-                return True
-            if topic and topic not in self.state.known_topics:
-                return True
-        if SIMPLE_CONFIRM_RE.search(query):
-            return False
-        if ls.understanding_level != "unknown" and self.state.known_topics:
-            for kt in self.state.known_topics:
-                if kt and (kt in query or kt in topic or topic in kt):
-                    return False
-        return bool(WHAT_IS_RE.search(query) and ls.understanding_level == "unknown")
+        # Legacy integrations may still call this helper. Shortness or an unknown
+        # learner level alone must never gate an answer behind a self-rating quiz.
+        return bool(re.search(
+            r"理解度.{0,8}(確認|診断|測)|(診断|レベル.{0,4}確認).{0,8}(して|お願い|ほしい)?",
+            query or "",
+        ))
 
     def _build_diagnosis(self, query: str) -> tuple[str, list[dict[str, Any]]]:
         topic = _topic_key_from_query(query)
@@ -907,16 +914,11 @@ class TutorSession:
                         break
         if not cid:
             if text and len(text) > 10 and CONFUSED_RE.search(text) is None:
-                # 自由記述で意図が書かれた → after_clarify として回答
+                # 自由記述も通常の学生発話として再計画し、前の教材文脈を使い回さない。
                 self.state.phase = "idle"
                 self.state.pending_clarify = None
                 self.state.confusion_streak = 0
-                return self._compose_answer(
-                    text,
-                    turn_class="clarify_answer",
-                    explain_mode="after_clarify",
-                    reuse_retrieval=True,
-                )
+                return self._handle_adaptive_turn(text)
             ids_str = "〜".join((min(valid_ids), max(valid_ids))) if valid_ids else "A〜D"
             return self._pack_turn(f"{ids_str} のどれかを選ぶか、自由に書いてください。")
 
@@ -948,12 +950,9 @@ class TutorSession:
             f"{self.state.focus_concept}について、学習者は「{gap}」でつまずいています。"
             f"そこに焦点を絞って説明し直してください。"
         )
-        return self._compose_answer(
-            query,
-            turn_class="clarify_answer",
-            explain_mode="after_clarify",
-            reuse_retrieval=True,
-        )
+        # Treat the selected gap as new planning input and search for it afresh.
+        # Reusing the previous retrieval can omit the prerequisite the learner named.
+        return self._handle_adaptive_turn(query, append_user=False)
 
     def _maybe_update_level(self, text: str, turn_class: str) -> None:
         """発話ベースでレベルを逐次更新（passive_level_estimation が on のとき）。
@@ -989,95 +988,151 @@ class TutorSession:
         except Exception:  # noqa: BLE001  推定は補助。失敗しても対話は続ける
             pass
 
-    def _handle_adaptive_turn(self, text: str) -> dict[str, Any]:
-        turn_class = self._classify_turn(text)
-        self.state.last_turn_class = turn_class
-        self._append_dialogue("user", text)
-        self._maybe_update_level(text, turn_class)
+    def _make_pedagogical_plan(self, text: str) -> dict[str, Any]:
+        """Run the structured planner and fail safely to an answer-first plan."""
+        from time import monotonic
 
-        if turn_class == "ack":
-            self.state.confusion_streak = 0
-            focus = self.state.focus_concept or "いまの内容"
-            reply = (
-                f"よかったです。「{focus}」について、"
-                "次に知りたいことがあればそのまま聞いてください。"
+        started = monotonic()
+        evidence = list(getattr(self, "learner_evidence", []) or [])[:8]
+        if not getattr(self, "planner_enabled", True) or getattr(self, "client", None) is None:
+            plan = fallback_plan(
+                text=text, page_context=self.page_context, learner_evidence=evidence
             )
+            self._last_planner_record = {
+                "status": "disabled", "latency_ms": 0, "model": None, "plan": plan,
+            }
+            return plan
+
+        try:
+            planner_client = self.client.with_options(
+                timeout=getattr(self, "planner_timeout_sec", 18), max_retries=0
+            )
+            planner_page = self.page_context
+            if planner_page:
+                # Let the planner see a query-relevant excerpt rather than only the
+                # page prefix, so a concept mentioned only near the end is recognized
+                # as part of the currently open lesson as well.
+                planner_page = {
+                    **planner_page,
+                    "text": select_relevant_page_text(
+                        planner_page.get("text"), text, max_chars=3600
+                    ),
+                }
+            raw = _chat_json(
+                planner_client,
+                PLANNER_SYSTEM_PROMPT,
+                build_planner_input(
+                    text=text,
+                    page_context=planner_page,
+                    dialogue=self.state.dialogue,
+                    answer_length=self.answer_length,
+                    learner_state=asdict(self.state.learner_state),
+                    learner_evidence=evidence,
+                ),
+                max_tokens=getattr(self, "planner_max_tokens", 700),
+                temperature=0.1,
+                response_format=planner_prompt_schema(),
+            )
+            plan = validate_and_normalize_plan(
+                raw,
+                text=text,
+                page_context=self.page_context,
+                learner_evidence=evidence,
+            )
+            status = "ok"
+        except Exception as exc:  # Planner is advisory; a failure must not stop tutoring.
+            plan = fallback_plan(
+                text=text, page_context=self.page_context, learner_evidence=evidence
+            )
+            status = f"fallback:{type(exc).__name__}"
+
+        self._last_planner_record = {
+            "status": status,
+            "latency_ms": int((monotonic() - started) * 1000),
+            "model": LLM_MODEL if status == "ok" else None,
+            "plan": plan,
+        }
+        return plan
+
+    def _handle_adaptive_turn(
+        self, text: str, *, append_user: bool = True, diagnostic_completed: bool = False
+    ) -> dict[str, Any]:
+        """Plan each natural-language turn before retrieval or answer generation."""
+        if append_user:
+            self._append_dialogue("user", text)
+        self.state.last_user_question = text
+        plan = self._make_pedagogical_plan(text)
+        if diagnostic_completed:
+            # The pending-state machine already collected the learner's answer for
+            # this query; replanning must not open the same diagnostic a second time.
+            plan["diagnostic"] = {
+                "needed": False,
+                "target": None,
+                "reason": "diagnostic_already_completed_for_pending_turn",
+            }
+        intents = set(plan.get("intent") or [])
+        move = str(plan.get("pedagogical_move") or "direct_explanation")
+
+        if plan.get("action") == "social_response" or is_social_only(text):
             self.state.phase = "idle"
+            self.state.confusion_streak = 0
+            self.state.last_turn_class = "meta"
             self.state.last_banner = ""
-            self.state.viz_last = None
             self.state.last_citations = []
-            self._append_dialogue("assistant", reply)
-            return self._pack_turn(reply, turn_class="ack", citations=[])
-
-        if turn_class == "confused":
-            self.state.confusion_streak += 1
-            # A3: まだ何も説明していない（last_explanation 空）のに clarify を出すと
-            # 「『いまの内容』のどこが引っかかりましたか？」という文脈ゼロの3択になる。
-            # その場合は clarify に落とさず、通常の new_topic として検索・説明する。
-            if not self.state.last_explanation:
-                self.state.confusion_streak = 0
-                return self._compose_answer(
-                    text,
-                    turn_class="new_topic",
-                    explain_mode="first",
-                    reuse_retrieval=False,
-                )
-            if self.state.confusion_streak >= 2:
-                return self._start_clarify(text)
-            return self._compose_answer(
-                text,
-                turn_class="confused",
-                explain_mode="simplify",
-                reuse_retrieval=True,
-                skip_banner=True,
-            )
-
-        if turn_class == "style_request":
-            self.state.confusion_streak = 0
-            if "数式" in text or "式" in text:
-                self.state.learner_state.style = "formula"
+            self.state.last_context = ""
+            self.state.last_results = []
+            self.state.retrieval_path = "planner:no_retrieval"
+            self.state.viz_last = None
+            # The LLM has already selected social_response. A small deterministic
+            # renderer avoids turning a greeting into an unsolicited lesson or quiz.
+            if re.search(r"おはよう", text):
+                reply = "おはようございます。今日は何を一緒に見てみますか？"
+            elif re.search(r"こんばんは", text):
+                reply = "こんばんは。今日は何を一緒に見てみますか？"
+            elif re.search(r"ありがとう", text):
+                reply = "どういたしまして。ほかにも気になることがあれば聞いてください。"
             else:
-                self.state.learner_state.style = "intuition"
-            return self._compose_answer(
-                text,
-                turn_class="style_request",
-                explain_mode="style_shift",
-                reuse_retrieval=True,
-                skip_banner=True,
-            )
+                reply = "こんにちは。今日は何を一緒に見てみますか？"
+            self.state.last_tutor_answer = reply
+            self.state.last_explanation = reply
+            self._append_dialogue("assistant", reply)
+            return self._pack_turn(reply, turn_class="meta", citations=[])
 
-        if turn_class == "followup":
-            self.state.confusion_streak = 0
-            return self._compose_answer(
-                text,
-                turn_class="followup",
-                explain_mode="simplify" if len(text) < 20 else "first",
-                reuse_retrieval=True,
-                skip_banner=True,
-            )
-
-        # new_topic
-        self.state.confusion_streak = 0
-        if self._should_diagnose(text):
+        if plan.get("diagnostic", {}).get("needed"):
             prompt, choices = self._build_diagnosis(text)
             self.state.pending_query = text
             self.state.diagnosis_prompt = prompt
             self.state.diagnosis_choices = choices
             self.state.phase = "awaiting_diagnosis"
             lines = [prompt, ""]
-            for c in choices:
-                lines.append(f"{c['id']}. {c['label']}")
-            lines.append("")
-            lines.append("（A〜E のどれかを送ってください）")
+            lines.extend(f"{choice['id']}. {choice['label']}" for choice in choices)
+            lines.extend(["", "（A〜E のどれかを送ってください）"])
             reply = "\n".join(lines)
             self._append_dialogue("assistant", reply)
             return self._pack_turn(reply)
 
+        if plan.get("action") == "clarify":
+            if self.state.last_explanation:
+                return self._start_clarify(text)
+            # A page is evidence that can help answer; its presence alone is not a
+            # reason to ask the learner for more information.
+            plan["action"] = "answer"
+
+        if "followup_question" in intents or "clarification_request" in intents:
+            turn_class: TurnClass = "followup"
+        elif move == "error_diagnosis" and self.state.last_explanation:
+            turn_class = "confused"
+        else:
+            turn_class = "new_topic"
+        self.state.last_turn_class = turn_class
+        self.state.confusion_streak = self.state.confusion_streak + 1 if turn_class == "confused" else 0
+
         return self._compose_answer(
             text,
-            turn_class="new_topic",
-            explain_mode="first",
+            turn_class=turn_class,
+            explain_mode="simplify" if move in ("prerequisite_repair", "error_diagnosis") else "first",
             reuse_retrieval=False,
+            plan=plan,
         )
 
     def _handle_diagnosis_choice(
@@ -1133,16 +1188,26 @@ class TutorSession:
         self.state.diagnosis_choices = []
         self.state.diagnosis_prompt = ""
 
-        return self._compose_answer(
-            query,
-            turn_class="new_topic",
-            explain_mode="first",
-            reuse_retrieval=False,
+        # The state machine consumes the selection; planning then resumes using the
+        # student's explicit self-report and the current request-scoped page context.
+        return self._handle_adaptive_turn(
+            query, append_user=False, diagnostic_completed=True
         )
 
     def _retrieval_query_for(
-        self, user_text: str, *, reuse: bool, turn_class: str
+        self, user_text: str, *, reuse: bool, turn_class: str,
+        plan: dict[str, Any] | None = None,
     ) -> str:
+        if plan is not None:
+            retrieval = plan.get("retrieval") or {}
+            queries = [str(q).strip() for q in retrieval.get("queries", []) if str(q).strip()]
+            prerequisites = [str(q).strip() for q in retrieval.get("prerequisite_concepts", []) if str(q).strip()]
+            planned = " ".join((queries + prerequisites)[:5])
+            if plan.get("source_scope") == "active_page_first":
+                title = str((self.page_context or {}).get("title") or "").strip()
+                if title and title not in planned:
+                    planned = f"{title} {planned}".strip()
+            return planned[:500] or user_text
         focus = self.state.focus_concept or _topic_key_from_query(user_text)
         if reuse and focus:
             if turn_class == "style_request":
@@ -1160,6 +1225,36 @@ class TutorSession:
             return f"{topic} とは何か"
         return user_text
 
+    def _learner_state_for_plan(
+        self, user_text: str, plan: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        state = asdict(self.state.learner_state)
+        if plan is None:
+            return state
+        state_topic = str(state.get("topic_key") or "").strip()
+        if not state_topic:
+            return {**state, "understanding_level": "unknown", "goal": "unknown", "needs_prereq": False}
+        current_topics = [
+            str(topic).strip()
+            for topic in (plan.get("target_concepts") or [])
+            if str(topic).strip()
+        ]
+        extracted = _topic_key_from_query(user_text)
+        if extracted:
+            current_topics.append(extracted)
+        if self.state.focus_concept and (
+            "followup_question" in (plan.get("intent") or [])
+            or "clarification_request" in (plan.get("intent") or [])
+        ):
+            current_topics.append(self.state.focus_concept)
+        matches = any(
+            state_topic == topic or state_topic in topic or topic in state_topic
+            for topic in current_topics if topic
+        )
+        if not matches:
+            return {**state, "understanding_level": "unknown", "goal": "unknown", "needs_prereq": False}
+        return state
+
     def _compose_answer(
         self,
         user_text: str,
@@ -1168,8 +1263,10 @@ class TutorSession:
         explain_mode: ExplainMode,
         reuse_retrieval: bool,
         skip_banner: bool = False,
+        plan: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         ls = self.state.learner_state
+        answer_learner_state = self._learner_state_for_plan(user_text, plan)
         self.state.last_turn_class = turn_class
         self.state.last_explain_mode = explain_mode
 
@@ -1181,10 +1278,57 @@ class TutorSession:
 
         dialogue = list(self.state.dialogue[-6:])
         retrieval_q = self._retrieval_query_for(
-            user_text, reuse=reuse_retrieval, turn_class=turn_class
+            user_text, reuse=reuse_retrieval, turn_class=turn_class, plan=plan
         )
+        page_for_turn = self.page_context
+        if plan is not None and plan.get("source_scope") != "active_page_first":
+            # The session property is refreshed on every request, but a page is only
+            # evidence for this answer when this turn's plan selected it.
+            page_for_turn = None
+        elif page_for_turn:
+            # Select relevant blocks from the full request-scoped page. This preserves
+            # page-tail evidence while keeping the answer prompt inside model limits.
+            page_for_turn = {
+                **page_for_turn,
+                "text": select_relevant_page_text(
+                    page_for_turn.get("text"), user_text, plan
+                ),
+            }
+        evidence_by_ref = {
+            str(item.get("ref")): item
+            for item in (getattr(self, "learner_evidence", []) or [])
+            if item.get("ref")
+        }
+        selected_refs = set((plan or {}).get("learner_context", {}).get("evidence_refs") or [])
+        selected_evidence = [evidence_by_ref[ref] for ref in selected_refs if ref in evidence_by_ref]
 
-        if reuse_retrieval and self.state.last_context and self.state.last_results:
+        if plan is not None and plan.get("source_scope") == "no_retrieval":
+            answer_body = self.searcher.generate_answer(
+                user_text,
+                "",
+                audience="adaptive",
+                learner_state=answer_learner_state,
+                dialogue=dialogue,
+                focus_concept=focus,
+                explain_mode=explain_mode,
+                turn_class=turn_class,
+                last_explanation=self.state.last_explanation,
+                page_context=None,
+                answer_length=self.answer_length,
+                pedagogical_plan=plan,
+                learner_evidence=selected_evidence,
+            )
+            answer = (answer_body or "こんにちは。今日は何を一緒に見てみますか？").strip()
+            citations: list[dict[str, Any]] = []
+            results: list[dict[str, Any]] = []
+            banner = ""
+            self.state.last_context = ""
+            self.state.last_results = []
+            self.state.last_retrieval_query = ""
+            self.state.retrieval_path = "planner:no_retrieval"
+            self.state.knowledge_mode = "textbook"
+            self.state.last_banner = ""
+        elif reuse_retrieval and self.state.last_context and self.state.last_results:
             # 再利用: 再検索せず前回 context で生成
             context = self.state.last_context
             citations = list(self.state.last_citations)
@@ -1195,15 +1339,17 @@ class TutorSession:
                 user_text,
                 context,
                 audience="adaptive",
-                learner_state=asdict(ls),
+                learner_state=answer_learner_state,
                 knowledge_mode=km,
                 dialogue=dialogue,
                 focus_concept=focus,
                 explain_mode=explain_mode,
                 turn_class=turn_class,
                 last_explanation=self.state.last_explanation,
-                page_context=self.page_context,
+                page_context=page_for_turn,
                 answer_length=self.answer_length,
+                pedagogical_plan=plan,
+                learner_evidence=selected_evidence,
             )
             cite_block = (
                 DeepRAGSearcher.format_citations_block(citations)
@@ -1223,7 +1369,7 @@ class TutorSession:
                 retrieval_q,
                 generate_answer=True,
                 audience="adaptive",
-                learner_state=asdict(ls),
+                learner_state=answer_learner_state,
                 allow_fail_decompose=(turn_class == "new_topic"),
                 dialogue=dialogue,
                 focus_concept=focus,
@@ -1232,8 +1378,10 @@ class TutorSession:
                 last_explanation=self.state.last_explanation or None,
                 skip_banner=skip_banner,
                 answer_query=user_text,
-                page_context=self.page_context,
+                page_context=page_for_turn,
                 answer_length=self.answer_length,
+                pedagogical_plan=plan,
+                learner_evidence=selected_evidence,
             )
             answer = (result.get("answer") or "").strip() or "（回答を生成できませんでした）"
             answer_body = (result.get("answer_body") or "").strip()
@@ -1251,10 +1399,28 @@ class TutorSession:
             self.state.retrieval_path = str(
                 meta.get("retrieval_path") or self.searcher.pipeline
             )
+            if plan is not None and plan.get("source_scope") == "active_page_first":
+                self.state.retrieval_path += "+active_page"
             self.state.knowledge_mode = str(result.get("knowledge_mode") or "textbook")
             self.state.last_banner = banner if self.announce_extra_knowledge else ""
 
         citations = self._filter_citations(citations, focus)
+        if plan is not None and plan.get("source_scope") == "active_page_first" and page_for_turn:
+            page_title = str(page_for_turn.get("title") or "現在開いている教科書ページ")
+            page_text = " ".join(str(page_for_turn.get("text") or "").split())
+            page_id = page_for_turn.get("lesson_page_id")
+            page_citation = {
+                "section": page_title,
+                "type": "active_page",
+                "entity_id": f"lesson_page:{page_id}" if page_id is not None else "active_page",
+                "excerpt": page_text[:120] + ("…" if len(page_text) > 120 else ""),
+                "page": None,
+                "rerank_score": 1.0,
+            }
+            citations = [page_citation] + [
+                citation for citation in citations
+                if citation.get("entity_id") != page_citation["entity_id"]
+            ][:2]
         if self.show_citations:
             # reply 内の旧出典を差し替え
             cite_idx = answer.find("## 参考（教科書）")
@@ -1307,11 +1473,6 @@ class TutorSession:
 
         if focus and focus not in self.state.known_topics:
             self.state.known_topics.append(focus)
-        if ls.understanding_level == "unknown" and turn_class == "new_topic":
-            ls.understanding_level = "heard"
-            ls.goal = "definition"
-            ls.topic_key = focus
-
         # トピック別の学習者分析ログを更新（S4: 振り返りを実質化）
         if focus:
             log = self.state.topic_level_log.setdefault(

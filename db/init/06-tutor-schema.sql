@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS tutor.turns (
 );
 CREATE INDEX IF NOT EXISTS ix_tutor_turns_created ON tutor.turns (created_at DESC);
 CREATE INDEX IF NOT EXISTS ix_tutor_turns_role_created ON tutor.turns (role, created_at DESC);
+ALTER TABLE tutor.turns ADD COLUMN IF NOT EXISTS planner_json JSONB;
 
 -- 学生ごとの長期プロファイル（会話をまたいで引き継ぐ最小集合。KG に依存しない値だけ）
 CREATE TABLE IF NOT EXISTS tutor.learner_profiles (
@@ -94,6 +95,14 @@ CREATE TABLE IF NOT EXISTS tutor.learner_profiles (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT;
+
+-- 選択中の会話。TutorSession 自体はリクエストごとに復元するため、プロセス間共有はこの行で行う。
+-- conversation_id が NULL の行は「明示的に新しい会話を選んだ」状態を表す。
+CREATE TABLE IF NOT EXISTS tutor.active_sessions (
+  student_id       INTEGER PRIMARY KEY,
+  conversation_id  BIGINT REFERENCES tutor.conversations(id) ON DELETE SET NULL,
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- チューターが提示した演習問題の記録（同じ問題を繰り返し出さないため。不正解の問題は例外で再提示する）
 CREATE TABLE IF NOT EXISTS tutor.question_exposures (

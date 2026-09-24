@@ -24,8 +24,8 @@
 
 | 案 | 概要 | 長所 | 短所 |
 |----|------|------|------|
-| **A. LMS リポジトリ内の独立サービス `tutor/` + backend が BFF プロキシ**（採用） | `docker-compose` に `tutor` サービスを追加。フロントは `/api/tutor/*` だけを叩き、backend が JWT 検証後に内部ネットワークで tutor へ転送 | ・研究側の「独立させる」決定と一致 ・backend は `--workers 4` なので、プロセス内に載せると 21MB の埋め込み＋BM25＋Qdrant ローカルが4重化し、Qdrant ローカルモード（`path=`）は多プロセス不可・セッション状態もプロセス間で割れる。これを回避 ・Python バージョン／依存（numpy, qdrant-client, openai…）を backend の Poetry 環境に混ぜない ・tutor が落ちても LMS 本体は無事（`depends_on` しない） ・同じリポジトリ／同じ compose なので運用（deploy.sh, nginx）は一本のまま | ・コンテナが1つ増える ・backend→tutor のホップが1回増える（数 ms） |
-| B. backend（`backend/api/`）のモジュールとして組み込み | `api/tutor/` パッケージ + ルーター | ・コンテナ追加なし | ・上記の多ワーカー問題（状態・メモリ・Qdrant ロック）が直撃。回避には外部セッションストア＋Qdrant サーバ化が必要で、結局「独立サービス」相当の作業になる ・研究側コード更新のたびに backend を再ビルド |
+| **A. LMS リポジトリ内の独立サービス `tutor/` + backend が BFF プロキシ**（採用） | `docker-compose` に `tutor` サービスを追加。フロントは `/api/tutor/*` だけを叩き、backend が JWT 検証後に内部ネットワークで tutor へ転送 | ・研究側の「独立させる」決定と一致 ・backend は `--workers 4` なので、プロセス内に載せると 21MB の埋め込み＋BM25＋Qdrant ローカルが4重化し、Qdrant ローカルモード（`path=`）も多プロセス不可。学生状態は現在 Postgres で共有可能だが、検索器と Qdrant の制約は残る ・Python バージョン／依存（numpy, qdrant-client, openai…）を backend の Poetry 環境に混ぜない ・tutor が落ちても LMS 本体は無事（`depends_on` しない） ・同じリポジトリ／同じ compose なので運用（deploy.sh, nginx）は一本のまま | ・コンテナが1つ増える ・backend→tutor のホップが1回増える（数 ms） |
+| B. backend（`backend/api/`）のモジュールとして組み込み | `api/tutor/` パッケージ + ルーター | ・コンテナ追加なし | ・学生状態は Postgres 共有で扱えるが、埋め込み等のメモリ重複とローカルQdrantの多プロセス制約は残る。Qdrant サーバ化などが必要 ・研究側コード更新のたびに backend を再ビルド |
 | C. 研究側の `tutor-web` をそのまま動かし、LMS からリンク/iframe | 最小工数 | ・単一セッション前提で学生が混線する ・LMS の認証と無関係・CORS/Cookie の二重管理 ・研究用 workspace が本番依存になる | 
 | D. 別リポジトリ・別デプロイ（完全分離マイクロサービス） | 研究側の「横展開」には最も素直 | ・LMS 以外の利用者が現れるまではデプロイ・ネットワーク・認証の二重管理コストだけ増える ・`tutoring_system_architecture.md` §6 も「マイクロサービス分割はやらない」 | 
 
@@ -80,7 +80,7 @@ Fast-API-LMS_React/
 
 ---
 
-# 実装TODO
+# 実装状況
 
 ## 完了（このブランチ）
 
@@ -95,15 +95,14 @@ Fast-API-LMS_React/
 > 2026-08-23 追記: 会話の永続化（Postgres `tutor` スキーマ）・学生ごとの引き継ぎ・質問収集・教科書ページ連携は
 > [`docs/ai-tutor-data.md`](ai-tutor-data.md) に設計と実装をまとめた。下の TODO 5・6 はそちらで実施済み。
 
-## 次にやること（優先順）
+> 現在は学生状態もPostgresを正本として要求ごとに復元する。選択中会話は `tutor.active_sessions` に保存し、同一学生の要求をPostgreSQL advisory lockで直列化する。本番composeでは永続化を必須にする。
+
+## リリース前に残ること
 
 1. **ブラウザで `/tutor` を目視**（ログイン後）。MathJax の数式レンダリング、診断ボタン、出典の折りたたみ、図の表示
 2. **`tutor/.env` の本番値**（`ANTHROPIC_AUTH_TOKEN`, `VLLM_MANAGER_TOKEN`, `TUTOR_SERVICE_TOKEN` を backend 側と揃える）。`docs/runbook-secret-rotation.md` に追記
-3. **`scripts/deploy.sh` に tutor を含める**か確認（`docker compose up --build` なら自動で含まれる。データ同期 `sync_from_agents.sh` は deploy 前に手で実行）
-4. **学内プロキシ前提のビルド引数**: 学外からは `docker build --build-arg HTTP_PROXY= ...` が必要（backend/frontend と同じ既存の癖）
-5. 教科書ページへの埋め込み（`(students)/lesson/[course_id]/[lesson_id]/[page]/page.tsx` にサイドパネルで「このページについて聞く」）。tutor 側は `focus`/`section` ヒントを受け取る拡張が要る（研究側 Phase 4 CurriculumMap と合わせて）
-6. 研究側ロードマップの Phase 2（LearnerProfile の永続化）。LMS 側では `student_competencies` と突き合わせる余地がある。置き場は tutor 内の SQLite か LMS の Postgres か要判断（研究側は SQLite 想定）
-7. テレメトリ（JSONL）と教員ビュー（Phase 5）
+3. tutorを複数worker化する場合、プロセス内のRAG検索器とローカルQdrantの構成は別途確認する（学生状態の共有とは別の課題）
+4. セキュリティ・運用上のP0課題は [`ai-tutor-roadmap-and-problem-authoring.md`](ai-tutor-roadmap-and-problem-authoring.md) の現行項目を参照する
 
 ## やらないこと（研究側の決定を踏襲）
 

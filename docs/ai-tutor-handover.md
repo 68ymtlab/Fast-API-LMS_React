@@ -30,6 +30,7 @@
    - `VLLM_MANAGER_TOKEN`（リランカー hinton:18000）
    - `ANTHROPIC_DEFAULT_SONNET_MODEL`（起動時の既定モデル。後から管理画面で変えられる）
    - `TUTOR_MODEL_CHOICES`（管理画面の候補。カンマ区切り）
+   - `TUTOR_DATABASE_URL`（`setup_tutor_secrets.sh` が `tutor_app` 専用ロールで設定。本番では必須）
 3. [ ] **共有シークレットと専用 DB ロール**（db コンテナが起動している状態で）
    ```bash
    ./scripts/setup_tutor_secrets.sh           # TUTOR_SERVICE_TOKEN を backend/.env と tutor/.env に、tutor_app ロールを DB に
@@ -38,7 +39,7 @@
 4. [ ] **GPU 側（hinton）で埋め込みとリランカーが動いていること**を確認。起動は研究側の
    `agents/workspace/rag/skills/vllm-manager/scripts/start-rag-embedding.sh` / `start-rag-reranker.sh`
    （`rag/project/tutor-web/run.sh` が呼んでいるもの）。止まっていると tutor は起動はするが回答でエラーになる
-5. [ ] **デプロイ** — `./scripts/deploy.sh`。tutor 用のチェック（`tutor/.env`・トークン・知識ベース・起動確認）は組み込み済み。
+5. [ ] **デプロイ** — `./scripts/deploy.sh`。tutor 用のチェック（`tutor/.env`・トークン・永続化DB・知識ベース・起動確認）は組み込み済み。
    既存の本番 DB には、tutor が起動時に `tutor` スキーマを `IF NOT EXISTS` で作る（手作業のマイグレーション不要）
 6. [ ] **動作確認**（本番 URL で）
    - 学生でログイン → サイドバー「AIチューター」→ 質問 → 回答が返る（初回は知識ベース読み込みで数十秒待つ）

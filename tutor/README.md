@@ -5,8 +5,8 @@
 
 ```
 tutor/
-├── app/main.py          FastAPI。学生ごとの TutorSession（SessionManager, TTL 30分）、引き継ぎ、page_context
-├── app/store.py         Postgres（tutor スキーマ）への永続化。TUTOR_DATABASE_URL 未設定なら無効
+├── app/main.py          FastAPI。要求ごとに Postgres から学生の状態を復元し、同一学生の要求をDBロックで直列化
+├── app/store.py         Postgres（tutor スキーマ）。開発時のみ TUTOR_DATABASE_URL 未設定でメモリにフォールバック
 ├── app/state_io.py      SessionState のスナップショット復元（KG 依存フィールドの切り分け）
 ├── core/                研究側 scripts/rag/ からの移植（deeprag_search, tutor_session, thin_agent, tutor_viz, learner_model）
 ├── config/production_pipeline.json
@@ -76,6 +76,8 @@ VLLM_MANAGER_URL=http://hinton.kanazawa-it.ac.jp:18000 ANTHROPIC_AUTH_TOKEN=... 
 - `core/tutor_session.py`: `page_context` 属性、指示語質問の話題名ヒント（`_page_hint`）、`_compose_answer` からの受け渡し
 
 永続化・引き継ぎ・教科書連携の設計: [`docs/ai-tutor-data.md`](../docs/ai-tutor-data.md)
+
+本番では `TUTOR_DATABASE_URL` が必須。`TutorSession` の学生別状態は各要求の開始時に Postgres から復元し、応答と状態を同じトランザクションで保存する。RAG検索器は重いため各tutorプロセスのメモリに常駐するが、学生状態はプロセス内メモリ共有に依存しない。
 
 ## 移植元（2026-08-23 時点）
 

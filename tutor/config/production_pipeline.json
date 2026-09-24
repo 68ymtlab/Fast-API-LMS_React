@@ -61,9 +61,14 @@
   },
   "tutor": {
     "mode": "adaptive_v1",
+    "pedagogical_planner": {
+      "enabled": true,
+      "timeout_seconds": 18,
+      "max_tokens": 700
+    },
     "mode_note": "adaptive_v1=対話チュータ（turn_class + 文脈 + 混乱時言い直し/clarify） / legacy_probe=Phase6確認質問",
     "diagnose_when": "conditional",
-    "diagnose_when_note": "conditional=初出/曖昧な「って何」等のみ / always / never",
+    "diagnose_when_note": "旧adaptive rule互換用。通常経路ではPedagogical Plannerが回答より診断が有益な場合だけ判断する。短文や初出だけでは診断しない。",
     "show_citations": true,
     "announce_extra_knowledge": true,
     "dialogue_window": 6,

@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,7 @@ DDL = [
       latency_ms INTEGER, llm_model TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (conversation_id, seq))""",
+    "ALTER TABLE tutor.turns ADD COLUMN IF NOT EXISTS planner_json JSONB",
     "CREATE INDEX IF NOT EXISTS ix_tutor_turns_created ON tutor.turns (created_at DESC)",
     "CREATE INDEX IF NOT EXISTS ix_tutor_turns_role_created ON tutor.turns (role, created_at DESC)",
     """CREATE TABLE IF NOT EXISTS tutor.learner_profiles (
@@ -62,6 +64,10 @@ DDL = [
       first_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
     "ALTER TABLE tutor.learner_profiles ADD COLUMN IF NOT EXISTS answer_length TEXT",
+    """CREATE TABLE IF NOT EXISTS tutor.active_sessions (
+      student_id INTEGER PRIMARY KEY,
+      conversation_id BIGINT REFERENCES tutor.conversations(id) ON DELETE SET NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
     """CREATE TABLE IF NOT EXISTS tutor.question_exposures (
       id BIGSERIAL PRIMARY KEY, student_id INTEGER NOT NULL, question_id INTEGER NOT NULL, conversation_id BIGINT,
       status_at_show TEXT, shown_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -119,12 +125,16 @@ class TutorStore:
         self.dsn = (dsn or "").strip()
         self.enabled = bool(self.dsn) and ConnectionPool is not None
         self.pool: ConnectionPool | None = None
+        self.lock_pool: ConnectionPool | None = None
         self.kb_version_id: int | None = None
         self._lock = threading.Lock()
 
     # ---- lifecycle ----
     def connect(self, stage4_dir: str | None, entity_count: int | None) -> None:
         if not self.enabled:
+            require = os.environ.get("TUTOR_REQUIRE_PERSISTENCE", "0").strip().lower() in ("1", "true", "yes")
+            if require:
+                raise RuntimeError("TUTOR_REQUIRE_PERSISTENCE is enabled but TUTOR_DATABASE_URL/psycopg is unavailable")
             print("  [store] TUTOR_DATABASE_URL 未設定 → 永続化オフ（メモリのみ）", flush=True)
             return
         last_exc: Exception | None = None
@@ -139,6 +149,11 @@ class TutorStore:
                             continue
                         conn.execute(stmt)
                     conn.commit()
+                # Keep cross-process student locks on a separate pool: a lock is held while the LLM runs,
+                # and must not consume the connections used to save/read turns.
+                lock_pool_max = max(1, int(os.environ.get("TUTOR_DB_LOCK_POOL_MAX", "16")))
+                self.lock_pool = ConnectionPool(self.dsn, min_size=1, max_size=lock_pool_max,
+                                                kwargs={"row_factory": dict_row}, open=True)
                 last_exc = None
                 break
             except Exception as exc:  # noqa: BLE001
@@ -147,6 +162,9 @@ class TutorStore:
                 if self.pool is not None:
                     self.pool.close()
                     self.pool = None
+                if self.lock_pool is not None:
+                    self.lock_pool.close()
+                    self.lock_pool = None
                 time.sleep(3)
         if last_exc is not None:
             raise RuntimeError(f"tutor スキーマに接続できません: {last_exc}") from last_exc
@@ -156,6 +174,67 @@ class TutorStore:
     def close(self) -> None:
         if self.pool is not None:
             self.pool.close()
+        if self.lock_pool is not None:
+            self.lock_pool.close()
+
+    @contextmanager
+    def student_lock(self, student_id: int):
+        """Serialize one student's tutor requests across workers and containers."""
+        if not self.enabled or self.lock_pool is None:
+            yield
+            return
+        # Two-key advisory locks avoid creating a lock row for every student. The lock connection is
+        # separate from the query pool because it remains checked out for the duration of LLM calls.
+        with self.lock_pool.connection() as conn:
+            conn.execute("SELECT pg_advisory_lock(1414872146, %s)", (student_id,))
+            conn.commit()
+            try:
+                yield
+            finally:
+                conn.execute("SELECT pg_advisory_unlock(1414872146, %s)", (student_id,))
+                conn.commit()
+
+    def active_session(self, student_id: int) -> tuple[bool, int | None]:
+        """Return (row_exists, conversation_id); a NULL pointer means the student explicitly started fresh."""
+        if not self.enabled:
+            return False, None
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            row = conn.execute(
+                "SELECT conversation_id FROM tutor.active_sessions WHERE student_id = %s", (student_id,)
+            ).fetchone()
+        return (True, int(row["conversation_id"]) if row and row["conversation_id"] is not None else None) if row else (False, None)
+
+    def set_active_session(self, student_id: int, conversation_id: int | None) -> bool:
+        """Persist the currently selected conversation, validating that it belongs to this student."""
+        if not self.enabled:
+            return False
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            if conversation_id is None:
+                conn.execute(
+                    """INSERT INTO tutor.active_sessions (student_id, conversation_id) VALUES (%s, NULL)
+                       ON CONFLICT (student_id) DO UPDATE SET conversation_id = NULL, updated_at = CURRENT_TIMESTAMP""",
+                    (student_id,),
+                )
+                conn.commit()
+                return True
+            row = conn.execute(
+                """INSERT INTO tutor.active_sessions (student_id, conversation_id)
+                   SELECT %s, id FROM tutor.conversations
+                   WHERE id = %s AND student_id = %s AND COALESCE(end_reason, '') <> 'deleted'
+                   ON CONFLICT (student_id) DO UPDATE
+                     SET conversation_id = EXCLUDED.conversation_id, updated_at = CURRENT_TIMESTAMP
+                   RETURNING conversation_id""",
+                (student_id, conversation_id, student_id),
+            ).fetchone()
+            conn.commit()
+        return row is not None
+
+    def active_session_count(self) -> int:
+        if not self.enabled:
+            return 0
+        with self.pool.connection() as conn:  # type: ignore[union-attr]
+            row = conn.execute("SELECT COUNT(*) AS n FROM tutor.active_sessions WHERE conversation_id IS NOT NULL").fetchone()
+        return int(row["n"]) if row else 0
 
     def _register_kb_version(self, stage4_dir: str | None, entity_count: int | None) -> int | None:
         if not stage4_dir:
@@ -254,17 +333,26 @@ class TutorStore:
                    WHERE id = %s AND student_id = %s""",
                 (conversation_id, student_id),
             )
+            if cur.rowcount:
+                conn.execute(
+                    """UPDATE tutor.active_sessions SET conversation_id = NULL, updated_at = CURRENT_TIMESTAMP
+                       WHERE student_id = %s AND conversation_id = %s""",
+                    (student_id, conversation_id),
+                )
             conn.commit()
             return cur.rowcount > 0
 
-    def reopen_conversation(self, conversation_id: int) -> None:
+    def reopen_conversation(self, student_id: int, conversation_id: int) -> bool:
         if not self.enabled:
-            return
+            return False
         with self.pool.connection() as conn:  # type: ignore[union-attr]
-            conn.execute(
-                "UPDATE tutor.conversations SET ended_at = NULL, end_reason = NULL WHERE id = %s", (conversation_id,)
+            cur = conn.execute(
+                """UPDATE tutor.conversations SET ended_at = NULL, end_reason = NULL, last_activity_at = CURRENT_TIMESTAMP
+                   WHERE id = %s AND student_id = %s""",
+                (conversation_id, student_id),
             )
             conn.commit()
+            return cur.rowcount > 0
 
     def save_preferences(self, student_id: int, *, answer_length: str | None) -> None:
         if not self.enabled:
@@ -277,16 +365,18 @@ class TutorStore:
             )
             conn.commit()
 
-    def load_turns(self, conversation_id: int, limit: int = 40) -> list[dict[str, Any]]:
+    def load_turns(self, conversation_id: int, limit: int = 40, *, student_id: int) -> list[dict[str, Any]]:
         if not self.enabled:
             return []
         with self.pool.connection() as conn:  # type: ignore[union-attr]
             rows = conn.execute(
-                """SELECT * FROM (SELECT id, seq, role, text, choice_id, turn_class, knowledge_mode, banner,
-                                         diagnosis, clarify, viz, citations, created_at
-                                  FROM tutor.turns WHERE conversation_id = %s ORDER BY seq DESC LIMIT %s) s
+                """SELECT * FROM (SELECT t.id, t.seq, t.role, t.text, t.choice_id, t.turn_class, t.knowledge_mode, t.banner,
+                                         t.diagnosis, t.clarify, t.viz, t.citations, t.created_at
+                                  FROM tutor.turns t JOIN tutor.conversations c ON c.id = t.conversation_id
+                                  WHERE t.conversation_id = %s AND c.student_id = %s
+                                  ORDER BY t.seq DESC LIMIT %s) s
                    ORDER BY seq ASC""",
-                (conversation_id, limit),
+                (conversation_id, student_id, limit),
             ).fetchall()
         return list(rows)
 
@@ -326,22 +416,30 @@ class TutorStore:
             ).fetchone()
         return int(row["id"]) if row else None
 
-    def start_conversation(self, student_id: int, context: dict[str, Any] | None) -> int | None:
+    def start_conversation(self, student_id: int, context: dict[str, Any] | None,
+                           state: dict[str, Any] | None = None) -> int | None:
         if not self.enabled:
             return None
         ctx = context or {}
         with self.pool.connection() as conn:  # type: ignore[union-attr]
             row = conn.execute(
-                """INSERT INTO tutor.conversations (student_id, course_id, lesson_item_id, lesson_page_id, page_title, kb_version_id)
-                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                """INSERT INTO tutor.conversations
+                     (student_id, course_id, lesson_item_id, lesson_page_id, page_title, kb_version_id, state_json)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                 (student_id, ctx.get("course_id"), ctx.get("lesson_item_id"), ctx.get("lesson_page_id"),
-                 ctx.get("page_title"), self.kb_version_id),
+                 ctx.get("page_title"), self.kb_version_id, _jsonb(state)),
             ).fetchone()
             conn.execute(
                 """INSERT INTO tutor.learner_profiles (student_id, conversation_count, last_conversation_id)
                    VALUES (%s, 1, %s)
                    ON CONFLICT (student_id) DO UPDATE SET conversation_count = tutor.learner_profiles.conversation_count + 1,
                         last_conversation_id = EXCLUDED.last_conversation_id, updated_at = CURRENT_TIMESTAMP""",
+                (student_id, row["id"]),
+            )
+            conn.execute(
+                """INSERT INTO tutor.active_sessions (student_id, conversation_id) VALUES (%s, %s)
+                   ON CONFLICT (student_id) DO UPDATE
+                     SET conversation_id = EXCLUDED.conversation_id, updated_at = CURRENT_TIMESTAMP""",
                 (student_id, row["id"]),
             )
             conn.commit()
@@ -415,14 +513,14 @@ class TutorStore:
             tutor_row = conn.execute(
                 """INSERT INTO tutor.turns (conversation_id, seq, role, text, turn_class, explain_mode, phase, knowledge_mode,
                        retrieval_path, banner, focus_concept, focus_section, understanding_level, goal, lesson_page_id,
-                       diagnosis, clarify, viz, citations, latency_ms, llm_model)
-                   VALUES (%s, %s, 'tutor', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                       diagnosis, clarify, viz, citations, latency_ms, llm_model, planner_json)
+                   VALUES (%s, %s, 'tutor', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                 (conversation_id, seq + 1, reply_body, turn.get("turn_class") or debug_state.get("turn_class"),
                  debug_state.get("explain_mode"), debug_state.get("phase"), turn.get("knowledge_mode"),
                  turn.get("retrieval_path"), turn.get("banner") or None, debug_state.get("focus_concept"),
                  debug_state.get("focus_section"), ls.get("understanding_level"), ls.get("goal"), lesson_page_id,
                  _jsonb(turn.get("diagnosis")), _jsonb(turn.get("clarify")), _jsonb(turn.get("viz")),
-                 _jsonb(citations), latency_ms, llm_model),
+                 _jsonb(citations), latency_ms, llm_model, _jsonb(turn.get("planner"))),
             ).fetchone()
             tutor_turn_id = int(tutor_row["id"]) if tutor_row else None
             auto_title = (student_text or "").strip().replace("\n", " ")[:40] or None
@@ -500,18 +598,24 @@ class TutorStore:
         return True
 
     # ---- フィードバック / 設定 ----
-    def save_feedback(self, student_id: int, turn_id: int, rating: int, comment: str | None, conversation_id: int | None) -> bool:
+    def save_feedback(self, student_id: int, turn_id: int, rating: int, comment: str | None) -> bool:
         if not self.enabled:
             return False
         with self.pool.connection() as conn:  # type: ignore[union-attr]
-            conn.execute(
-                """INSERT INTO tutor.turn_feedback (turn_id, conversation_id, student_id, rating, comment) VALUES (%s, %s, %s, %s, %s)
-                   ON CONFLICT (turn_id, student_id) DO UPDATE SET rating = EXCLUDED.rating, comment = COALESCE(EXCLUDED.comment, tutor.turn_feedback.comment),
-                        created_at = CURRENT_TIMESTAMP""",
-                (turn_id, conversation_id, student_id, rating, comment),
-            )
+            row = conn.execute(
+                """INSERT INTO tutor.turn_feedback (turn_id, conversation_id, student_id, rating, comment)
+                   SELECT t.id, t.conversation_id, %s, %s, %s
+                   FROM tutor.turns t JOIN tutor.conversations c ON c.id = t.conversation_id
+                   WHERE t.id = %s AND t.role = 'tutor' AND c.student_id = %s
+                   ON CONFLICT (turn_id, student_id) DO UPDATE
+                     SET rating = EXCLUDED.rating,
+                         comment = COALESCE(EXCLUDED.comment, tutor.turn_feedback.comment),
+                         created_at = CURRENT_TIMESTAMP
+                   RETURNING id""",
+                (student_id, rating, comment, turn_id, student_id),
+            ).fetchone()
             conn.commit()
-        return True
+        return row is not None
 
     def get_settings(self) -> dict[str, Any]:
         if not self.enabled:

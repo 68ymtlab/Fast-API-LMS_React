@@ -22,7 +22,10 @@
 - **所有者は tutor サービス**。`public` のテーブルには一切書かない。LMS backend は `tutor` を直接読まず、tutor サービスの `/admin/*` を経由する（教員権限の確認は backend 側）
 - `public.users` への外部キーは張らない（退会後も学習ログを残す／スキーマの独立性）。`student_id` は `users.id` の値
 - DDL は [`db/init/06-tutor-schema.sql`](../db/init/06-tutor-schema.sql)（新規 volume 用）と `tutor/app/store.py` の `DDL`（既存 volume 用に起動時 `IF NOT EXISTS` 適用）の二重管理。**両方を一致させる**
-- 接続は `tutor/.env` の `TUTOR_DATABASE_URL`（未設定なら従来どおりメモリのみ＝研究側と同じ挙動。永続化は opt-in）
+- 開発は `tutor/.env` の `TUTOR_DATABASE_URL` が空ならメモリのみ。本番composeでは永続化を必須にする
+- Postgres 有効時、学生ごとの `TutorSession` は要求ごとにDBから復元し、応答後に履歴・状態・プロフィールを同一トランザクションで保存する
+- `tutor.active_sessions` が学生ごとの選択中会話を保持し、PostgreSQL advisory lock で同じ学生への要求をプロセス／コンテナ間で直列化する
+- RAG検索器はプロセスごとにメモリへ読み込む。Qdrant local は `.lock` 作成のため書き込みが必要なので、Compose では `qdrant_data` だけRW、それ以外の知識データはROでマウントする。今回の変更は学生状態を共有するもので、ローカルQdrantの複数プロセス利用可否を解決するものではない
 
 ## KG と会話ログの分離（再構築に耐える形）
 
@@ -47,17 +50,22 @@ KG を再構築したら `sync_from_agents.sh` → tutor 再起動 → `kb_versi
 ## 引き継ぎのルール
 
 ```
-学生がチャットを開く（/api/tutor/open）
-  ├ メモリにセッションあり → そのまま
-  └ なし → DB の最新会話を見る
-       ├ 未終了 かつ 最終活動から RESUME_WINDOW（既定 24h）以内 → 同じ会話を継続（履歴・待ち受け状態も復元）
-       │     挨拶:「前回の続きです。『固有値』について話していました」
-       └ それ以外 → 新しい会話。プロファイル（理解度・既知トピック）を種にする
-             挨拶:「おかえりなさい。前回は『単位行列』を学んでいましたね（理解度: 聞いたことがある）」
+学生の要求（/api/tutor/*）
+  → JWT 由来の student_id で advisory lock を取得
+  → active_sessions から選択中会話を特定し、state_json + learner_profiles を読む
+  → 要求中だけ TutorSession を組み立て、LLM応答を生成
+  → turns 2行 + state_json + learner_profiles を1トランザクションで保存
+  → lock を解放。次のworkerも同じDB状態から処理を再開できる
+
+チャットを開いたとき:
+  ├ 選択中会話があり、最終活動から RESUME_WINDOW（既定 24h）以内 → 続きとして履歴・待ち状態を復元
+  ├ 明示的に新しい会話を選択済み → 過去状態の学習プロフィール部分だけを引き継ぐ
+  └ 24h超過 → 自動継続はせず、新規状態で開始。過去の会話は一覧から手動で開ける
 ```
 
 - ターンごとに `turns` 2 行（学生＋チュータ）＋ `conversations.state_json` ＋ `learner_profiles` を更新
-- 会話の終了: リセット（`end_reason=reset`、振り返りを `summary` に保存）／ TTL 30 分で退避（`ttl`）／ 上限超過（`evicted`）。**tutor の再起動では終了させない**（復元で続く）
+- 30 分のメモリTTLはDB有効時の会話終了条件ではない。自動継続期限は `TUTOR_RESUME_WINDOW_SEC`（既定24h）で判定し、メモリ破棄と会話終了を分離する
+- 会話の終了: リセット（`end_reason=reset`、振り返りを `summary` に保存）／自動継続期限切れ（`ttl`）。tutor再起動やworker切替だけでは終了させない
 - リセットしても理解度・既知トピックは残る（「会話」は新規、「学習者」は継続）
 
 ## 教科書を見ながら質問（page_context）
@@ -91,6 +99,7 @@ tutor.question_exposures id, student_id, question_id, conversation_id, status_at
 tutor.learner_profiles student_id, understanding_level, goal, style, known_topics, topic_level_log,
                        last_focus_concept, last_focus_section, last_lesson_page_id, last_conversation_id,
                        conversation_count, turn_count, first_seen_at, updated_at
+tutor.active_sessions  student_id (PK), conversation_id (選択中。NULL は明示的な新規会話), updated_at
 tutor.v_student_questions  (VIEW) 学生の発話だけ: student_id, course_id, lesson_page_id, page_title, question,
                        turn_class, focus_concept, understanding_level, created_at
 ```
@@ -164,11 +173,8 @@ LLM 1 回（`response_format` の JSON Schema で拘束）で `{did, understood,
 - **モデル設定**（`tutor.settings.llm_model`）: 管理者が画面から切替 → tutor は `deeprag_search.LLM_MODEL` / `tutor_session.LLM_MODEL` を書き換えて即反映（再起動不要）、DB に保存して次回起動時にも適用。候補はゲートウェイの `/v1/models`（401 なら env `TUTOR_MODEL_CHOICES`）＋自由入力。埋め込み・リランカーは知識ベースに紐づくので画面では変えない
 - **専用 DB ロール／シークレット**: `scripts/setup_tutor_secrets.sh` が `TUTOR_SERVICE_TOKEN`（backend/tutor 共通）を生成し、`tutor_app` ロール（`tutor` スキーマのみ。`public` は REVOKE）を作って `TUTOR_DATABASE_URL` を差し替える。`--rotate` で再生成。反映は `docker compose up -d backend tutor`（`restart` は env を再読込しない）
 
-# 次にやること
+# 運用上の未決事項
 
-1. **教員ビューの画面**（`/t/...`）: `GET /api/tutor/questions` を表で出す。ページ別・学生別の集計 SQL は `v_student_questions` に対する GROUP BY で足りる
-2. **DB ロール分離**: 本番では `tutor` 専用ロール（`tutor` スキーマのみ）を作り、`TUTOR_DATABASE_URL` をそれにする（今は開発用に postgres ユーザ）
-3. **フィードバック**（👍👎）: `tutor.turn_feedback(turn_id, rating, comment)` を足す。週次品質ループの入力
-4. **ページ→KG 節の対応表**: LMS の `lesson_pages.title` と研究側 `section_index.json` の節タイトルを前方一致で対応付け、検索の一次候補をその節に寄せる（今は LLM プロンプトと話題名のヒントのみ）
-5. **研究側の Phase 3（gap 特定の構造化出力）** を取り込む際、`turns` に `gap_hypothesis` 列を足す
-6. 保持期間ポリシー（例: 卒業後 N 年で `turns.text` を匿名化）
+- 学生発話の保持期間・退会後の扱い・物理削除の手順
+- ローカルQdrantを含む検索器を複数workerで共有する方法（セッション状態のDB共有とは別の課題）
+- `[LMS port]` 差分と `db/init/06-tutor-schema.sql` / `store.py` DDL の一本化・スキーマバージョン管理
