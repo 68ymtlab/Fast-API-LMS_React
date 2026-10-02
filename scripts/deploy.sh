@@ -28,7 +28,10 @@ COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 # ビルドする `up --build` だけ、frontend/server/.env を compose の変数として読ませる。
 # frontend の NEXT_PUBLIC_* はビルド時にバンドルへ焼き込まれ、その値は build.args 経由で渡す
 # （.env をイメージに入れない代わり。付け忘れるとビルドが失敗する）
-COMPOSE_BUILD="docker compose --env-file frontend/server/.env -f docker-compose.yml -f docker-compose.prod.yml"
+# --env-file を指定すると、リポジトリ直下の .env（COMPOSE_FILE・LMS_DB_VOLUME・BACKUP_INTERVAL_HOURS など）が読まれなくなる。
+# そのため .env も明示的に指定する（後に書いたものが優先。frontend/server/.env には compose の変数は無いので、衝突しない）。
+# .env はこのスクリプトが（無ければ）作る
+COMPOSE_BUILD="docker compose --env-file .env --env-file frontend/server/.env -f docker-compose.yml -f docker-compose.prod.yml"
 BACKUP_DIR="db/backups"
 KEEP_BACKUPS="${KEEP_BACKUPS:-10}"
 TS="$(date +%Y%m%d-%H%M%S)"

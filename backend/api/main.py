@@ -20,6 +20,7 @@ from api.routers.progress_router import progress_router
 from api.routers.assignments_router import assignments_router
 from api.routers.announcements_router import announcements_router
 from api.routers.tutor_router import tutor_router
+from api.core.tutor_errors import register_tutor_error_handler
 
 app = FastAPI(
     title="Fast-API-LMS_API",
@@ -43,6 +44,9 @@ def get_docs_user(credentials: HTTPBasicCredentials = Depends(docs_security)):
             headers={"WWW-Authenticate": "Basic"},
         )
     return True
+
+# --- AI チューターのエラー（種類を表す code つき。フロントエンドが「メンテナンス中」を出し分ける）---
+register_tutor_error_handler(app)
 
 # --- CORS Middleware ---
 # ALLOWED_ORIGINS: カンマ区切りで列挙。未設定時は開発用デフォルトを使用

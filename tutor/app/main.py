@@ -39,6 +39,10 @@ from sections import SectionMatcher  # noqa: E402
 from related import rank as rank_related  # noqa: E402
 from state_io import restore_state  # noqa: E402
 from store import LockUnavailable, StudentBusy, TutorStore  # noqa: E402
+from llm_errors import LLMDownAbort, is_overload_signal  # noqa: E402
+from llm_gate import LLMGate, Overloaded  # noqa: E402
+from llm_status import LLMStatus, LLMUnavailable, describe, http_probe, is_llm_unavailable  # noqa: E402
+import models_catalog  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
 
 SESSION_TTL_SEC = int(os.environ.get("TUTOR_SESSION_TTL_SEC", str(30 * 60)))
@@ -297,6 +301,10 @@ def apply_settings(settings: dict[str, Any]) -> dict[str, Any]:
         deeprag_search.LLM_MODEL = model.strip()
         tutor_session_mod.LLM_MODEL = model.strip()   # tutor_session は値を import しているので両方に書く
         applied["llm_model"] = model.strip()
+    if "maintenance" in settings:
+        # 手動のメンテナンス（学内の AI サーバーの計画停止など）。tutor.settings に保存され、再起動後も続く
+        llm_status.set_forced(bool(settings.get("maintenance")), str(settings.get("maintenance_message") or ""))
+        applied["maintenance"] = bool(settings.get("maintenance"))
     ov = settings.get("page_section_overrides")
     if isinstance(ov, dict):
         manager.sections.set_overrides(ov)
@@ -306,6 +314,69 @@ def apply_settings(settings: dict[str, Any]) -> dict[str, Any]:
 
 store = TutorStore(os.environ.get("TUTOR_DATABASE_URL"))
 manager = SessionManager(store)
+
+# LLM（学内の AI サーバー）の状態。繋がらないとき、学生に「メンテナンス中」と伝え、長く待たせない（app/llm_status.py）
+llm_status = LLMStatus(
+    probe_fn=lambda: http_probe(LLM_BASE_URL, LLM_API_KEY, timeout=3.0),
+    breaker_sec=float(os.environ.get("TUTOR_LLM_BREAKER_SEC", "30")),
+    probe_ttl_sec=float(os.environ.get("TUTOR_LLM_PROBE_TTL_SEC", "30")),
+    forced=os.environ.get("TUTOR_FORCE_MAINTENANCE", "").strip().lower() in ("1", "true", "yes"),
+    forced_message=os.environ.get("TUTOR_MAINTENANCE_MESSAGE", ""),
+)
+
+
+# LLM を使う質問の同時数の上限と順番待ち（app/llm_gate.py）。LLM サーバーは同時に処理できる数が少ないため、人数が増えても
+# 全員が長く待たされてタイムアウトにならないよう、枠を絞って順番に処理し、待ちが長いときはすぐ「混み合っています」と返す
+llm_gate = LLMGate(
+    max_concurrent=int(os.environ.get("TUTOR_LLM_MAX_CONCURRENT", "4")),
+    max_wait_sec=float(os.environ.get("TUTOR_LLM_MAX_WAIT_SEC", "45")),
+    max_queue=int(os.environ.get("TUTOR_LLM_MAX_QUEUE", "30")),
+)
+
+
+def _fail_llm(exc: BaseException, reason: str) -> LLMUnavailable | Overloaded:
+    """LLM 呼び出しの失敗を、「混雑」か「故障」かに分けて、利用者向けの例外を返す。
+
+    応答が遅い・429 の失敗は、サーバーが落ちているのではなく混み合っているだけのことがある。その場合に全員へ
+    「メンテナンス中」と出して回路遮断すると、動いているのに使えなくなる。そこで、いま疎通確認をして、通れば「混雑」として扱う
+    （遮断しない）。通らなければ故障として遮断する。
+    """
+    if is_overload_signal(exc):
+        alive, probe_reason = llm_status.probe_now()
+        if alive:
+            llm_status.record_success()   # サーバーは生きている
+            print(f"  [llm] 混み合っています（サーバーは応答します）: {reason}", flush=True)
+            return Overloaded(retry_after_sec=llm_gate.snapshot()["waiting"] * 5 + 20, reason=reason)
+        reason = f"{reason}（疎通確認も失敗: {probe_reason}）"
+    llm_status.record_failure(reason)
+    print(f"  [llm] 使えません（以降しばらく即座に断ります）: {reason}", flush=True)
+    return LLMUnavailable(reason=reason)
+
+
+@contextmanager
+def llm_guard(key: str = ""):
+    """LLM を使う処理を囲む。
+    1. 使えないと分かっていれば、ロック用接続を握る前に即座に断る（LLMUnavailable = 503 + code=llm_unavailable）
+    2. 同時数の上限を超えるときは、順番を待つ。待ちが長いときは断る（Overloaded = 503 + code=overloaded）
+    3. 処理中の失敗は、混雑か故障かを見分けて、故障のときだけ以降しばらく即座に断る
+    """
+    # 疎通確認が古ければ、ここで確認する（最大 3 秒）。接続は受けるのに応答しないサーバーを、質問を何十秒も待たせる前に見つける。
+    # 確認は 30 秒に1回まで。落ちていると分かっている間は、遮断時間が過ぎるまで確認しない
+    llm_status.refresh()
+    llm_status.check()
+    with llm_gate.slot(key or f"anon-{id(object())}"):
+        try:
+            yield
+        except (LLMUnavailable, Overloaded):
+            raise
+        except LLMDownAbort as abort:   # core が、LLM が使えない原因の失敗を見つけて質問を打ち切った（BaseException）
+            raise _fail_llm(abort, str(abort) or describe(abort)) from abort
+        except Exception as exc:  # noqa: BLE001
+            if is_llm_unavailable(exc):
+                raise _fail_llm(exc, describe(exc)) from exc
+            raise
+        else:
+            llm_status.record_success()
 
 
 @asynccontextmanager
@@ -323,12 +394,31 @@ app = FastAPI(title="LMS AI Tutor Service", version="0.2", lifespan=lifespan)
 # 1人の連打・全体の混雑で他の学生を止めないための応答（store.student_lock が送出する）
 @app.exception_handler(StudentBusy)
 def _student_busy_handler(_request, _exc):
-    return JSONResponse(status_code=429, content={"detail": "前の質問に回答中です。回答が表示されてからもう一度お試しください。"})
+    return JSONResponse(status_code=429, content={"detail": "前の質問に回答中です。回答が表示されてからもう一度お試しください。", "code": "busy"})
 
 
 @app.exception_handler(LockUnavailable)
 def _lock_unavailable_handler(_request, _exc):
-    return JSONResponse(status_code=503, content={"detail": "チューターが混み合っています。少し待ってから再度お試しください。"})
+    return JSONResponse(status_code=503, content={"detail": "チューターが混み合っています。少し待ってから再度お試しください。", "code": "overloaded"})
+
+
+@app.exception_handler(Overloaded)
+def _overloaded_handler(_request, exc):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": exc.message, "code": "overloaded", "retry_after_sec": exc.retry_after_sec},
+        headers={"Retry-After": str(exc.retry_after_sec)},
+    )
+
+
+@app.exception_handler(LLMUnavailable)
+def _llm_unavailable_handler(_request, exc):
+    # 利用者に見せるのは message だけ。内部の原因（reason）はログと /health に残す
+    return JSONResponse(
+        status_code=503,
+        content={"detail": exc.message, "code": "llm_unavailable", "state": exc.state, "retry_after_sec": exc.retry_after_sec},
+        headers={"Retry-After": str(exc.retry_after_sec)},
+    )
 
 
 # ---- 認証（内部サービス用の簡易トークン + 学生ID） ----
@@ -504,7 +594,9 @@ def _history_items(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # ---- エンドポイント ----
 @app.get("/health")
 def health():
-    return {"ok": manager.ready, **manager.stats()}
+    # ok はコンテナの生存（LLM が落ちていても true のまま。docker の healthcheck をメンテナンス中に unhealthy にしない）。
+    # LLM の状態は llm に入れる（疎通確認は 30 秒に1回まで。落ちていれば遮断時間ごとに再確認し、復旧を自動で検知する）
+    return {"ok": manager.ready, **manager.stats(), "llm": llm_status.snapshot(probe=True)}
 
 
 @app.post("/session/open")
@@ -596,6 +688,12 @@ def set_preferences(body: PreferencesRequest, student_id: str = Depends(_auth)):
 
 @app.post("/session/message", response_model=MessageResponse)
 def post_message(body: MessageRequest, student_id: str = Depends(_auth)):
+    # LLM が使えないときは、DB のロック用接続を握る前に即座に断る（学生には「メンテナンス中」と伝わる）
+    with llm_guard(str(student_id)):
+        return _post_message(body, student_id)
+
+
+def _post_message(body: MessageRequest, student_id: str):
     text = (body.text or "").strip()
     choice_id = (body.choice_id or "").strip() or None
     if not text and not choice_id:
@@ -734,6 +832,7 @@ def related_rank(
     """類似度で絞る → 既に出した問題を除外（不正解の問題は例外） → 解答履歴・タグ・習熟度で並べ替え → 提示を記録。"""
     if manager._searcher is None:
         raise HTTPException(status_code=503, detail="チューターがまだ初期化されていません")
+    llm_status.check()   # 埋め込みも LLM サーバーを使う。使えないと分かっていれば待たずに断る
     model_id = getattr(manager._searcher, "embed_model_id", "BAAI/bge-m3")
     sid = body.student_id if body.student_id is not None else _to_int(x_student_id or "")
     cands = {c.id: c for c in body.candidates}
@@ -832,12 +931,15 @@ def admin_get_settings(_: None = Depends(_service_auth)):
     saved = store.get_settings()
     return {"settings": saved, "effective": {"llm_model": current_model(), "llm_base_url": LLM_BASE_URL,
             "embed_model": getattr(manager._searcher, "embed_model_id", None), "rerank_model": getattr(manager._searcher, "rerank_model_id", None),
-            "kb_version_id": store.kb_version_id, "persistence": store.enabled}}
+            "kb_version_id": store.kb_version_id, "persistence": store.enabled,
+            "llm_status": llm_status.snapshot(), "maintenance": llm_status.forced}}
 
 
 class SettingsRequest(BaseModel):
     llm_model: str | None = Field(default=None, max_length=200)
     page_section_overrides: dict[str, str] | None = None
+    maintenance: bool | None = None                              # 手動のメンテナンス（True で、学生に「メンテナンス中」と表示）
+    maintenance_message: str | None = Field(default=None, max_length=300)   # 学生に見せる文面（空なら既定）
     updated_by: int | None = None
 
 
@@ -849,28 +951,48 @@ def admin_put_settings(body: SettingsRequest, _: None = Depends(_service_auth)):
         changes["llm_model"] = body.llm_model.strip()
     if body.page_section_overrides is not None:
         changes["page_section_overrides"] = body.page_section_overrides
+    if body.maintenance is not None:
+        changes["maintenance"] = bool(body.maintenance)
+        changes["maintenance_message"] = (body.maintenance_message or "").strip()
     for k, v in changes.items():
         store.set_setting(k, v, body.updated_by)
     applied = apply_settings(changes)
-    return {"ok": True, "applied": applied, "effective_model": current_model()}
+    return {"ok": True, "applied": applied, "effective_model": current_model(), "llm": llm_status.snapshot()}
+
+
+def _env_model_choices() -> list[str]:
+    return [m.strip() for m in os.environ.get("TUTOR_MODEL_CHOICES", "").split(",") if m.strip()]
 
 
 @app.get("/admin/models")
 def admin_models(_: None = Depends(_service_auth)):
-    """LiteLLM ゲートウェイが提供するチャットモデル一覧（選択肢）。"""
-    import urllib.error
-    import urllib.request
-    try:
-        req = urllib.request.Request(f"{LLM_BASE_URL.rstrip('/')}/v1/models", headers={"Authorization": f"Bearer {LLM_API_KEY}"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            import json as _json
-            data = _json.loads(resp.read().decode("utf-8"))
-        ids = sorted({m.get("id") for m in data.get("data", []) if m.get("id")})
-    except Exception as exc:  # noqa: BLE001
-        # ゲートウェイが一覧を出さない（401 など）場合は env の候補リストにフォールバック
-        choices = [m.strip() for m in os.environ.get("TUTOR_MODEL_CHOICES", "").split(",") if m.strip()]
-        return {"models": sorted(set(choices + [current_model()])), "error": str(exc)[:200], "current": current_model(), "source": "env"}
-    return {"models": ids, "current": current_model(), "source": "gateway"}
+    """管理画面の「モデルの選択」の候補。vllm-manager で起動中のチャットモデルを自動で取る（app/models_catalog.py）。"""
+    res = models_catalog.list_models(
+        manager_url=deeprag_search.VLLM_MANAGER_URL,
+        manager_token=deeprag_search.VLLM_MANAGER_TOKEN,
+        gateway_url=LLM_BASE_URL,
+        gateway_key=LLM_API_KEY,
+        env_choices=_env_model_choices(),
+        current=current_model(),
+        exclude_ids=set(),
+    )
+    return {"items": res["items"], "models": [i["id"] for i in res["items"]], "error": res["error"],
+            "current": current_model(), "source": res["source"]}
+
+
+class ModelTestRequest(BaseModel):
+    model: str
+
+
+@app.post("/admin/models/test")
+def admin_models_test(body: ModelTestRequest, _: None = Depends(_service_auth)):
+    """選んだモデルで、短い質問を1回だけ行い、使えるかを確かめる（保存の前に試せる）。"""
+    model = (body.model or "").strip()
+    if not model:
+        raise HTTPException(status_code=422, detail="model が空です")
+    return models_catalog.test_model(
+        model, client_factory=deeprag_search.make_llm_client, extra_body=deeprag_search.LLM_EXTRA_BODY
+    )
 
 
 class SectionsRequest(BaseModel):

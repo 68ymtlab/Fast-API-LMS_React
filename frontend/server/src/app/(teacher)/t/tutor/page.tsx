@@ -15,6 +15,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
 
@@ -55,10 +56,50 @@ type SettingsRes = {
 		rerank_model?: string;
 		kb_version_id?: number;
 		persistence: boolean;
+		// 学内の AI サーバー（LLM）の状態と、手動のメンテナンス（学生に「メンテナンス中」と表示）
+		maintenance?: boolean;
+		llm_status?: {
+			state: string;
+			reason?: string | null;
+			since?: string | null;
+		};
 	};
 	models: string[];
+	// 選べるモデル。vllm-manager で起動中のチャットモデルを自動で取得する（取得に失敗したときは候補の手書き一覧）
+	model_items?: ModelItem[];
 	models_source?: string;
 	models_error?: string;
+};
+
+type ModelItem = {
+	id: string;
+	state: "running" | "stopped" | "unknown" | "alias";
+	note?: string;
+};
+
+type ModelTestResult = {
+	ok: boolean;
+	model: string;
+	latency_sec?: number;
+	reply?: string;
+	kind?: string;
+	message?: string;
+	detail?: string;
+};
+
+const MODEL_SOURCE_LABEL: Record<string, string> = {
+	manager: "vllm-manager（起動中のモデルを自動で取得）",
+	"manager-open":
+		"vllm-manager（起動中のモデルのみ。管理者トークンが無効なため、停止中のモデルは出せません）",
+	gateway: "LiteLLM ゲートウェイ（起動しているかは不明）",
+	env: "手書きの候補（tutor/.env の TUTOR_MODEL_CHOICES）。自動取得できませんでした",
+};
+
+const MODEL_STATE_LABEL: Record<ModelItem["state"], string> = {
+	running: "起動中",
+	stopped: "停止中",
+	unknown: "状態不明",
+	alias: "別名",
 };
 
 const fmt = (v: unknown) =>
@@ -137,6 +178,10 @@ export default function TeacherTutorPage() {
 	} | null>(null);
 	const [settings, setSettings] = useState<SettingsRes | null>(null);
 	const [model, setModel] = useState("");
+	const [modelTest, setModelTest] = useState<ModelTestResult | null>(null);
+	const [modelTesting, setModelTesting] = useState(false);
+	const [maintenanceOn, setMaintenanceOn] = useState(false);
+	const [maintenanceMsg, setMaintenanceMsg] = useState("");
 	const [overrides, setOverrides] = useState<Record<string, string>>({});
 	const [loading, setLoading] = useState(false);
 	const [msg, setMsg] = useState<string | null>(null);
@@ -160,6 +205,8 @@ export default function TeacherTutorPage() {
 			setSections(sec.data);
 			setSettings(st.data);
 			setModel(st.data.effective.llm_model);
+			setMaintenanceOn(Boolean(st.data.effective.maintenance));
+			setMaintenanceMsg(String(st.data.settings.maintenance_message ?? ""));
 			setOverrides(
 				((st.data.settings.page_section_overrides as Record<string, string>) ??
 					{}) as Record<string, string>,
@@ -177,6 +224,18 @@ export default function TeacherTutorPage() {
 		void load();
 	}, [load]);
 
+	// 選べるモデル（旧形式の応答には model_items が無いので、id の一覧から作る）
+	const modelItems: ModelItem[] = useMemo(
+		() =>
+			settings?.model_items ??
+			(settings?.models ?? []).map((id) => ({
+				id,
+				state: "unknown" as const,
+			})),
+		[settings],
+	);
+	const selectedItem = modelItems.find((m) => m.id === model.trim());
+
 	const week = stats?.weekly?.[0];
 	const kpis = useMemo(
 		() => [
@@ -192,9 +251,37 @@ export default function TeacherTutorPage() {
 		[week],
 	);
 
+	const testModel = async () => {
+		const target = model.trim();
+		if (!target) return;
+		setModelTesting(true);
+		setModelTest(null);
+		try {
+			const res = await axios.post<ModelTestResult>(
+				"/tutor/admin/models/test",
+				{ model: target },
+			);
+			setModelTest(res.data);
+		} catch (e: unknown) {
+			const code = (e as { response?: { status?: number } })?.response?.status;
+			setModelTest({
+				ok: false,
+				model: target,
+				message:
+					code === 403
+						? "接続テストは管理者のみ行えます。"
+						: "テストを実行できませんでした（チューターサービスの応答がありません）。",
+			});
+		} finally {
+			setModelTesting(false);
+		}
+	};
+
 	const saveSettings = async (payload: {
 		llm_model?: string;
 		page_section_overrides?: Record<string, string>;
+		maintenance?: boolean;
+		maintenance_message?: string;
 	}) => {
 		setMsg(null);
 		try {
@@ -203,7 +290,11 @@ export default function TeacherTutorPage() {
 				payload,
 			);
 			setMsg(
-				`保存しました（現在のモデル: ${res.data.effective_model}）。再起動は不要です。`,
+				payload.maintenance !== undefined
+					? payload.maintenance
+						? "メンテナンス表示を開始しました。学生には「メンテナンス中」と表示され、質問できなくなります。"
+						: "メンテナンス表示を解除しました。"
+					: `保存しました（現在のモデル: ${res.data.effective_model}）。再起動は不要です。`,
 			);
 			await load();
 		} catch (e: unknown) {
@@ -610,39 +701,79 @@ export default function TeacherTutorPage() {
 										className="text-xs text-muted-foreground"
 										htmlFor={`${uid}-model-select`}
 									>
-										候補から選ぶ
-										{settings?.models_source === "env"
-											? "（env TUTOR_MODEL_CHOICES）"
-											: ""}
+										vllm-manager で起動中のモデルから選ぶ
 									</label>
 									<select
 										id={`${uid}-model-select`}
 										className="block h-9 min-w-64 rounded-md border bg-background px-2 text-sm"
-										value={settings?.models.includes(model) ? model : ""}
-										onChange={(e) => e.target.value && setModel(e.target.value)}
+										value={modelItems.some((m) => m.id === model) ? model : ""}
+										onChange={(e) => {
+											if (e.target.value) {
+												setModel(e.target.value);
+												setModelTest(null);
+											}
+										}}
 									>
 										<option value="">—</option>
-										{(settings?.models ?? []).map((m) => (
-											<option key={m} value={m}>
-												{m}
-											</option>
-										))}
+										{(["running", "unknown", "stopped", "alias"] as const).map(
+											(st) => {
+												const group = modelItems.filter((m) => m.state === st);
+												if (group.length === 0) return null;
+												return (
+													<optgroup key={st} label={MODEL_STATE_LABEL[st]}>
+														{group.map((m) => (
+															<option key={m.id} value={m.id}>
+																{m.id}
+															</option>
+														))}
+													</optgroup>
+												);
+											},
+										)}
 									</select>
 								</div>
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => void load()}
+									disabled={loading}
+									title="起動中のモデルの一覧を取得し直す"
+								>
+									<RefreshCw className="mr-1 h-4 w-4" />
+									一覧を更新
+								</Button>
+							</div>
+							<div className="flex flex-wrap items-end gap-2">
 								<div className="space-y-1">
 									<label
 										className="text-xs text-muted-foreground"
 										htmlFor={`${uid}-model-input`}
 									>
-										または直接入力（ゲートウェイに登録済みの名前）
+										または直接入力（LiteLLM に登録済みの名前）
 									</label>
 									<Input
 										id={`${uid}-model-input`}
 										className="h-9 min-w-80 font-mono"
 										value={model}
-										onChange={(e) => setModel(e.target.value)}
+										onChange={(e) => {
+											setModel(e.target.value);
+											setModelTest(null);
+										}}
 									/>
 								</div>
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => void testModel()}
+									disabled={!isAdmin || !model.trim() || modelTesting}
+									title={
+										isAdmin
+											? "保存せずに、このモデルで短い質問を1回行います"
+											: "管理者のみ"
+									}
+								>
+									{modelTesting ? "テスト中…" : "接続テスト"}
+								</Button>
 								<Button
 									size="sm"
 									onClick={() => saveSettings({ llm_model: model.trim() })}
@@ -654,9 +785,140 @@ export default function TeacherTutorPage() {
 								</Button>
 							</div>
 							<p className="text-xs text-muted-foreground">
+								一覧の取得元:{" "}
+								{MODEL_SOURCE_LABEL[settings?.models_source ?? ""] ??
+									settings?.models_source ??
+									"—"}
+								{settings?.models_error ? `（${settings.models_error}）` : ""}
+							</p>
+							{selectedItem?.state === "stopped" && (
+								<p
+									className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs"
+									role="alert"
+								>
+									このモデルは、いま vllm-manager で起動していません。
+									{model.trim() === settings?.effective.llm_model
+										? "現在の設定のままだと、学生の質問が失敗します。"
+										: "切り替えると、学生の質問が失敗します。"}
+									先に vllm-manager で起動してから切り替えてください。
+								</p>
+							)}
+							{selectedItem === undefined && model.trim() && (
+								<p className="text-xs text-muted-foreground">
+									一覧にない名前です。「接続テスト」で使えるか確認してから切り替えてください。
+								</p>
+							)}
+							{selectedItem?.state === "alias" && (
+								<p className="text-xs text-muted-foreground">
+									{selectedItem.note}
+								</p>
+							)}
+							{modelTest && (
+								<output
+									aria-live="polite"
+									className={`block rounded-md border p-2 text-xs ${
+										modelTest.ok
+											? "border-green-600/50 bg-green-600/10"
+											: "border-red-500/50 bg-red-500/10"
+									}`}
+								>
+									{modelTest.ok ? (
+										<>
+											<strong>接続OK</strong>（{modelTest.latency_sec} 秒）:{" "}
+											{modelTest.reply}
+										</>
+									) : (
+										<>
+											<strong>使えません</strong>: {modelTest.message}
+											{modelTest.detail && (
+												<span className="block font-mono text-muted-foreground">
+													{modelTest.detail}
+												</span>
+											)}
+										</>
+									)}
+								</output>
+							)}
+							<p className="text-xs text-muted-foreground">
 								env（<code>tutor/.env</code> の{" "}
 								<code>ANTHROPIC_DEFAULT_SONNET_MODEL</code>
 								）は起動時の既定値。ここで保存した値が優先されます。
+							</p>
+						</CardContent>
+					</Card>
+
+					<Card className="mt-4">
+						<CardHeader className="py-3">
+							<CardTitle className="text-base">メンテナンス表示</CardTitle>
+							<CardDescription>
+								学内の AI
+								サーバー（LLM）の計画停止などのとき、学生に「メンテナンス中」と表示して質問を止めます（管理者のみ）。
+								<strong>
+									AI サーバーに繋がらないときは、自動で同じ表示になります
+								</strong>
+								（復旧も自動で検知します）。ここは、繋がっていても止めたいとき用です。
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-3 pt-0 text-sm">
+							<div>
+								<div className="text-xs text-muted-foreground">
+									AI サーバーの状態
+								</div>
+								<div className="font-mono">
+									{settings?.effective.maintenance
+										? "手動のメンテナンス中"
+										: settings?.effective.llm_status?.state === "down"
+											? `繋がりません（自動検知: ${settings.effective.llm_status.reason ?? "—"}）`
+											: settings?.effective.llm_status?.state === "ok"
+												? "正常"
+												: "未確認（学生の最初の質問か、次の確認で判定されます）"}
+								</div>
+							</div>
+							<div className="flex items-center gap-3">
+								<Switch
+									id={`${uid}-maintenance`}
+									checked={maintenanceOn}
+									onCheckedChange={setMaintenanceOn}
+									disabled={!isAdmin}
+								/>
+								<label htmlFor={`${uid}-maintenance`}>
+									手動でメンテナンス中にする
+								</label>
+							</div>
+							<div className="space-y-1">
+								<label
+									className="text-xs text-muted-foreground"
+									htmlFor={`${uid}-maintenance-msg`}
+								>
+									学生に見せる文面（空なら「AI
+									チューターは現在メンテナンス中です。しばらくしてからもう一度お試しください。」）
+								</label>
+								<Input
+									id={`${uid}-maintenance-msg`}
+									className="h-9"
+									maxLength={300}
+									placeholder="例: AI サーバーの点検のため、15:00〜16:00 は質問できません。"
+									value={maintenanceMsg}
+									onChange={(e) => setMaintenanceMsg(e.target.value)}
+									disabled={!isAdmin}
+								/>
+							</div>
+							<Button
+								size="sm"
+								onClick={() =>
+									saveSettings({
+										maintenance: maintenanceOn,
+										maintenance_message: maintenanceMsg.trim(),
+									})
+								}
+								disabled={!isAdmin}
+								title={isAdmin ? "" : "管理者のみ"}
+							>
+								<Save className="mr-1 h-4 w-4" />
+								保存する
+							</Button>
+							<p className="text-xs text-muted-foreground">
+								保存すると再起動なしで反映され、チューターを再起動しても保持されます。終わったら必ずオフにして保存してください。
 							</p>
 						</CardContent>
 					</Card>

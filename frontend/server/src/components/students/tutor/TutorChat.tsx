@@ -22,6 +22,7 @@ import {
 	ThumbsDown,
 	ThumbsUp,
 	Trash2,
+	Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,13 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import axios from "@/lib/axios";
+import {
+	maintenanceFromHealth,
+	parseTutorError,
+	recheckDelayMs,
+	type TutorHealth,
+	type TutorMaintenance,
+} from "@/lib/tutor/errors";
 import { type Reflection, ReflectionCard } from "./ReflectionCard";
 import {
 	type RelatedMeta,
@@ -321,6 +329,8 @@ export function TutorChat({
 		bundle: ChoiceBundle;
 	} | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	// 学内の AI サーバーに繋がらない等のとき、「メンテナンス中」と表示する（復旧すると自動で消える）
+	const [maintenance, setMaintenance] = useState<TutorMaintenance | null>(null);
 	const [answerLength, setAnswerLength] = useState<AnswerLength>("normal");
 	const [conversations, setConversations] = useState<ConversationItem[]>([]);
 	const [currentId, setCurrentId] = useState<number | null>(null);
@@ -361,6 +371,33 @@ export function TutorChat({
 		setMessages((prev) => [...prev, { ...m, id: ++idRef.current }]);
 	}, []);
 
+	// チューターの状態確認。学生が質問を打つ前から、メンテナンス中ならそう表示する。
+	// 確認に失敗した（backend 自体に繋がらない）ときは、表示を変えない
+	const checkHealth = useCallback(async () => {
+		try {
+			const res = await axios.get<TutorHealth>("/tutor/health");
+			const next = maintenanceFromHealth(res.data);
+			setMaintenance((prev) =>
+				prev?.message === next?.message &&
+				prev?.retryAfterSec === next?.retryAfterSec
+					? prev
+					: next,
+			);
+		} catch {
+			/* 状態が分からないときは、表示を変えない */
+		}
+	}, []);
+
+	const inMaintenance = maintenance !== null;
+	const recheckMs = maintenance ? recheckDelayMs(maintenance) : 60_000;
+	useEffect(() => {
+		void checkHealth();
+		const id = window.setInterval(() => {
+			if (!document.hidden) void checkHealth();
+		}, recheckMs);
+		return () => window.clearInterval(id);
+	}, [checkHealth, recheckMs]);
+
 	const refreshConversations = useCallback(async () => {
 		try {
 			const res = await axios.get<{
@@ -394,12 +431,21 @@ export function TutorChat({
 			setCurrentId(data.conversation_id ?? null);
 			if (data.conversations) setConversations(data.conversations);
 			onServiceStatus?.(true);
-		} catch {
+		} catch (e: unknown) {
 			onServiceStatus?.(false);
 			setMessages([]);
-			setError(
+			const info = parseTutorError(
+				e,
 				"チューターに接続できません。しばらくしてから再度お試しください。",
 			);
+			if (info.kind === "maintenance") {
+				setMaintenance({
+					message: info.message,
+					retryAfterSec: info.retryAfterSec ?? 30,
+				});
+			} else {
+				setError(info.message);
+			}
 		} finally {
 			setOpening(false);
 		}
@@ -479,11 +525,33 @@ export function TutorChat({
 				if (data.conversation_id && data.conversation_id !== currentId)
 					setCurrentId(data.conversation_id);
 				if (showSidebar) void refreshConversations();
+				setMaintenance(null); // 答えが返ったので、メンテナンス表示は不要
 			} catch (e: unknown) {
-				const detail =
-					(e as { response?: { data?: { detail?: string } } })?.response?.data
-						?.detail ?? "チューターとの通信に失敗しました。";
-				setError(String(detail));
+				const info = parseTutorError(e, "チューターとの通信に失敗しました。");
+				if (info.kind === "maintenance") {
+					// 学内の AI サーバーに繋がらない等。質問は消さずに入力欄へ戻し、メンテナンス中と伝える
+					setMessages((prev) =>
+						prev.length > 0 && prev[prev.length - 1].role === "student"
+							? prev.slice(0, -1)
+							: prev,
+					);
+					if (payload.text) setInput(payload.text);
+					setMaintenance({
+						message: info.message,
+						retryAfterSec: info.retryAfterSec ?? 30,
+					});
+				} else if (info.kind === "overloaded") {
+					// 混み合っている（AI サーバーは動いている）。質問は消さずに入力欄へ戻し、少し待ってから送り直してもらう
+					setMessages((prev) =>
+						prev.length > 0 && prev[prev.length - 1].role === "student"
+							? prev.slice(0, -1)
+							: prev,
+					);
+					if (payload.text) setInput(payload.text);
+					setError(info.message);
+				} else {
+					setError(info.message);
+				}
 			} finally {
 				setSending(false);
 			}
@@ -1041,6 +1109,30 @@ export function TutorChat({
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>
+						{maintenance ? (
+							<output
+								aria-live="polite"
+								className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-50"
+							>
+								<Wrench
+									className="mt-0.5 h-4 w-4 shrink-0"
+									aria-hidden="true"
+								/>
+								<div className="min-w-0 flex-1 space-y-1 text-sm">
+									<p className="font-medium">{maintenance.message}</p>
+									<p className="text-xs opacity-80">
+										復旧すると、この表示は自動で消えます。教科書や演習は、いつもどおり使えます。
+									</p>
+									<button
+										type="button"
+										onClick={() => void checkHealth()}
+										className="text-xs underline underline-offset-2 hover:no-underline"
+									>
+										今すぐ再確認する
+									</button>
+								</div>
+							</output>
+						) : null}
 						{error ? (
 							<p className="px-1 text-xs text-destructive">{error}</p>
 						) : null}
@@ -1060,17 +1152,19 @@ export function TutorChat({
 									}
 								}}
 								placeholder={
-									context?.lesson_page_id
-										? "このページについて質問する"
-										: "質問する"
+									maintenance
+										? "いまは質問できません（メンテナンス中）"
+										: context?.lesson_page_id
+											? "このページについて質問する"
+											: "質問する"
 								}
 								rows={1}
-								disabled={sending || opening}
+								disabled={sending || opening || inMaintenance}
 								className="block min-h-[2.25rem] w-full resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
 							/>
 							<Button
 								onClick={onSubmit}
-								disabled={sending || opening || !input.trim()}
+								disabled={sending || opening || inMaintenance || !input.trim()}
 								size="icon"
 								className="h-8 w-8 rounded-full"
 								aria-label="送信"

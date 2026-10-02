@@ -67,7 +67,15 @@ docker exec lms-db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "selec
 - [ ] ⑦ DB が PostgreSQL **16** である（compose は 2026-02-10 以降 `postgres:16-alpine`。別のメジャーバージョンで作ったデータは 16 のコンテナでは起動しない）
 - [ ] ① のコミットを手元にメモした
 - [ ] ② Compose のバージョンが足りている
-- [ ] ④ のボリューム名が `fast-api-lms_react_postgres-data` である（違う場合は **ここで止めて** 原因を調べる。`deploy.sh` も止まる）
+- [ ] ④ のボリューム名が `fast-api-lms_react_postgres-data` である（違う場合は **ここで止めて** 原因を調べる。`deploy.sh` も止まる）。
+      **過去のプロジェクトで別の名前のボリュームを使っていた場合**は、名前を変えずに、リポジトリ直下の `.env` に既存の名前を書いて、それを使う:
+      ```bash
+      # .env（git 管理外。deploy.sh が COMPOSE_FILE を書いたファイルに追記する）
+      LMS_DB_VOLUME=<docker inspect lms-db で見えた、DB のボリューム名>
+      LMS_UPLOADS_VOLUME=<アップロードのボリューム名>
+      ```
+      （確認: `docker compose config | grep -A2 -E "postgres-data:|uploads-data:"` の `name:` が既存の名前になっていること）。
+      コンテナ名が違う場合（`lms-db` 以外）は、`docker-compose.yml` の `container_name` と食い違うので、デプロイ前に相談する
 - [ ] ⑥ 空きが十分ある
 
 ## フェーズ 2: バックアップを取って、復元できると確かめる

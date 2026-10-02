@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from deeprag_search import LLM_API_KEY, LLM_BASE_URL, _http_json_post
+from deeprag_search import EMBED_TIMEOUT_SEC, LLM_API_KEY, LLM_BASE_URL, _http_json_post
 
 _cache: dict[str, np.ndarray] = {}
 _lock = threading.Lock()
@@ -27,7 +27,7 @@ def _embed_batch(model_id: str, texts: list[str]) -> list[np.ndarray]:
         f"{LLM_BASE_URL.rstrip('/')}/v1/embeddings",
         {"model": model_id, "input": texts, "encoding_format": "float"},
         headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-        timeout=120,
+        timeout=EMBED_TIMEOUT_SEC,
     )
     out = []
     for item in sorted(data["data"], key=lambda d: d.get("index", 0)):

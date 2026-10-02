@@ -31,12 +31,14 @@ os.environ.setdefault("DEEPRAG_USE_VLLM_EMBED", "0")
 
 from openai import OpenAI  # noqa: E402
 
+from llm_errors import abort_if_llm_down  # noqa: E402  [LMS port]
 from deeprag_search import (  # noqa: E402
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_EXTRA_BODY,
     LLM_MODEL,
     DeepRAGSearcher,
+    make_llm_client,
     _load_production_config,
     _strip_thinking_process,
     select_relevant_page_text,
@@ -464,10 +466,8 @@ class TutorSession:
         self.planner_timeout_sec = float(planner_cfg.get("timeout_seconds", 18))
         self.planner_max_tokens = int(planner_cfg.get("max_tokens", 700))
         self.last_level_estimate: dict[str, Any] | None = None
-        self.client = OpenAI(
-            base_url=f"{LLM_BASE_URL.rstrip('/')}/v1",
-            api_key=LLM_API_KEY,
-        )
+        # [LMS port] 繋がらない・応答しないとき、長く待たない（deeprag_search.make_llm_client のコメント参照）
+        self.client = make_llm_client()
         self.state = SessionState()
         self._last_turn: dict[str, Any] = {}
         # [LMS port] 学生がいま開いている教科書ページ {"title","text","lesson_page_id"}（LMS から毎ターン更新）
@@ -929,7 +929,8 @@ class TutorSession:
                     gap = str(c.get("gap") or "").strip()
                     if label and gap:
                         choices.append({"id": chr(ord("A") + i), "label": label, "gap": gap})
-        except Exception:
+        except Exception as _exc:
+            abort_if_llm_down(_exc)   # [LMS port] LLM が使えないなら、握りつぶさず質問を打ち切る
             choices = []
         if len(choices) < 2:  # 動的生成に失敗 → 静的フォールバック
             choices = [dict(c) for c in CLARIFY_CHOICES]
@@ -1048,8 +1049,8 @@ class TutorSession:
                 ls.understanding_level = new_level  # type: ignore[assignment]
                 if est.get("goal") and est["goal"] != "unknown":
                     ls.goal = est["goal"]  # type: ignore[assignment]
-        except Exception:  # noqa: BLE001  推定は補助。失敗しても対話は続ける
-            pass
+        except Exception as _exc:  # noqa: BLE001  推定は補助。失敗しても対話は続ける（ただし LLM が使えないなら打ち切る）
+            abort_if_llm_down(_exc)   # [LMS port]
 
     def _make_pedagogical_plan(self, text: str) -> dict[str, Any]:
         """Run the structured planner and fail safely to an answer-first plan."""
@@ -1126,6 +1127,9 @@ class TutorSession:
             )
             status = "ok"
         except Exception as exc:  # Planner is advisory; a failure must not stop tutoring.
+            # [LMS port] プランナーは補助で、短いタイムアウトで安全な計画に切り替える設計。タイムアウトでは打ち切らない。
+            # 接続できない・サーバーのエラーなら LLM が落ちているので、待たずに質問を打ち切る
+            abort_if_llm_down(exc, ignore_timeouts=True)
             plan = fallback_plan(
                 text=text, page_context=self.page_context, learner_evidence=evidence
             )

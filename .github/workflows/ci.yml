@@ -108,6 +108,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: 型チェック
         run: npx tsc --noEmit
+      - name: AI チューターのエラー判定の単体テスト（メンテナンス表示の出し分け）
+        run: node --experimental-strip-types --no-warnings --test src/lib/tutor/errors.test.mjs
       - name: 本番ビルド
         run: npm run build
         env:
