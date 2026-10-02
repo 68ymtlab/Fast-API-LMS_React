@@ -18,10 +18,19 @@ from typing import Any
 try:
     import psycopg
     from psycopg.rows import dict_row
-    from psycopg_pool import ConnectionPool
+    from psycopg_pool import ConnectionPool, PoolTimeout
 except ImportError:  # pragma: no cover
     psycopg = None  # type: ignore[assignment]
     ConnectionPool = None  # type: ignore[assignment,misc]
+    PoolTimeout = None  # type: ignore[assignment,misc]
+
+
+class StudentBusy(Exception):
+    """同じ学生のリクエストが同時に上限を超えた（1人の連打が他の学生を止めないよう、待たせずに断る）。"""
+
+
+class LockUnavailable(Exception):
+    """ロック用の接続を待っても確保できなかった（全体が混雑している）。"""
 
 # db/init/06-tutor-schema.sql と同じ DDL（既存 volume には init が流れないため起動時に適用）
 DDL = [
@@ -128,6 +137,13 @@ class TutorStore:
         self.lock_pool: ConnectionPool | None = None
         self.kb_version_id: int | None = None
         self._lock = threading.Lock()
+        # 1人の学生が同時に持てるリクエスト数（実行中 + 待機中）。超えた分は待たせずに断る。
+        # 待機中のリクエストもロック用接続を1本握るので、上限が無いと1人の連打で全接続を使い切れてしまう
+        self.max_inflight = max(1, int(os.environ.get("TUTOR_MAX_INFLIGHT_PER_STUDENT", "3")))
+        # ロック用接続を待つ最大秒数。超えたら LockUnavailable
+        self.lock_wait_sec = max(1.0, float(os.environ.get("TUTOR_LOCK_WAIT_SEC", "30")))
+        self._inflight: dict[int, int] = {}
+        self._inflight_guard = threading.Lock()
 
     # ---- lifecycle ----
     def connect(self, stage4_dir: str | None, entity_count: int | None) -> None:
@@ -179,20 +195,44 @@ class TutorStore:
 
     @contextmanager
     def student_lock(self, student_id: int):
-        """Serialize one student's tutor requests across workers and containers."""
+        """Serialize one student's tutor requests across workers and containers.
+
+        - 1人の学生の同時リクエストは max_inflight まで。超えたら StudentBusy で即座に断る
+          （待機中も接続を握るため、断らないと1人の連打でロック用接続を使い切り、全員が止まる）
+        - ロック用接続は lock_wait_sec までしか待たない。超えたら LockUnavailable
+        """
         if not self.enabled or self.lock_pool is None:
             yield
             return
-        # Two-key advisory locks avoid creating a lock row for every student. The lock connection is
-        # separate from the query pool because it remains checked out for the duration of LLM calls.
-        with self.lock_pool.connection() as conn:
-            conn.execute("SELECT pg_advisory_lock(1414872146, %s)", (student_id,))
-            conn.commit()
+        with self._inflight_guard:
+            n = self._inflight.get(student_id, 0)
+            if n >= self.max_inflight:
+                raise StudentBusy(student_id)
+            self._inflight[student_id] = n + 1
+        try:
+            # Two-key advisory locks avoid creating a lock row for every student. The lock connection is
+            # separate from the query pool because it remains checked out for the duration of LLM calls.
             try:
-                yield
-            finally:
-                conn.execute("SELECT pg_advisory_unlock(1414872146, %s)", (student_id,))
+                conn = self.lock_pool.getconn(timeout=self.lock_wait_sec)
+            except PoolTimeout as exc:
+                raise LockUnavailable(student_id) from exc
+            try:
+                conn.execute("SELECT pg_advisory_lock(1414872146, %s)", (student_id,))
                 conn.commit()
+                try:
+                    yield
+                finally:
+                    conn.execute("SELECT pg_advisory_unlock(1414872146, %s)", (student_id,))
+                    conn.commit()
+            finally:
+                self.lock_pool.putconn(conn)
+        finally:
+            with self._inflight_guard:
+                left = self._inflight.get(student_id, 1) - 1
+                if left > 0:
+                    self._inflight[student_id] = left
+                else:
+                    self._inflight.pop(student_id, None)
 
     def active_session(self, student_id: int) -> tuple[bool, int | None]:
         """Return (row_exists, conversation_id); a NULL pointer means the student explicitly started fresh."""

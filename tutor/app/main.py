@@ -28,6 +28,7 @@ for d in (str(CORE_DIR), str(APP_DIR)):
         sys.path.insert(0, d)
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 import deeprag_search  # noqa: E402
@@ -37,7 +38,7 @@ from reflection import reflect  # noqa: E402
 from sections import SectionMatcher  # noqa: E402
 from related import rank as rank_related  # noqa: E402
 from state_io import restore_state  # noqa: E402
-from store import TutorStore  # noqa: E402
+from store import LockUnavailable, StudentBusy, TutorStore  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
 
 SESSION_TTL_SEC = int(os.environ.get("TUTOR_SESSION_TTL_SEC", str(30 * 60)))
@@ -317,6 +318,17 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="LMS AI Tutor Service", version="0.2", lifespan=lifespan)
+
+
+# 1人の連打・全体の混雑で他の学生を止めないための応答（store.student_lock が送出する）
+@app.exception_handler(StudentBusy)
+def _student_busy_handler(_request, _exc):
+    return JSONResponse(status_code=429, content={"detail": "前の質問に回答中です。回答が表示されてからもう一度お試しください。"})
+
+
+@app.exception_handler(LockUnavailable)
+def _lock_unavailable_handler(_request, _exc):
+    return JSONResponse(status_code=503, content={"detail": "チューターが混み合っています。少し待ってから再度お試しください。"})
 
 
 # ---- 認証（内部サービス用の簡易トークン + 学生ID） ----

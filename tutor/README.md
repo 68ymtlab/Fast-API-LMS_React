@@ -1,7 +1,7 @@
 # tutor — AI チューター サービス（線形代数 RAG）
 
 研究側 `agents/workspace` で検証した線形代数チュータを、LMS 用の**独立コンテナ**として動かす。
-配置の考察・全体像は [`docs/ai-tutor.md`](../docs/ai-tutor.md)。**運用でやること** は [`docs/ai-tutor-handover.md`](../docs/ai-tutor-handover.md)。
+配置の考察・全体像は [`docs/ai-tutor/ai-tutor.md`](../docs/ai-tutor/ai-tutor.md)。**運用でやること** は [`docs/ai-tutor/ai-tutor-handover.md`](../docs/ai-tutor/ai-tutor-handover.md)。
 
 ```
 tutor/
@@ -75,7 +75,7 @@ VLLM_MANAGER_URL=http://hinton.kanazawa-it.ac.jp:18000 ANTHROPIC_AUTH_TOKEN=... 
 - `core/deeprag_search.py`: パス上書き env、`sentence_transformers` の任意化、`search/generate_answer` の `page_context` 引数
 - `core/tutor_session.py`: `page_context` 属性、指示語質問の話題名ヒント（`_page_hint`）、`_compose_answer` からの受け渡し
 
-永続化・引き継ぎ・教科書連携の設計: [`docs/ai-tutor-data.md`](../docs/ai-tutor-data.md)
+永続化・引き継ぎ・教科書連携の設計: [`docs/ai-tutor/ai-tutor-data.md`](../docs/ai-tutor/ai-tutor-data.md)
 
 本番では `TUTOR_DATABASE_URL` が必須。`TutorSession` の学生別状態は各要求の開始時に Postgres から復元し、応答と状態を同じトランザクションで保存する。RAG検索器は重いため各tutorプロセスのメモリに常駐するが、学生状態はプロセス内メモリ共有に依存しない。
 

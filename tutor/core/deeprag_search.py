@@ -405,6 +405,34 @@ def _extract_json_with_keys(text, expected_keys):
 # === パス設定 ===
 COLLECTION_NAME = "linear_algebra"
 QDRANT_PATH = os.path.join(_STAGE4, "qdrant_data")
+
+
+def _open_qdrant(path, collection_name):
+    """ローカル Qdrant を開く。使えない（開けない・コレクションが無い）ときは None（= メモリ上の dense / BM25 検索）。
+
+    [LMS port] QdrantClient(path=...) は、ディレクトリが空でもエラーにならず空のストアを作る。
+    その状態で Qdrant を使うと、dense は例外を捕まえてフォールバックするが、sparse_search は捕まえずに落ち、
+    チューターの回答が全て失敗する。コンテナ起動時に bind mount 先のディレクトリが無いと Docker が空で作るため、起こり得る。
+    """
+    try:
+        client = QdrantClient(path=path)
+    except Exception as exc:
+        print(f"  WARNING: Qdrant unavailable ({exc}); using in-memory dense")
+        return None
+    try:
+        exists = client.collection_exists(collection_name)
+    except Exception as exc:
+        print(f"  WARNING: Qdrant collection check failed ({exc}); using in-memory search")
+        exists = False
+    if not exists:
+        print(f"  WARNING: Qdrant collection '{collection_name}' not found in {path}; using in-memory search")
+        try:
+            client.close()
+        except Exception:
+            pass
+        return None
+    return client
+
 EMBEDDINGS_FILE = os.path.join(_STAGE4, "embeddings.json")
 GRAPH_FILE = os.path.join(_STAGE4, "knowledge_graph.json")
 TEST_CSV = os.path.join(_STAGE4, "test_queries.csv")
@@ -712,11 +740,9 @@ class DeepRAGSearcher:
 
         # 4. Qdrant
         print("  [4/5] Qdrant接続...")
-        self.client = None
-        try:
-            self.client = QdrantClient(path=QDRANT_PATH)
-        except Exception as exc:
-            print(f"  WARNING: Qdrant unavailable ({exc}); using in-memory dense")
+        # [LMS port] コレクションが無い（qdrant_data が空・未配置）場合は Qdrant を使わず、メモリ上の検索に切り替える。
+        # QdrantClient(path=...) は空のディレクトリでも成功してしまい、sparse_search が例外で落ちるため（_open_qdrant 参照）
+        self.client = _open_qdrant(QDRANT_PATH, COLLECTION_NAME)
 
         # 5. グラフ検索
         print("  [5/5] 知識グラフ読み込み...")

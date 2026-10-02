@@ -21,9 +21,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /tmp/requirements.txt
+# constraints.txt で依存のバージョンを固定する（固定しないとビルドのたびに最新が入り、再現できない）
+COPY requirements.txt constraints.txt /tmp/
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r /tmp/requirements.txt
+ && pip install --no-cache-dir -r /tmp/requirements.txt -c /tmp/constraints.txt
 
 COPY core/ /app/core/
 COPY config/ /app/config/
