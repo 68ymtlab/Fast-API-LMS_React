@@ -63,6 +63,10 @@ class RetrievalPlan(_StrictModel):
 
 class PedagogicalPlan(_StrictModel):
     schema_version: Literal["2"]
+    # 今回の発話が「数学の学習内容の説明」を必要とするか。True のときだけ、サーバー側のルール
+    # （検索の強制・診断の抑制・ページ関連付けの補正）を適用する。False（挨拶・雑談・数学と無関係な話題）は
+    # ルールで縛らず、LLM の計画のまま（検索なしで LLM が答える）にする
+    math_related: bool
     intent: list[Intent] = Field(min_length=1, max_length=3)
     target_concepts: list[str] = Field(max_length=4)
     action: Action
@@ -92,7 +96,10 @@ PLANNER_SYSTEM_PROMPT = """あなたは学習対話の教育プランナーで�
 
 必須ルール:
 - 学生の今回の依頼を最優先し、短文という理由だけで診断しない。
-- 挨拶だけなら social_response。概念の素朴な質問には原則 answer を選び、診断を先に強制しない。
+- math_related: 数学（線形代数など）の学習内容を説明・解説する必要がある発話なら true。挨拶・御礼・雑談・数学と無関係な質問・使い方の質問なら false。
+  false のときは教材検索をしない前提で、source_scope は no_retrieval、action は answer を選ぶ（LLM が検索なしで自然に答える）。
+  数学の学習内容を少しでも説明する必要があるなら true にする（迷ったら true）。
+- 概念の素朴な質問には原則 answer を選び、診断を先に強制しない。
 - 診断は、その結果で次の教え方が実質的に変わり、質問だけでは回答を進められない場合に限る。学生が明示的に診断を求めた場合は診断を選んでよい。
 - 開いているページが入力にある場合、「この式」「ここ」等はそのページと直近の会話を参照する。ページに関係する質問では active_page_first を選ぶ。
 - 学生が別の話題と明示した場合は、開いているページへ無理に結びつけない。
@@ -227,12 +234,17 @@ def validate_and_normalize_plan(
     plan = PedagogicalPlan.model_validate(raw).model_dump(mode="json")
     active_page = _page_available(page_context)
     relation = _page_relation_hint(text, page_context, plan["page_relation"])
-    if is_social_only(text):
-        plan["intent"] = ["social"]
-        plan["action"] = "social_response"
-        plan["pedagogical_move"] = "social_response"
-        plan["diagnostic"] = {"needed": False, "target": None, "reason": "social_turn"}
+    # LLM が「数学の学習説明は不要」と判断した発話（挨拶・雑談・無関係な話題）は、ルールで縛らず LLM の計画に任せる。
+    # 数学の学習説明が必要な発話だけ、下のサーバー側のルールを適用する。
+    off_topic = not plan["math_related"]
+    if off_topic:
+        # 検索はしない（LLM が検索なしで答える）。診断・聞き返しで学生を止めない。
+        # 計画の intent / pedagogical_move / support_level は LLM の判断のまま使う。
+        plan["action"] = "answer"
         plan["source_scope"] = "no_retrieval"
+        plan["page_relation"] = "no_open_page" if not active_page else plan["page_relation"]
+        plan["diagnostic"] = {"needed": False, "target": None, "reason": "off_topic_no_diagnosis"}
+        plan["retrieval"] = {"queries": [], "prerequisite_concepts": []}
     else:
         plan["page_relation"] = relation
         if not active_page:
@@ -268,19 +280,16 @@ def validate_and_normalize_plan(
                 "reason": "diagnostic_not_necessary_to_start_answering",
             }
         if plan["action"] == "social_response":
-            if is_social_only(text):
-                plan["diagnostic"] = {"needed": False, "target": None, "reason": "social_turn"}
-                plan["source_scope"] = "no_retrieval"
-            else:
-                plan["action"] = "answer"
-                plan["source_scope"] = (
-                    "active_page_first"
-                    if active_page and relation in (
-                        "explicit_reference", "related_to_open_page", "ambiguous_use_open_page"
-                    )
-                    else "rag"
+            # 数学の学習説明が必要なのに挨拶扱いにはしない
+            plan["action"] = "answer"
+            plan["source_scope"] = (
+                "active_page_first"
+                if active_page and relation in (
+                    "explicit_reference", "related_to_open_page", "ambiguous_use_open_page"
                 )
-        if plan["source_scope"] == "no_retrieval" and not is_social_only(text):
+                else "rag"
+            )
+        if plan["source_scope"] == "no_retrieval":
             # Non-social academic answers must pass through evidence retrieval.
             plan["source_scope"] = (
                 "active_page_first"
@@ -339,8 +348,8 @@ def validate_and_normalize_plan(
 
     # Reason codes are a compact audit surface, not free-form hidden reasoning.
     grounded_reasons: list[str] = []
-    if is_social_only(text):
-        grounded_reasons.append("social_turn")
+    if off_topic:
+        grounded_reasons.append("social_turn" if "social" in plan["intent"] else "unrelated_new_topic")
     else:
         if relation == "explicit_reference":
             grounded_reasons.append("explicit_page_reference")
@@ -433,7 +442,7 @@ def validate_and_normalize_plan(
         plan["learner_context"]["use_relevant_evidence"] = True
         plan["learner_context"]["connection_basis"] = "observed_evidence"
         grounded_reasons.append("relevant_observed_evidence")
-    if not is_social_only(text) and not relevant_items and int((evidence_selection or {}).get("candidate_count") or 0) == 0:
+    if not off_topic and not relevant_items and int((evidence_selection or {}).get("candidate_count") or 0) == 0:
         grounded_reasons.append("learner_history_absent")
     if int((evidence_selection or {}).get("rejected_count") or 0) > 0:
         grounded_reasons.append("irrelevant_evidence_rejected")
@@ -489,6 +498,7 @@ def fallback_plan(
         queries = [query[:180]] if query else [text[:180]]
     return {
         "schema_version": PLANNER_SCHEMA_VERSION,
+        "math_related": not social,
         "intent": intent,
         "target_concepts": [],
         "action": action,

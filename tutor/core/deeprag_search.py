@@ -1798,14 +1798,31 @@ class DeepRAGSearcher:
             )
             max_tokens = max(max_tokens, 3000)
 
+        # [LMS port] 数学の学習説明が不要と planner が判断した発話（挨拶・雑談・無関係な話題）は、教材検索をしない。
+        # 教科書の文脈は無い。チューターとして自然に、簡潔に答える（数学の説明が必要になったら質問してもらう）
+        no_retrieval = bool(pedagogical_plan and pedagogical_plan.get("source_scope") == "no_retrieval")
+        if no_retrieval:
+            km_note = ""
+            plan_block = ""
+            focus_block = ""
+            last_exp_block = ""
+            context_block = ""
+            no_retrieval_block = (
+                "\n## 今回は教材検索をしない応答\n"
+                "挨拶・雑談・数学の学習と無関係な発話。教科書の文脈は無い。システムプロンプトのルール11（次の一歩の提案）は適用しない。\n"
+                "線形代数チューターとして自然に、簡潔に（1〜3文）返す。挨拶には挨拶で返し、必要なら何を学びたいか軽く尋ねる。"
+                "一般的な質問には一般知識で答えてよい。数学の学習内容の詳しい説明が必要になりそうなら、そのまま質問してもらうよう促す。"
+                "教科書に書いてあるかのような言い方はしない。\n"
+            )
+        else:
+            context_block = f"\n## 教科書の文脈\n{context}\n"
+            no_retrieval_block = ""
+
         user_prompt = f"""以下の教科書の文脈と会話を踏まえて、質問／発話に回答してください。
-{state_block}{km_note}{focus_block}{mode_block}{plan_block}{evidence_block}{length_block}{page_block}{dialogue_block}{last_exp_block}
+{state_block}{km_note}{focus_block}{mode_block}{plan_block}{no_retrieval_block}{evidence_block}{length_block}{page_block}{dialogue_block}{last_exp_block}
 ## 質問／発話
 {query}
-
-## 教科書の文脈
-{context}
-
+{context_block}
 ## 回答"""
 
         try:

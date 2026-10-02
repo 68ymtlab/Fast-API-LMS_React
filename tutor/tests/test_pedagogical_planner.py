@@ -25,6 +25,7 @@ from tutor_session import TutorSession  # noqa: E402
 def candidate_plan(**overrides):
     plan = {
         "schema_version": "2",
+        "math_related": True,
         "intent": ["concept_question"],
         "target_concepts": ["固有値"],
         "action": "answer",
@@ -198,7 +199,52 @@ class PedagogicalPlannerTests(unittest.TestCase):
         turn = session.handle_turn("おはよう")
         self.assertEqual(searcher.search_calls, [])
         self.assertIsNone(turn["diagnosis"])
-        self.assertIn("おはようございます", turn["reply"])
+        # 定型文ではなく、検索なしで LLM（generate_answer）が答える
+        self.assertEqual(turn["reply"], "自然な応答")
+        self.assertEqual(turn["turn_class"], "meta")
+
+    def test_off_topic_plan_is_trusted_not_forced_into_retrieval(self):
+        # LLM が「数学の学習説明は不要」と判断した発話（英語の挨拶でも）は、ルールで検索や診断を強制しない
+        plan = validate_and_normalize_plan(
+            candidate_plan(
+                math_related=False, intent=["social"], action="answer", source_scope="rag",
+                pedagogical_move="guided_question", target_concepts=[],
+                diagnostic={"needed": True, "target": None, "reason": "x"},
+                reason_codes=["social_turn"], retrieval={"queries": ["hello"], "prerequisite_concepts": []},
+            ),
+            text="hello", page_context=None, learner_evidence=[],
+        )
+        self.assertEqual(plan["source_scope"], "no_retrieval")
+        self.assertEqual(plan["action"], "answer")
+        self.assertFalse(plan["diagnostic"]["needed"])
+        self.assertEqual(plan["retrieval"]["queries"], [])
+        self.assertEqual(plan["pedagogical_move"], "guided_question")
+
+    def test_math_related_plan_still_forces_retrieval_and_rejects_social_response(self):
+        # 数学の学習説明が必要なら、従来どおりサーバー側のルールを適用する
+        plan = validate_and_normalize_plan(
+            candidate_plan(math_related=True, action="social_response", source_scope="no_retrieval"),
+            text="固有値って何？", page_context=None, learner_evidence=[],
+        )
+        self.assertEqual(plan["action"], "answer")
+        self.assertEqual(plan["source_scope"], "rag")
+
+    def test_off_topic_question_is_answered_without_retrieval_and_marked_extra(self):
+        searcher = _FakeSearcher()
+        session = _make_session(searcher)
+        off_topic = candidate_plan(
+            math_related=False, intent=["other"], action="answer", source_scope="no_retrieval",
+            pedagogical_move="direct_explanation", target_concepts=[], reason_codes=["unrelated_new_topic"],
+            retrieval={"queries": [], "prerequisite_concepts": []},
+        )
+        session._make_pedagogical_plan = lambda text: validate_and_normalize_plan(
+            off_topic, text=text, page_context=None, learner_evidence=[]
+        )
+        turn = session.handle_turn("このシステムの使い方を教えて")
+        self.assertEqual(searcher.search_calls, [])
+        self.assertEqual(turn["reply"], "自然な応答")
+        self.assertEqual(turn["knowledge_mode"], "extra")
+        self.assertEqual(turn["banner"], "")
 
     def test_tutor_page_question_keeps_current_page_on_retrieval_and_citation(self):
         searcher = _FakeSearcher()

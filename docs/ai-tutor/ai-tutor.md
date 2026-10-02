@@ -78,6 +78,11 @@ Fast-API-LMS_React/
 
 他4ファイル（tutor_session / thin_agent / tutor_viz / learner_model）は無改変。
 
+> 2026-10-02 追記（`feature/tutor-planner-llm-freedom`）: planner に `math_related`（数学の学習説明が必要か）を追加した。
+> `pedagogical_planner.py` / `tutor_session.py` / `deeprag_search.py`（`generate_answer` の検索なし分岐）に LMS 側の変更が入っている。
+> `math_related=false`（挨拶・雑談・無関係な話題）は、サーバー側のルールで縛らず、定型文も返さず、検索なしで LLM が答える。
+> `true` のときだけ従来のルール（検索の強制・診断の抑制・ページ関連付けの補正）を適用する。研究側と再同期するときは再適用が必要。
+
 ---
 
 # 実装状況

@@ -49,7 +49,6 @@ from pedagogical_planner import (  # noqa: E402
     PLANNER_SCHEMA_VERSION,
     build_planner_input,
     fallback_plan,
-    is_social_only,
     planner_prompt_schema,
     validate_and_normalize_plan,
 )
@@ -1240,30 +1239,21 @@ class TutorSession:
         intents = set(plan.get("intent") or [])
         move = str(plan.get("pedagogical_move") or "direct_explanation")
 
-        if plan.get("action") == "social_response" or is_social_only(text):
+        if plan.get("source_scope") == "no_retrieval":
+            # 数学の学習説明が不要と planner が判断した発話（挨拶・雑談・無関係な話題）。定型文は返さず、
+            # 検索なしで LLM が答える（_compose_answer の no_retrieval 分岐）。
+            social = "social" in intents
             self.state.phase = "idle"
             self.state.confusion_streak = 0
-            self.state.last_turn_class = "meta"
-            self.state.last_banner = ""
-            self.state.last_citations = []
-            self.state.last_context = ""
-            self.state.last_results = []
-            self.state.retrieval_path = "planner:no_retrieval"
+            self.state.last_turn_class = "meta" if social else "new_topic"
             self.state.viz_last = None
-            # The LLM has already selected social_response. A small deterministic
-            # renderer avoids turning a greeting into an unsolicited lesson or quiz.
-            if re.search(r"おはよう", text):
-                reply = "おはようございます。今日は何を一緒に見てみますか？"
-            elif re.search(r"こんばんは", text):
-                reply = "こんばんは。今日は何を一緒に見てみますか？"
-            elif re.search(r"ありがとう", text):
-                reply = "どういたしまして。ほかにも気になることがあれば聞いてください。"
-            else:
-                reply = "こんにちは。今日は何を一緒に見てみますか？"
-            self.state.last_tutor_answer = reply
-            self.state.last_explanation = reply
-            self._append_dialogue("assistant", reply)
-            return self._pack_turn(reply, turn_class="meta", citations=[])
+            return self._compose_answer(
+                text,
+                turn_class="meta" if social else "new_topic",
+                explain_mode="first",
+                reuse_retrieval=False,
+                plan=plan,
+            )
 
         if plan.get("diagnostic", {}).get("needed"):
             prompt, choices = self._build_diagnosis(text)
@@ -1505,7 +1495,8 @@ class TutorSession:
             self.state.last_results = []
             self.state.last_retrieval_query = ""
             self.state.retrieval_path = "planner:no_retrieval"
-            self.state.knowledge_mode = "textbook"
+            # 挨拶は textbook のまま（「教科書の穴」の集計に混ぜない）。数学と無関係な話題は教科書外の知識として extra（バナーは出さない）
+            self.state.knowledge_mode = "textbook" if "social" in set(plan.get("intent") or []) else "extra"
             self.state.last_banner = ""
         elif reuse_retrieval and self.state.last_context and self.state.last_results:
             # 再利用: 再検索せず前回 context で生成
