@@ -86,3 +86,13 @@ VLLM_MANAGER_URL=http://hinton.kanazawa-it.ac.jp:18000 ANTHROPIC_AUTH_TOKEN=... 
 - `rag/project/tutor-web/app/tutor_web.py`（→ `app/main.py`）、`tutor_web.html`（→ `frontend/.../(students)/tutor/`）
 - `rag/config/production_pipeline.json` v1.5
 - `rag/textbooks/linear-algebra/stage4_qdrant/{embeddings.json,knowledge_graph.json,qdrant_data/}`
+
+## LLM（学内の AI サーバー）に繋がらないとき
+
+学生には「AIチューターは現在メンテナンス中です」と表示し（HTTP 503・`code=llm_unavailable`）、復旧したら自動で元に戻る。運用は [docs/ops/runbook-deploy.md §8](../docs/ops/runbook-deploy.md#8-学内の-ai-サーバーllmが使えないときメンテナンス表示)。
+
+- `app/llm_status.py`: 状態（ok / down / maintenance）と回路遮断（一度失敗したら 30 秒は即座に断る）、疎通確認（`/health` の `llm`）、手動のメンテナンス
+- `core/llm_errors.py`: 「LLM が使えない原因の失敗」の判定と、1回の質問の打ち切り（`LLMDownAbort`）。研究側のコードは補助の LLM 呼び出しの失敗を握りつぶして続けるため、
+  握りつぶしている `except` の先頭で `abort_if_llm_down(exc)` を呼んでいる（`[LMS port]`）。プランナーだけは、遅いだけ（タイムアウト）なら従来どおり安全な計画に切り替える
+- LLM クライアントは接続 5 秒・読み取り 45 秒・リトライなし（`core/deeprag_search.py: make_llm_client`）。以前は読み取り 600 秒・リトライ 2 回で、応答しない LLM を数分待っていた
+- テスト: `tests/test_llm_status.py`（判定・回路遮断・自動復旧）、`scripts/tests/test_tutor_llm_down.sh`（本物の tutor と偽の LLM サーバー）

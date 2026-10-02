@@ -15,6 +15,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import axios from "@/lib/axios";
 
@@ -55,6 +56,13 @@ type SettingsRes = {
 		rerank_model?: string;
 		kb_version_id?: number;
 		persistence: boolean;
+		// 学内の AI サーバー（LLM）の状態と、手動のメンテナンス（学生に「メンテナンス中」と表示）
+		maintenance?: boolean;
+		llm_status?: {
+			state: string;
+			reason?: string | null;
+			since?: string | null;
+		};
 	};
 	models: string[];
 	models_source?: string;
@@ -137,6 +145,8 @@ export default function TeacherTutorPage() {
 	} | null>(null);
 	const [settings, setSettings] = useState<SettingsRes | null>(null);
 	const [model, setModel] = useState("");
+	const [maintenanceOn, setMaintenanceOn] = useState(false);
+	const [maintenanceMsg, setMaintenanceMsg] = useState("");
 	const [overrides, setOverrides] = useState<Record<string, string>>({});
 	const [loading, setLoading] = useState(false);
 	const [msg, setMsg] = useState<string | null>(null);
@@ -160,6 +170,8 @@ export default function TeacherTutorPage() {
 			setSections(sec.data);
 			setSettings(st.data);
 			setModel(st.data.effective.llm_model);
+			setMaintenanceOn(Boolean(st.data.effective.maintenance));
+			setMaintenanceMsg(String(st.data.settings.maintenance_message ?? ""));
 			setOverrides(
 				((st.data.settings.page_section_overrides as Record<string, string>) ??
 					{}) as Record<string, string>,
@@ -195,6 +207,8 @@ export default function TeacherTutorPage() {
 	const saveSettings = async (payload: {
 		llm_model?: string;
 		page_section_overrides?: Record<string, string>;
+		maintenance?: boolean;
+		maintenance_message?: string;
 	}) => {
 		setMsg(null);
 		try {
@@ -203,7 +217,11 @@ export default function TeacherTutorPage() {
 				payload,
 			);
 			setMsg(
-				`保存しました（現在のモデル: ${res.data.effective_model}）。再起動は不要です。`,
+				payload.maintenance !== undefined
+					? payload.maintenance
+						? "メンテナンス表示を開始しました。学生には「メンテナンス中」と表示され、質問できなくなります。"
+						: "メンテナンス表示を解除しました。"
+					: `保存しました（現在のモデル: ${res.data.effective_model}）。再起動は不要です。`,
 			);
 			await load();
 		} catch (e: unknown) {
@@ -657,6 +675,82 @@ export default function TeacherTutorPage() {
 								env（<code>tutor/.env</code> の{" "}
 								<code>ANTHROPIC_DEFAULT_SONNET_MODEL</code>
 								）は起動時の既定値。ここで保存した値が優先されます。
+							</p>
+						</CardContent>
+					</Card>
+
+					<Card className="mt-4">
+						<CardHeader className="py-3">
+							<CardTitle className="text-base">メンテナンス表示</CardTitle>
+							<CardDescription>
+								学内の AI
+								サーバー（LLM）の計画停止などのとき、学生に「メンテナンス中」と表示して質問を止めます（管理者のみ）。
+								<strong>
+									AI サーバーに繋がらないときは、自動で同じ表示になります
+								</strong>
+								（復旧も自動で検知します）。ここは、繋がっていても止めたいとき用です。
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-3 pt-0 text-sm">
+							<div>
+								<div className="text-xs text-muted-foreground">
+									AI サーバーの状態
+								</div>
+								<div className="font-mono">
+									{settings?.effective.maintenance
+										? "手動のメンテナンス中"
+										: settings?.effective.llm_status?.state === "down"
+											? `繋がりません（自動検知: ${settings.effective.llm_status.reason ?? "—"}）`
+											: settings?.effective.llm_status?.state === "ok"
+												? "正常"
+												: "未確認（学生の最初の質問か、次の確認で判定されます）"}
+								</div>
+							</div>
+							<div className="flex items-center gap-3">
+								<Switch
+									id={`${uid}-maintenance`}
+									checked={maintenanceOn}
+									onCheckedChange={setMaintenanceOn}
+									disabled={!isAdmin}
+								/>
+								<label htmlFor={`${uid}-maintenance`}>
+									手動でメンテナンス中にする
+								</label>
+							</div>
+							<div className="space-y-1">
+								<label
+									className="text-xs text-muted-foreground"
+									htmlFor={`${uid}-maintenance-msg`}
+								>
+									学生に見せる文面（空なら「AI
+									チューターは現在メンテナンス中です。しばらくしてからもう一度お試しください。」）
+								</label>
+								<Input
+									id={`${uid}-maintenance-msg`}
+									className="h-9"
+									maxLength={300}
+									placeholder="例: AI サーバーの点検のため、15:00〜16:00 は質問できません。"
+									value={maintenanceMsg}
+									onChange={(e) => setMaintenanceMsg(e.target.value)}
+									disabled={!isAdmin}
+								/>
+							</div>
+							<Button
+								size="sm"
+								onClick={() =>
+									saveSettings({
+										maintenance: maintenanceOn,
+										maintenance_message: maintenanceMsg.trim(),
+									})
+								}
+								disabled={!isAdmin}
+								title={isAdmin ? "" : "管理者のみ"}
+							>
+								<Save className="mr-1 h-4 w-4" />
+								保存する
+							</Button>
+							<p className="text-xs text-muted-foreground">
+								保存すると再起動なしで反映され、チューターを再起動しても保持されます。終わったら必ずオフにして保存してください。
 							</p>
 						</CardContent>
 					</Card>

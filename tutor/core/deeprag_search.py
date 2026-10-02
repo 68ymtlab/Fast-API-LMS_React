@@ -31,6 +31,7 @@ try:
 except ImportError:  # pragma: no cover
     SentenceTransformer = None  # type: ignore[assignment]
     CrossEncoder = None  # type: ignore[assignment]
+from llm_errors import abort_if_llm_down  # noqa: E402  [LMS port]
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import SparseVector
 from rank_bm25 import BM25Okapi
@@ -143,7 +144,26 @@ def _vllm_manager_token() -> str:
 
 VLLM_MANAGER_TOKEN = _vllm_manager_token()
 
-llm_client = OpenAI(base_url=f"{LLM_BASE_URL.rstrip('/')}/v1", api_key=LLM_API_KEY)
+# [LMS port] 既定（読み取り 600 秒・自動リトライ 2 回）だと、LLM が応答しないとき数分〜10 分待つ。
+# 待つ間ずっと DB のロック用接続とスレッドを握り、tutor 全体が止まる。早く見切る（回路遮断は app/llm_status.py）。
+LLM_CONNECT_TIMEOUT_SEC = float(os.environ.get("TUTOR_LLM_CONNECT_TIMEOUT_SEC", "5"))
+LLM_READ_TIMEOUT_SEC = float(os.environ.get("TUTOR_LLM_READ_TIMEOUT_SEC", "45"))   # ストリームの「次のデータが来るまで」
+EMBED_TIMEOUT_SEC = int(os.environ.get("TUTOR_EMBED_TIMEOUT_SEC", "20"))
+RERANK_TIMEOUT_SEC = int(os.environ.get("TUTOR_RERANK_TIMEOUT_SEC", "30"))
+
+
+def make_llm_client() -> OpenAI:
+    import httpx
+
+    return OpenAI(
+        base_url=f"{LLM_BASE_URL.rstrip('/')}/v1",
+        api_key=LLM_API_KEY,
+        timeout=httpx.Timeout(connect=LLM_CONNECT_TIMEOUT_SEC, read=LLM_READ_TIMEOUT_SEC, write=10.0, pool=5.0),
+        max_retries=0,
+    )
+
+
+llm_client = make_llm_client()
 
 
 def _http_json_post(url: str, payload: dict, headers: dict | None = None, timeout: int = 120) -> dict:
@@ -767,7 +787,7 @@ class DeepRAGSearcher:
                     "encoding_format": "float",
                 },
                 headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-                timeout=120,
+                timeout=EMBED_TIMEOUT_SEC,
             )
             vec = np.asarray(data["data"][0]["embedding"], dtype=np.float32)
         else:
@@ -937,7 +957,7 @@ class DeepRAGSearcher:
             last_err = None
             for url, headers in endpoints:
                 try:
-                    data = _http_json_post(url, payload, headers=headers, timeout=120)
+                    data = _http_json_post(url, payload, headers=headers, timeout=RERANK_TIMEOUT_SEC)
                     results = data.get("results") or []
                     scored = [
                         (id_order[int(r["index"])], float(r["relevance_score"]))
@@ -1122,7 +1142,8 @@ class DeepRAGSearcher:
                 arr = json.loads(m.group(0))
                 out = [str(x).strip() for x in arr if str(x).strip()]
                 out = out[:max_subs]
-        except Exception:
+        except Exception as _exc:
+            abort_if_llm_down(_exc)   # [LMS port] LLM が使えないなら、握りつぶさず質問を打ち切る
             out = []
 
         if len(out) >= 2:
@@ -1844,6 +1865,7 @@ class DeepRAGSearcher:
 
             return full_text
         except Exception as e:
+            abort_if_llm_down(e)   # [LMS port] 「[エラー] ...」を学生への返答にしない
             return f"[エラー] 回答生成に失敗しました: {e}"
 
     # ============================================================
@@ -1932,6 +1954,7 @@ class DeepRAGSearcher:
             except json.JSONDecodeError:
                 return {'root': query, 'children': [{'query': query, 'leaf': True}]}
         except Exception as e:
+            abort_if_llm_down(e)   # [LMS port]
             print(f"  [警告] クエリ分解に失敗: {e}")
             print(f"  [警告] LLM出力: {full_text[:200]}")
             return {'root': query, 'children': [{'query': query, 'leaf': True}]}
@@ -2211,6 +2234,7 @@ class DeepRAGSearcher:
             print(f"  [警告] LLM出力: {full_text[:200]}")
             return _parse_evidence_from_text(full_text)
         except Exception as e:
+            abort_if_llm_down(e)   # [LMS port]
             print(f"  [警告] 証拠評価に失敗: {e}")
             return {
                 'completeness': 0.0,

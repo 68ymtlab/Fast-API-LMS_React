@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings
+from api.core.tutor_errors import MAINTENANCE_MESSAGE, STARTING_MESSAGE, TutorServiceError
 from api.core.security import get_current_active_user, require_admin, require_teacher_or_higher
 from api.db.session import get_db
 from api.models import adaptive_model, courses_model, exercises_model, lessons_model, questions_model
@@ -90,33 +91,42 @@ def _headers(user: Users) -> dict[str, str]:
     return h
 
 
+def _error_from_response(status_code: int, body: Any) -> TutorServiceError:
+    """tutor サービスのエラー応答を、種類（code）つきのエラーにする。tutor が code を付けていれば、それを引き継ぐ。"""
+    data = body if isinstance(body, dict) else {}
+    code = data.get("code")
+    detail = data.get("detail") if isinstance(data.get("detail"), str) else None
+    extra = {k: data[k] for k in ("state", "retry_after_sec") if k in data}
+    if code == "llm_unavailable":
+        # 学内の AI サーバー（LLM）に繋がらない・手動のメンテナンス中。tutor が学生向けの文面を持っている
+        return TutorServiceError(503, detail or MAINTENANCE_MESSAGE, "llm_unavailable", extra,
+                                 headers={"Retry-After": str(data.get("retry_after_sec", 30))})
+    if status_code == 503 and code is None:
+        # code の無い 503 = tutor がまだ初期化中
+        return TutorServiceError(503, STARTING_MESSAGE, "starting")
+    return TutorServiceError(status_code, detail or "チューターでエラーが発生しました。", code or "error", extra)
+
+
 async def _forward(method: str, path: str, user: Users, json: Any = None) -> Any:
     url = f"{settings.TUTOR_SERVICE_URL.rstrip('/')}{path}"
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             res = await client.request(method, url, json=json, headers=_headers(user))
     except httpx.TimeoutException:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="チューターの応答がタイムアウトしました。しばらくしてから再度お試しください。",
+        raise TutorServiceError(
+            status.HTTP_504_GATEWAY_TIMEOUT,
+            "チューターの応答がタイムアウトしました。しばらくしてから再度お試しください。",
+            "timeout",
         )
     except httpx.HTTPError:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="チューターサービスに接続できません。",
-        )
-    if res.status_code == 503:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="チューターを準備中です。少し待ってから再度お試しください。",
-        )
+        # tutor サービス自体に繋がらない（コンテナが止まっている・再起動中など）
+        raise TutorServiceError(status.HTTP_502_BAD_GATEWAY, MAINTENANCE_MESSAGE, "tutor_unavailable")
     if res.status_code >= 400:
-        detail: Any = None
         try:
-            detail = res.json().get("detail")
+            body = res.json()
         except Exception:
-            detail = None
-        raise HTTPException(status_code=res.status_code, detail=detail or "チューターでエラーが発生しました。")
+            body = None
+        raise _error_from_response(res.status_code, body)
     return res.json()
 
 
@@ -546,6 +556,9 @@ async def tutor_admin_settings_get():
 class TutorSettingsRequest(BaseModel):
     llm_model: Optional[str] = Field(default=None, max_length=200)
     page_section_overrides: Optional[dict[str, str]] = None
+    # 手動のメンテナンス（学内の AI サーバーの計画停止など）。True の間、学生には「メンテナンス中」と表示される
+    maintenance: Optional[bool] = None
+    maintenance_message: Optional[str] = Field(default=None, max_length=300)   # 学生に見せる文面（空なら既定）
 
 
 @tutor_router.put("/admin/settings")
@@ -558,15 +571,26 @@ async def tutor_admin_settings_put(body: TutorSettingsRequest, current_user: Use
 
 @tutor_router.get("/health")
 async def tutor_health(current_user: Users = Depends(get_current_active_user)):
-    """チューターサービスの生存確認（ログインユーザーのみ）。"""
+    """チューターの状態（ログインユーザーのみ）。フロントエンドが「メンテナンス中」の表示を出すのに使う。
+
+    常に HTTP 200 で、`llm` に状態を入れて返す（tutor サービスや LLM が落ちていても、画面側が判定できるように）:
+      llm.ok=false のとき、llm.state は down（LLM に繋がらない）/ maintenance（手動のメンテナンス）/
+      tutor_down（tutor サービスに繋がらない）/ starting（起動中）。llm.message が学生向けの文面。
+    """
     url = f"{settings.TUTOR_SERVICE_URL.rstrip('/')}/health"
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+        # tutor が LLM の疎通確認（最大3秒）をすることがあるので、余裕を持たせる
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
             res = await client.get(url)
         body = res.json() if res.status_code == 200 else {}
-        return {"ok": bool(body.get("ok")), "service": "tutor"}
-    except httpx.HTTPError:
-        return {"ok": False, "service": "tutor"}
+    except (httpx.HTTPError, ValueError):
+        return {"ok": False, "service": "tutor",
+                "llm": {"ok": False, "state": "tutor_down", "message": MAINTENANCE_MESSAGE, "retry_after_sec": 30}}
+    if not body.get("ok"):
+        return {"ok": False, "service": "tutor",
+                "llm": {"ok": False, "state": "starting", "message": STARTING_MESSAGE, "retry_after_sec": 15}}
+    llm = body.get("llm") if isinstance(body.get("llm"), dict) else {"ok": True, "state": "unknown"}
+    return {"ok": True, "service": "tutor", "llm": llm}
 
 
 @tutor_router.post("/message", response_model=TutorMessageResponse)
