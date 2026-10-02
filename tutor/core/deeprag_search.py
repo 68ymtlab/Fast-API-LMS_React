@@ -1113,7 +1113,9 @@ class DeepRAGSearcher:
         return "textbook"
 
     @staticmethod
-    def extra_knowledge_banner(knowledge_mode):
+    def extra_knowledge_banner(knowledge_mode, coverage=None):
+        if knowledge_mode == "extra" and coverage == "not_covered":
+            return "【お知らせ】この内容は教科書に載っていないため、一般的な知識で説明します。"
         if knowledge_mode == "extra":
             return (
                 "【お知らせ】この内容は教科書の該当箇所が薄い／見つかりにくいため、"
@@ -1481,9 +1483,21 @@ class DeepRAGSearcher:
             result["context"] = (result.get("context") or "") + "\n" + develop_block
             result["develop_direction"] = develop_block
 
+        # [LMS port] 話題が教科書にあるかは planner（目次と照合）の判断を優先する。
+        # 語彙の重なりだけの判定は、「行列」などの共通語で教科書にない話題（SVD・フーリエ変換など）を
+        # 取りこぼし、逆に追質問（「もっとやさしく」）では教科書にある話題を取りこぼしていた。
+        # planner の判断が無い（失敗・旧経路）ときは従来の判定のまま。
+        coverage = (pedagogical_plan or {}).get("textbook_coverage")
+        if coverage == "covered":
+            result["knowledge_mode"] = "textbook"
+        elif coverage in ("partial", "not_covered"):
+            result["knowledge_mode"] = "extra"
+            if coverage == "not_covered":
+                result["citations"] = []   # 教科書に無い話題に、無関係な節を出典として出さない
+
         if generate_answer:
             km = result.get("knowledge_mode") or "textbook"
-            banner = "" if skip_banner else self.extra_knowledge_banner(km)
+            banner = "" if skip_banner else self.extra_knowledge_banner(km, coverage)
             gen_q = answer_query if answer_query is not None else query
             answer = self.generate_answer(
                 gen_q,
@@ -1817,13 +1831,22 @@ class DeepRAGSearcher:
             focus_block = ""
             last_exp_block = ""
             context_block = ""
-            no_retrieval_block = (
-                "\n## 今回は教材検索をしない応答\n"
-                "挨拶・雑談・数学の学習と無関係な発話。教科書の文脈は無い。システムプロンプトのルール11（次の一歩の提案）は適用しない。\n"
-                "線形代数チューターとして自然に、簡潔に（1〜3文）返す。挨拶には挨拶で返し、必要なら何を学びたいか軽く尋ねる。"
-                "一般的な質問には一般知識で答えてよい。数学の学習内容の詳しい説明が必要になりそうなら、そのまま質問してもらうよう促す。"
-                "教科書に書いてあるかのような言い方はしない。\n"
-            )
+            if pedagogical_plan.get("action") == "clarify":
+                no_retrieval_block = (
+                    "\n## 今回は聞き返す応答\n"
+                    "発話の対象（どの式・どの概念か）が、会話からも分からない。教科書検索も解説もしない。"
+                    "システムプロンプトのルール11（次の一歩の提案）は適用しない。\n"
+                    "何について知りたいかを、1〜2文でやさしく聞き返す。例えば「どの式ですか？」「どの概念が気になりますか？」。"
+                    "候補の列挙や、無関係な話題の提案はしない。\n"
+                )
+            else:
+                no_retrieval_block = (
+                    "\n## 今回は教材検索をしない応答\n"
+                    "挨拶・雑談・数学の学習と無関係な発話。教科書の文脈は無い。システムプロンプトのルール11（次の一歩の提案）は適用しない。\n"
+                    "線形代数チューターとして自然に、簡潔に（1〜3文）返す。挨拶には挨拶で返し、必要なら何を学びたいか軽く尋ねる。"
+                    "一般的な質問には一般知識で答えてよい。数学の学習内容の詳しい説明が必要になりそうなら、そのまま質問してもらうよう促す。"
+                    "教科書に書いてあるかのような言い方はしない。\n"
+                )
         else:
             context_block = f"\n## 教科書の文脈\n{context}\n"
             no_retrieval_block = ""
@@ -1834,7 +1857,8 @@ class DeepRAGSearcher:
             next_step_block = ""
         elif allow_next_step:
             next_step_block = (
-                "\n## 次の一歩\n今回は回答の最後に「次の一歩」の誘いを1文だけ添える（見出しは付けない）。\n"
+                "\n## 次の一歩\n今回は回答の最後に「次の一歩」の誘いを1文だけ添える（見出しは付けない）。"
+                "本文がすでに次に学ぶことの案内になっているときは、重ねて誘いを書かない。\n"
             )
         else:
             next_step_block = (

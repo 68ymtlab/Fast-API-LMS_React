@@ -27,6 +27,7 @@ def candidate_plan(**overrides):
         "schema_version": "2",
         "math_related": True,
         "suggest_next_step": False,
+        "textbook_coverage": "covered",
         "intent": ["concept_question"],
         "target_concepts": ["固有値"],
         "action": "answer",
@@ -236,6 +237,47 @@ class PedagogicalPlannerTests(unittest.TestCase):
         self.assertEqual(_strip_next_step_tail(body + "\n\nここまで掴めたら、次は行列式を見ると繋がりますよ。"), body)
         mid = "「次に学ぶと良い概念」という言葉を含む説明です。\n\n続きの本文。"
         self.assertEqual(_strip_next_step_tail(mid), mid)
+
+    def _coverage_session(self, corpus_nodes):
+        searcher = _FakeSearcher()
+        searcher.graph = SimpleNamespace(nodes={i: n for i, n in enumerate(corpus_nodes)}, get_dependencies=lambda *a, **k: [])
+        return _make_session(searcher)
+
+    def test_coverage_is_confirmed_by_the_textbook_text(self):
+        session = self._coverage_session([{"section": "## 行列の対角化", "title": "固有値と固有ベクトル", "content": "固有値 λ"}])
+        # planner が partial でも、概念が教科書に実在すれば covered（誤った「教科書に無い」バナーを出さない）
+        plan = session._refine_textbook_coverage(candidate_plan(textbook_coverage="partial", target_concepts=["固有値"]))
+        self.assertEqual(plan["textbook_coverage"], "covered")
+        # 教科書に出てこない概念は、planner が partial でも not_covered
+        plan = session._refine_textbook_coverage(candidate_plan(textbook_coverage="partial", target_concepts=["ランク（階数）"]))
+        self.assertEqual(plan["textbook_coverage"], "not_covered")
+        self.assertEqual(plan["coverage_check"]["terms"], {"ランク": 0, "階数": 0})
+
+    def test_coverage_without_target_concepts_does_not_show_a_false_banner(self):
+        session = self._coverage_session([{"section": "s", "title": "t", "content": "c"}])
+        plan = session._refine_textbook_coverage(candidate_plan(textbook_coverage="partial", target_concepts=[]))
+        self.assertEqual(plan["textbook_coverage"], "covered")
+
+    def test_not_covered_is_overridden_only_when_the_text_clearly_has_the_concept(self):
+        session = self._coverage_session([{"section": "転置", "title": "転置行列", "content": "転置 転置"}])
+        plan = session._refine_textbook_coverage(candidate_plan(textbook_coverage="not_covered", target_concepts=["転置"]))
+        self.assertEqual(plan["textbook_coverage"], "covered")
+
+    def test_clarify_without_context_asks_back_without_retrieval(self):
+        searcher = _FakeSearcher()
+        session = _make_session(searcher)
+        vague = candidate_plan(
+            math_related=True, intent=["clarification_request"], action="clarify", source_scope="no_retrieval",
+            target_concepts=[], retrieval={"queries": [], "prerequisite_concepts": []},
+        )
+        session._make_pedagogical_plan = lambda text: validate_and_normalize_plan(
+            vague, text=text, page_context=None, learner_evidence=[]
+        )
+        turn = session.handle_turn("どういうこと？")
+        self.assertEqual(searcher.search_calls, [])
+        self.assertEqual(turn["reply"], "自然な応答")
+        self.assertEqual(turn["citations"], [])
+        self.assertEqual(turn["banner"], "")
 
     def test_off_topic_never_suggests_next_step(self):
         plan = validate_and_normalize_plan(

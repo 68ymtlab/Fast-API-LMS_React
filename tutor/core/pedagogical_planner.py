@@ -69,6 +69,9 @@ class PedagogicalPlan(_StrictModel):
     math_related: bool
     # 回答の最後に「次の一歩」（次に学ぶと良い概念の誘い）を添えるか。必要なときだけ true にする
     suggest_next_step: bool
+    # 話題が教科書（textbook_toc＝目次）でどれだけ扱われているか。covered=目次の節で扱っている /
+    # partial=関連する節はあるが直接は扱っていない / not_covered=教科書にない（SVD・フーリエ変換など）
+    textbook_coverage: Literal["covered", "partial", "not_covered"]
     intent: list[Intent] = Field(min_length=1, max_length=3)
     target_concepts: list[str] = Field(max_length=4)
     action: Action
@@ -107,8 +110,18 @@ PLANNER_SYSTEM_PROMPT = """あなたは学習対話の教育プランナーで�
 - suggest_next_step: 回答の最後に「次の一歩」（次に学ぶと良い概念の誘い）を添えるか。毎回は付けない。必要なときだけ true。
   true にするのは次のいずれか: 学生が次に何をすればよいか・何を学べばよいかを尋ねている（study_advice や「次どうすれば」）／
   ひとまとまりの概念の説明が完結し、学習の流れとして次の概念へ進む案内が学生の役に立つ。
+  本文がすでに「次に何を学ぶとよいか」の案内になっているときは、末尾に重ねて誘いを書かない。
   false にする（既定）: 用語の定義だけの質問、追質問・言い直し（もっとやさしく等）、混乱している最中、問題解決の途中、
   短く答えれば足りる質問、math_related が false の発話。
+- textbook_coverage: 入力の textbook_toc（この教科書の節の一覧）と照らして、話題が教科書で扱われているかを判断する。
+  covered=目次の節が直接扱っている／partial=関連する節はあるが、その話題自体は載っていない／not_covered=教科書に無い。
+  目次に無い用語（例: ランク・トレース・LU分解・特異値分解・ジョルダン標準形・フーリエ変換・確率・微分方程式）は、
+  似た節があっても、その話題自体が載っていなければ partial か not_covered にする。
+  追質問（「もっとやさしく」「それってどういう意味？」）は、直前の話題で判断する。math_related が false なら not_covered。
+- 対象が分からない発話の扱い: 開いているページも直近の会話も手がかりが無く、何について聞いているか分からない発話
+  （「どういうこと？」「この式がわからない」など）は、action=clarify、source_scope=no_retrieval にする（検索せず、何について知りたいかを聞き返す）。
+  「この式がわからない」「どういうこと？」「これ教えて」のように、指示語だけで対象が無い発話は、教科書の話題ではなく聞き返しの対象（textbook_coverage は not_covered で構わない）。
+  ページや直近の会話から対象が分かるなら clarify にしない。
 - 概念の素朴な質問には原則 answer を選び、診断を先に強制しない。
 - 診断は、その結果で次の教え方が実質的に変わり、質問だけでは回答を進められない場合に限る。学生が明示的に診断を求めた場合は診断を選んでよい。
 - 開いているページが入力にある場合、「この式」「ここ」等はそのページと直近の会話を参照する。ページに関係する質問では active_page_first を選ぶ。
@@ -182,6 +195,7 @@ def build_planner_input(
     learner_state: dict[str, Any] | None,
     learner_evidence: list[dict[str, Any]] | None,
     evidence_selection: dict[str, Any] | None = None,
+    textbook_toc: list[str] | None = None,
 ) -> str:
     """Build a bounded, ID-safe planner input. The page is request-scoped."""
     page = None
@@ -222,6 +236,7 @@ def build_planner_input(
             "understanding_level": str(state.get("understanding_level") or "unknown"),
             "note": "これは弱い会話内推定であり、確認済み習熟度ではない。topic_keyが一致するときだけ参考にする。",
         } if state else None,
+        "textbook_toc": [str(title)[:80] for title in (textbook_toc or [])[:80]],
         "learner_evidence_candidates": evidence,
         "evidence_selection": {
             "candidate_count": int((evidence_selection or {}).get("candidate_count") or 0),
@@ -255,6 +270,7 @@ def validate_and_normalize_plan(
         plan["page_relation"] = "no_open_page" if not active_page else plan["page_relation"]
         plan["diagnostic"] = {"needed": False, "target": None, "reason": "off_topic_no_diagnosis"}
         plan["suggest_next_step"] = False
+        plan["textbook_coverage"] = "not_covered"
         plan["retrieval"] = {"queries": [], "prerequisite_concepts": []}
     else:
         plan["page_relation"] = relation
@@ -300,7 +316,13 @@ def validate_and_normalize_plan(
                 )
                 else "rag"
             )
-        if plan["source_scope"] == "no_retrieval":
+        if plan["action"] == "clarify" and active_page:
+            # ページがあるなら、聞き返さずページを根拠に答える
+            plan["action"] = "answer"
+        if plan["action"] == "clarify" and plan["source_scope"] == "no_retrieval":
+            # 対象が分からない発話は、検索せずに聞き返す（無関係な節を並べて答えない）
+            plan["retrieval"] = {"queries": [], "prerequisite_concepts": []}
+        elif plan["source_scope"] == "no_retrieval":
             # Non-social academic answers must pass through evidence retrieval.
             plan["source_scope"] = (
                 "active_page_first"
@@ -511,6 +533,7 @@ def fallback_plan(
         "schema_version": PLANNER_SCHEMA_VERSION,
         "math_related": not social,
         "suggest_next_step": False,
+        "textbook_coverage": None,   # 判断できない（検索の語彙接地による従来の判定に任せる）
         "intent": intent,
         "target_concepts": [],
         "action": action,

@@ -1051,6 +1051,69 @@ class TutorSession:
         except Exception as _exc:  # noqa: BLE001  推定は補助。失敗しても対話は続ける（ただし LLM が使えないなら打ち切る）
             abort_if_llm_down(_exc)   # [LMS port]
 
+    def _textbook_toc(self) -> list[str]:
+        """教科書の目次（知識グラフの節の一覧）。planner が「話題が教科書にあるか」を判断するのに使う。"""
+        cached = getattr(self.searcher, "_toc_cache", None)
+        if cached is None:
+            nodes = getattr(getattr(self.searcher, "graph", None), "nodes", None) or {}
+            seen: dict[str, None] = {}
+            for node in nodes.values():
+                section = str((node or {}).get("section") or "").lstrip("# ").strip()
+                if section:
+                    seen.setdefault(section, None)
+            cached = list(seen)
+            try:
+                self.searcher._toc_cache = cached
+            except Exception:
+                pass
+        return cached
+
+    def _textbook_corpus(self) -> str:
+        """教科書の本文（知識グラフの全エンティティの節名・題・本文）。話題が教科書に実在するかの確認に使う。"""
+        cached = getattr(self.searcher, "_corpus_cache", None)
+        if cached is None:
+            nodes = getattr(getattr(self.searcher, "graph", None), "nodes", None) or {}
+            cached = "\n".join(
+                " ".join(str((node or {}).get(key) or "") for key in ("section", "title", "content"))
+                for node in nodes.values()
+            )
+            try:
+                self.searcher._corpus_cache = cached
+            except Exception:
+                pass
+        return cached
+
+    def _refine_textbook_coverage(self, plan: dict[str, Any]) -> dict[str, Any]:
+        """planner の textbook_coverage を、教科書の本文に概念が実在するかで確かめる。
+
+        目次（節の題）だけでは、節の中身（例: 固有値は「行列の対角化」の中）が分からず、planner は
+        教科書にある話題も partial にしがち。逆に、ランクのように教科書に無い話題は本文に1回も出てこない。
+        そこで planner が挙げた対象概念（target_concepts）が本文に出てくる回数で、covered / not_covered を確定する。
+        対象概念が無い発話（追質問など）は確認できないので、partial は covered として扱う（誤ったバナーを出さない）。
+        """
+        coverage = plan.get("textbook_coverage")
+        if coverage not in ("covered", "partial", "not_covered") or plan.get("source_scope") == "no_retrieval":
+            return plan
+        corpus = self._textbook_corpus()
+        terms: list[str] = []
+        for concept in plan.get("target_concepts") or []:
+            for part in re.split(r"[（）()・／/,、，\s]+", str(concept)):
+                part = part.strip()
+                if len(part) >= 2 and part not in terms:
+                    terms.append(part)
+        hits = {term: corpus.count(term) for term in terms} if corpus else {}
+        best = max(hits.values(), default=0)
+        basis = {"planner": coverage, "terms": hits}
+        if not terms or not corpus:
+            final = "covered" if coverage == "partial" else coverage
+        elif coverage == "not_covered":
+            final = "covered" if best >= 3 else "not_covered"
+        else:   # covered / partial
+            final = "covered" if best >= 1 else "not_covered"
+        plan["textbook_coverage"] = final
+        plan["coverage_check"] = {**basis, "final": final}
+        return plan
+
     def _make_pedagogical_plan(self, text: str) -> dict[str, Any]:
         """Run the structured planner and fail safely to an answer-first plan."""
         from time import monotonic
@@ -1112,8 +1175,9 @@ class TutorSession:
                     learner_state=asdict(self.state.learner_state),
                     learner_evidence=evidence,
                     evidence_selection=self._evidence_selection,
+                    textbook_toc=self._textbook_toc(),
                 ),
-                max_tokens=getattr(self, "planner_max_tokens", 700),
+                max_tokens=getattr(self, "planner_max_tokens", 900),
                 temperature=0.1,
                 response_format=planner_prompt_schema(),
             )
@@ -1124,6 +1188,7 @@ class TutorSession:
                 learner_evidence=evidence,
                 evidence_selection=self._evidence_selection,
             )
+            plan = self._refine_textbook_coverage(plan)
             status = "ok"
         except Exception as exc:  # Planner is advisory; a failure must not stop tutoring.
             # [LMS port] プランナーは補助で、短いタイムアウトで安全な計画に切り替える設計。タイムアウトでは打ち切らない。
@@ -1271,6 +1336,18 @@ class TutorSession:
         if plan.get("action") == "clarify":
             if self.state.last_explanation:
                 return self._start_clarify(text)
+            if not self.page_context:
+                # 対象が分からない発話（直前の説明もページも無い）。検索せず、何について知りたいかを LLM が聞き返す。
+                self.state.phase = "idle"
+                self.state.last_turn_class = "meta"
+                self.state.viz_last = None
+                return self._compose_answer(
+                    text,
+                    turn_class="meta",
+                    explain_mode="first",
+                    reuse_retrieval=False,
+                    plan={**plan, "source_scope": "no_retrieval", "action": "clarify"},
+                )
             # A page is evidence that can help answer; its presence alone is not a
             # reason to ask the learner for more information.
             plan["action"] = "answer"
@@ -1496,7 +1573,9 @@ class TutorSession:
             self.state.last_retrieval_query = ""
             self.state.retrieval_path = "planner:no_retrieval"
             # 挨拶は textbook のまま（「教科書の穴」の集計に混ぜない）。数学と無関係な話題は教科書外の知識として extra（バナーは出さない）
-            self.state.knowledge_mode = "textbook" if "social" in set(plan.get("intent") or []) else "extra"
+            self.state.knowledge_mode = (
+                "textbook" if ("social" in set(plan.get("intent") or []) or plan.get("action") == "clarify") else "extra"
+            )
             self.state.last_banner = ""
         elif reuse_retrieval and self.state.last_context and self.state.last_results:
             # 再利用: 再検索せず前回 context で生成
