@@ -2,6 +2,7 @@
 
 import {
 	Book,
+	Bot,
 	ClipboardList,
 	FileType,
 	Home,
@@ -46,6 +47,11 @@ const sidebarGroups: SidebarGroups[] = [
 				title: "演習問題ログ",
 				url: "/admin/flow-log",
 				icon: FileType,
+			},
+			{
+				title: "AIチューター分析",
+				url: "/t/tutor",
+				icon: Bot,
 			},
 		],
 	},

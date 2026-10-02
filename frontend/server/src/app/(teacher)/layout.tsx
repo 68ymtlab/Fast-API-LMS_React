@@ -94,6 +94,7 @@ const adminSidebarGroups: SidebarGroups[] = [
 			{ title: "ログイン履歴", url: "/admin/login-history", icon: LogIn },
 			{ title: "ユーザー管理", url: "/admin/users", icon: Users },
 			{ title: "演習問題ログ", url: "/admin/flow-log", icon: FileType },
+			{ title: "AIチューター分析", url: "/t/tutor", icon: Bot },
 		],
 	},
 	{
@@ -102,7 +103,6 @@ const adminSidebarGroups: SidebarGroups[] = [
 			{ title: "科目", url: "/t/home", icon: Book },
 			{ title: "お知らせ管理", url: "/t/announcements", icon: Megaphone },
 			{ title: "演習問題管理", url: "/t/exercises", icon: ClipboardList },
-			{ title: "AIチューター分析", url: "/t/tutor", icon: Bot },
 			{ title: "ユーザー登録", url: "/t/users/add", icon: Users },
 		],
 	},
