@@ -101,6 +101,10 @@ def _error_from_response(status_code: int, body: Any) -> TutorServiceError:
         # 学内の AI サーバー（LLM）に繋がらない・手動のメンテナンス中。tutor が学生向けの文面を持っている
         return TutorServiceError(503, detail or MAINTENANCE_MESSAGE, "llm_unavailable", extra,
                                  headers={"Retry-After": str(data.get("retry_after_sec", 30))})
+    if code == "overloaded":
+        # LLM サーバーが混み合っている（落ちてはいない）。待てばよいので、メンテナンス表示にはしない
+        return TutorServiceError(503, detail or "AIチューターが混み合っています。少し待ってからもう一度お試しください。", "overloaded", extra,
+                                 headers={"Retry-After": str(data.get("retry_after_sec", 20))})
     if status_code == 503 and code is None:
         # code の無い 503 = tutor がまだ初期化中
         return TutorServiceError(503, STARTING_MESSAGE, "starting")
@@ -485,15 +489,17 @@ async def tutor_feedback(body: TutorFeedbackRequest, current_user: Users = Depen
 
 
 # ---- 教員ビュー（集計・品質・対応表・設定） ----
-async def _forward_service(method: str, path: str, json: Any = None, user: Optional[Users] = None) -> Any:
+async def _forward_service(method: str, path: str, json: Any = None, user: Optional[Users] = None, timeout: float = 30.0) -> Any:
     """学生 ID を伴わない管理系の中継。"""
     url = f"{settings.TUTOR_SERVICE_URL.rstrip('/')}{path}"
     headers = {"X-Tutor-Token": settings.TUTOR_SERVICE_TOKEN} if settings.TUTOR_SERVICE_TOKEN else {}
     if user is not None:
         headers["X-Student-Id"] = str(user.id)
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
             res = await client.request(method, url, json=json, headers=headers)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail="チューターサービスの応答がタイムアウトしました。")
     except httpx.HTTPError:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="チューターサービスに接続できません。")
     if res.status_code >= 400:
@@ -550,7 +556,19 @@ async def tutor_admin_sections(course_id: Optional[int] = None, db: AsyncSession
 async def tutor_admin_settings_get():
     s = await _forward_service("GET", "/admin/settings")
     m = await _forward_service("GET", "/admin/models")
-    return {**s, "models": m.get("models", []), "models_source": m.get("source"), "models_error": m.get("error")}
+    # model_items: 起動中のモデルの一覧（[{id, state: running/stopped/unknown/alias, note}]）。models は id だけの旧形式（互換用）
+    return {**s, "models": m.get("models", []), "model_items": m.get("items", []),
+            "models_source": m.get("source"), "models_error": m.get("error")}
+
+
+class TutorModelTestRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=200)
+
+
+@tutor_router.post("/admin/models/test", dependencies=[Depends(require_admin)])
+async def tutor_admin_models_test(body: TutorModelTestRequest):
+    """選んだモデルで短い質問を1回行い、使えるかを確かめる（保存の前に試せる。管理者のみ）。"""
+    return await _forward_service("POST", "/admin/models/test", json={"model": body.model.strip()}, timeout=75.0)
 
 
 class TutorSettingsRequest(BaseModel):

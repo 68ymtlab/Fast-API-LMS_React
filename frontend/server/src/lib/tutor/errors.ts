@@ -2,7 +2,7 @@
 // backend のエラー応答: { detail: string, code?: string, state?: string, retry_after_sec?: number }（api/core/tutor_errors.py）
 // テスト: errors.test.mts（node --experimental-strip-types --test）
 
-export type TutorErrorKind = "maintenance" | "busy" | "generic";
+export type TutorErrorKind = "maintenance" | "busy" | "overloaded" | "generic";
 
 export type TutorErrorInfo = {
 	kind: TutorErrorKind;
@@ -57,6 +57,15 @@ export function parseTutorError(
 			message: detail ?? DEFAULT_MAINTENANCE_MESSAGE,
 			code,
 			retryAfterSec: retry ?? DEFAULT_RETRY_SEC,
+		};
+	}
+	if (code === "overloaded") {
+		// 混み合っている（AI サーバーは動いている）。メンテナンス表示にはせず、少し待って再送してもらう
+		return {
+			kind: "overloaded",
+			message: detail ?? fallbackMessage,
+			code,
+			retryAfterSec: retry ?? 20,
 		};
 	}
 	if (code === "busy" || res?.status === 429) {

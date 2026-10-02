@@ -1127,14 +1127,20 @@ class DeepRAGSearcher:
         )
         out: list[str] = []
         try:
-            response = llm_client.chat.completions.create(
+            # [LMS port] ストリームで呼ぶ（他の呼び出しと同じ）。vllm-manager の経路は非ストリームだと 500 になることがある
+            stream = llm_client.chat.completions.create(
                 model=LLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=256,
+                stream=True,
                 extra_body=LLM_EXTRA_BODY,
             )
-            text = (response.choices[0].message.content or "").strip()
+            parts: list[str] = []
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    parts.append(chunk.choices[0].delta.content)
+            text = "".join(parts).strip()
             text = _strip_thinking_process(text)
             import re
             m = re.search(r"\[.*?\]", text, re.S)

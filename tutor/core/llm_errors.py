@@ -85,6 +85,27 @@ def is_timeout(exc: BaseException) -> bool:
     return False
 
 
+def is_overload_signal(exc: BaseException) -> bool:
+    """「サーバーが落ちている」のではなく「混み合っている（処理が追いつかない）」可能性を示す失敗か。
+
+    タイムアウト（応答が遅い）と 429（混雑）。LLM サーバーは同時に処理できる数が少ない（例: 同時 2 リクエスト）ため、
+    人数が増えると応答が遅れる。そのとき全員に「メンテナンス中」と出さないよう、疎通確認が通れば「混雑」として扱う
+    （app/main.py の llm_guard）。接続できない・サーバーのエラー（5xx）は、混雑ではなく故障として扱う。
+    """
+    if is_timeout(exc):
+        return True
+    for e in _chain(exc):
+        if openai is not None and isinstance(e, openai.RateLimitError):
+            return True
+        if isinstance(e, urllib.error.HTTPError) and e.code == 429:
+            return True
+        if isinstance(e, RuntimeError):
+            m = _HTTP_STATUS_RE.search(str(e))
+            if m and int(m.group(1)) == 429:
+                return True
+    return False
+
+
 def abort_if_llm_down(exc: BaseException, *, ignore_timeouts: bool = False) -> None:
     """`except Exception as e:` の先頭で呼ぶ。LLM が使えない原因なら、握りつぶさずに質問全体を打ち切る。
 

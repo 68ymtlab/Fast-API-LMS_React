@@ -540,6 +540,15 @@ export function TutorChat({
 						message: info.message,
 						retryAfterSec: info.retryAfterSec ?? 30,
 					});
+				} else if (info.kind === "overloaded") {
+					// 混み合っている（AI サーバーは動いている）。質問は消さずに入力欄へ戻し、少し待ってから送り直してもらう
+					setMessages((prev) =>
+						prev.length > 0 && prev[prev.length - 1].role === "student"
+							? prev.slice(0, -1)
+							: prev,
+					);
+					if (payload.text) setInput(payload.text);
+					setError(info.message);
 				} else {
 					setError(info.message);
 				}

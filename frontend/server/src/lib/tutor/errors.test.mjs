@@ -57,14 +57,32 @@ test("前の質問に回答中(busy / 429)は busy。メンテナンス表示に
 	assert.equal(parseTutorError(axiosError(429, {}), "x").kind, "busy");
 });
 
-test("混雑(overloaded)・タイムアウト・その他は generic で、サーバーの文面を出す", () => {
-	for (const code of ["overloaded", "timeout", "error"]) {
+test("混雑(overloaded)は overloaded（メンテナンス表示にしない）。待ち時間も渡す", () => {
+	const info = parseTutorError(
+		axiosError(503, {
+			detail: "混み合っています",
+			code: "overloaded",
+			retry_after_sec: 35,
+		}),
+		"x",
+	);
+	assert.equal(info.kind, "overloaded");
+	assert.equal(info.message, "混み合っています");
+	assert.equal(info.retryAfterSec, 35);
+	assert.equal(
+		parseTutorError(axiosError(503, { code: "overloaded" }), "x").retryAfterSec,
+		20,
+	);
+});
+
+test("タイムアウト・その他は generic で、サーバーの文面を出す", () => {
+	for (const code of ["timeout", "error"]) {
 		const info = parseTutorError(
-			axiosError(503, { detail: "混み合っています", code }),
+			axiosError(503, { detail: "失敗しました", code }),
 			"x",
 		);
 		assert.equal(info.kind, "generic", code);
-		assert.equal(info.message, "混み合っています");
+		assert.equal(info.message, "失敗しました");
 	}
 });
 

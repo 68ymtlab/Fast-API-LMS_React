@@ -164,6 +164,12 @@ class LLMStatus:
         else:
             self.record_failure(f"疎通確認に失敗: {reason}")
 
+    def probe_now(self) -> tuple[bool, str]:
+        """状態を変えずに、いま疎通確認する（失敗の原因が「故障」か「混雑」かの切り分け用）。確認方法が無ければ「不明=通った」扱い。"""
+        if self._probe_fn is None:
+            return (True, "確認方法なし")
+        return self._probe_fn()
+
     def snapshot(self, *, probe: bool = False) -> dict[str, Any]:
         if probe:
             self.refresh()

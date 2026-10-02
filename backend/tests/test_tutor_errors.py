@@ -57,6 +57,11 @@ class ErrorFromResponseTests(unittest.TestCase):
         e = tutor_router._error_from_response(503, {"detail": "混み合っています。", "code": "overloaded"})
         self.assertEqual((e.status_code, e.code), (503, "overloaded"))
 
+    def test_overloaded_keeps_retry_after(self):
+        e = tutor_router._error_from_response(503, {"detail": "混み合っています。", "code": "overloaded", "retry_after_sec": 35})
+        self.assertEqual(e.extra["retry_after_sec"], 35)
+        self.assertEqual(e.headers["Retry-After"], "35")
+
     def test_unknown_error_is_generic(self):
         e = tutor_router._error_from_response(500, None)
         self.assertEqual((e.status_code, e.code), (500, "error"))
@@ -89,6 +94,39 @@ class ForwardTests(unittest.TestCase):
         with self.assertRaises(TutorServiceError) as cm:
             self.run_forward(slow)
         self.assertEqual((cm.exception.status_code, cm.exception.code), (504, "timeout"))
+
+
+class AdminModelsTests(unittest.TestCase):
+    def test_settings_get_merges_model_items(self):
+        def handler(request):
+            if request.url.path == "/admin/models":
+                return httpx.Response(200, json={"items": [{"id": "A", "state": "running", "note": ""}], "models": ["A"], "source": "manager", "error": None})
+            return httpx.Response(200, json={"settings": {}, "effective": {"llm_model": "A"}})
+        with _patch_transport(handler):
+            r = asyncio.run(tutor_router.tutor_admin_settings_get())
+        self.assertEqual(r["model_items"][0]["state"], "running")
+        self.assertEqual((r["models"], r["models_source"]), (["A"], "manager"))
+
+    def test_model_test_is_forwarded(self):
+        seen = {}
+
+        def handler(request):
+            seen["path"], seen["body"] = request.url.path, request.read()
+            return httpx.Response(200, json={"ok": True, "model": "A", "latency_sec": 1.2, "reply": "こんにちは"})
+        with _patch_transport(handler):
+            r = asyncio.run(tutor_router.tutor_admin_models_test(tutor_router.TutorModelTestRequest(model=" A ")))
+        self.assertTrue(r["ok"])
+        self.assertEqual(seen["path"], "/admin/models/test")
+        self.assertIn(b'"A"', seen["body"])
+
+    def test_model_test_timeout_is_504(self):
+        def slow(request):
+            raise httpx.ReadTimeout("slow")
+        from fastapi import HTTPException
+        with _patch_transport(slow):
+            with self.assertRaises(HTTPException) as cm:
+                asyncio.run(tutor_router.tutor_admin_models_test(tutor_router.TutorModelTestRequest(model="A")))
+        self.assertEqual(cm.exception.status_code, 504)
 
 
 class HealthTests(unittest.TestCase):

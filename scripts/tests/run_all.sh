@@ -35,6 +35,7 @@ if [ "$MODE" != "--fast" ]; then
     run "定期バックアップ（backup コンテナ。本物の docker / PostgreSQL）" sh "$HERE/test_periodic_backup.sh"
     run "誤ってコンテナ・ボリュームを消した事故からの復旧（本物の docker compose）" sh "$HERE/test_disaster_recovery.sh"
     run "LLM に繋がらないときの tutor（メンテナンス中の 503・早い見切り・自動復旧・手動切り替え）" sh "$HERE/test_tutor_llm_down.sh"
+    run "LLM が混み合っているときの tutor（混雑の表示・同時数の上限）と、管理画面のモデル一覧・接続テスト" sh "$HERE/test_tutor_overload.sh"
     run "nginx（X-Forwarded-For の上書き・本物の nginx）" sh "$HERE/test_nginx.sh"
 fi
 if [ "$MODE" != "--fast" ] && [ "$MODE" != "--no-heavy" ]; then
