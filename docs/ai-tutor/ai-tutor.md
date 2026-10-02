@@ -49,7 +49,7 @@ Fast-API-LMS_React/
 ├── frontend/server/src/router/router.ts        ← student/demo に "/tutor" 追加
 ├── frontend/server/src/app/(students)/layout.tsx ← サイドバーに「AIチューター」
 ├── docker-compose.yml / docker-compose.prod.yml  ← tutor サービス追加（prod は ports を閉じ data のみ ro マウント）
-└── docs/ai-tutor.md    ← このファイル
+└── docs/ai-tutor/ai-tutor.md    ← このファイル
 ```
 
 ## 通信・認証
@@ -93,14 +93,14 @@ Fast-API-LMS_React/
 > **やることリスト（引き継ぎ）: [`ai-tutor-handover.md`](ai-tutor-handover.md)** ／ **今後の方向性と問題作成の考察: [`ai-tutor-roadmap-and-problem-authoring.md`](ai-tutor-roadmap-and-problem-authoring.md)**
 >
 > 2026-08-23 追記: 会話の永続化（Postgres `tutor` スキーマ）・学生ごとの引き継ぎ・質問収集・教科書ページ連携は
-> [`docs/ai-tutor-data.md`](ai-tutor-data.md) に設計と実装をまとめた。下の TODO 5・6 はそちらで実施済み。
+> [`docs/ai-tutor/ai-tutor-data.md`](ai-tutor-data.md) に設計と実装をまとめた。下の TODO 5・6 はそちらで実施済み。
 
 > 現在は学生状態もPostgresを正本として要求ごとに復元する。選択中会話は `tutor.active_sessions` に保存し、同一学生の要求をPostgreSQL advisory lockで直列化する。本番composeでは永続化を必須にする。
 
 ## リリース前に残ること
 
 1. **ブラウザで `/tutor` を目視**（ログイン後）。MathJax の数式レンダリング、診断ボタン、出典の折りたたみ、図の表示
-2. **`tutor/.env` の本番値**（`ANTHROPIC_AUTH_TOKEN`, `VLLM_MANAGER_TOKEN`, `TUTOR_SERVICE_TOKEN` を backend 側と揃える）。`docs/runbook-secret-rotation.md` に追記
+2. **`tutor/.env` の本番値**（`ANTHROPIC_AUTH_TOKEN`, `VLLM_MANAGER_TOKEN`, `TUTOR_SERVICE_TOKEN` を backend 側と揃える）。`docs/ops/runbook-secret-rotation.md` に追記
 3. tutorを複数worker化する場合、プロセス内のRAG検索器とローカルQdrantの構成は別途確認する（学生状態の共有とは別の課題）
 4. セキュリティ・運用上のP0課題は [`ai-tutor-roadmap-and-problem-authoring.md`](ai-tutor-roadmap-and-problem-authoring.md) の現行項目を参照する
 

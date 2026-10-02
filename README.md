@@ -73,18 +73,21 @@ docker compose exec backend poetry run python scripts/seed_users.py
 `up --build`（`-v` を使わないのでデータは保持）を行います。バックアップは
 `db/backups/` に保存され、失敗時はデプロイを中止します。
 
-**詳しい手順は運用手順書を参照してください:**
+**詳しい手順は運用ドキュメントを参照してください（[docs/README.md](docs/README.md) に一覧）:**
 
-- 📘 [本番デプロイ手順書](docs/runbook-deploy.md) — デプロイ・バックアップ・復元・ロールバック
-- 🔐 [シークレット・ローテーション手順書](docs/runbook-secret-rotation.md) — `SECRET_KEY` 等の更新
-- 🌐 [Docker ネットワーク設定](docs/docker-network.md) — 教室 Wi-Fi との衝突回避
+- ✅ [デプロイチェックリスト](docs/ops/deploy-checklist.md) — 最新版を本番に出すときに人がやること（最初に読む）
+- 📘 [本番デプロイ手順書](docs/ops/runbook-deploy.md) — デプロイ・ロールバック・トラブルシュート
+- 💾 [バックアップ・復元手順書](docs/ops/backup-restore.md) — 定期バックアップ・別マシン保管・復元・復元テスト
+- 🔐 [シークレット・ローテーション手順書](docs/ops/runbook-secret-rotation.md) — `SECRET_KEY` 等の更新
+- 🌐 [Docker ネットワーク設定](docs/ops/docker-network.md) — 教室 Wi-Fi との衝突回避
+- 🤖 [AI チューター引き継ぎ](docs/ai-tutor/ai-tutor-handover.md) — チューターの本番投入と運用
 
 ### セキュリティ: 秘密情報の取り扱い
 
 - **`SECRET_KEY`・`DOCS_PASSWORD`・`NEXTAUTH_SECRET` は必ず環境ごとに新しい値を生成すること**
   （`openssl rand -hex 32`）。過去に `.env` 本体がコミットされていた時期があり、
   Git 履歴から旧値を参照できる。加えて一部は公開サンプル値のままなので、
-  本番では**必ず**交換する。手順は [シークレット・ローテーション手順書](docs/runbook-secret-rotation.md)。
+  本番では**必ず**交換する。手順は [シークレット・ローテーション手順書](docs/ops/runbook-secret-rotation.md)。
 - `SECRET_KEY` / `NEXTAUTH_SECRET` を変更すると発行済みの全トークン・セッションが無効になり、
   全ユーザーは再ログインが必要になる（漏洩トークンの一括失効として有効）。
 - `.env` を変更したら `restart` ではなく `up -d --force-recreate` で反映する
@@ -105,7 +108,7 @@ docker compose exec backend poetry run python scripts/seed_users.py
 
 ## トラブルシュート（依存関係エラー）
 
-以下のような症状が出た場合の復旧手順です。
+以下のような症状が出た場合の復旧手順です。**開発環境専用です（`down -v` で DB・アップロードが消えるため、本番では実行しないこと）。**
 
 - `Module not found: Can't resolve 'react-dom/client'`
 - `It looks like you're trying to use TypeScript...`

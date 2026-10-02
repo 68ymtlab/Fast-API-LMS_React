@@ -1,6 +1,6 @@
 # AI チューター — 会話の永続化・学生ごとの引き継ぎ・質問収集・教科書連携の設計
 
-作成: 2026-08-23 / ブランチ: `feature/ai-tutor` / 前提: [`docs/ai-tutor.md`](ai-tutor.md)（配置の考察）
+作成: 2026-08-23 / ブランチ: `feature/ai-tutor` / 前提: [`docs/ai-tutor/ai-tutor.md`](ai-tutor.md)（配置の考察）
 
 ---
 
@@ -17,11 +17,11 @@
 
 ## 置き場: LMS の Postgres に `tutor` スキーマ
 
-[`docs/ai-tutor.md`](ai-tutor.md) の推奨どおり、**DB コンテナは増やさず** LMS の `db`（Postgres 16）に `tutor` スキーマを作る。
+[`docs/ai-tutor/ai-tutor.md`](ai-tutor.md) の推奨どおり、**DB コンテナは増やさず** LMS の `db`（Postgres 16）に `tutor` スキーマを作る。
 
 - **所有者は tutor サービス**。`public` のテーブルには一切書かない。LMS backend は `tutor` を直接読まず、tutor サービスの `/admin/*` を経由する（教員権限の確認は backend 側）
 - `public.users` への外部キーは張らない（退会後も学習ログを残す／スキーマの独立性）。`student_id` は `users.id` の値
-- DDL は [`db/init/06-tutor-schema.sql`](../db/init/06-tutor-schema.sql)（新規 volume 用）と `tutor/app/store.py` の `DDL`（既存 volume 用に起動時 `IF NOT EXISTS` 適用）の二重管理。**両方を一致させる**
+- DDL は [`db/init/06-tutor-schema.sql`](../../db/init/06-tutor-schema.sql)（新規 volume 用）と `tutor/app/store.py` の `DDL`（既存 volume 用に起動時 `IF NOT EXISTS` 適用）の二重管理。**両方を一致させる**
 - 開発は `tutor/.env` の `TUTOR_DATABASE_URL` が空ならメモリのみ。本番composeでは永続化を必須にする
 - Postgres 有効時、学生ごとの `TutorSession` は要求ごとにDBから復元し、応答後に履歴・状態・プロフィールを同一トランザクションで保存する
 - `tutor.active_sessions` が学生ごとの選択中会話を保持し、PostgreSQL advisory lock で同じ学生への要求をプロセス／コンテナ間で直列化する

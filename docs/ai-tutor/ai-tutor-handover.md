@@ -20,11 +20,12 @@
 
 ## B. 本番に出す前（1 回だけ）
 
-1. [ ] **研究側から知識ベースを同期**（研究側ディレクトリが見えるマシンで）
+1. [ ] **知識ベース**（`tutor/data/stage4/`）は **git で管理している**（研究室のリポジトリ）ので、本番では `git pull` で揃う。
+   研究側で知識ベースを更新したときだけ、研究側ディレクトリが見えるマシンで同期し、**コミットして push** する:
    ```bash
    ./tutor/scripts/sync_from_agents.sh        # → tutor/data/stage4/{embeddings.json,knowledge_graph.json,qdrant_data/,SYNC_INFO.txt}
+   git add tutor/data && git commit -m "tutor: 知識ベースを更新" && git push
    ```
-   本番サーバーから `agents/workspace` が見えない場合は、同期済みの `tutor/data/stage4/` ごと scp 等でコピーする（git 管理外、約 30MB）
 2. [ ] **`tutor/.env` を作る**（`tutor/.env.example` から）。埋めるもの:
    - `ANTHROPIC_AUTH_TOKEN`（LiteLLM ゲートウェイ hinton:14000 のキー）
    - `VLLM_MANAGER_TOKEN`（リランカー hinton:18000）
