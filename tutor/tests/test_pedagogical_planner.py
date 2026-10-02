@@ -16,7 +16,7 @@ from pedagogical_planner import (  # noqa: E402
     is_social_only,
     validate_and_normalize_plan,
 )
-from deeprag_search import select_relevant_page_text  # noqa: E402
+from deeprag_search import _strip_next_step_tail, select_relevant_page_text  # noqa: E402
 from learner_evidence import select_relevant_learner_evidence  # noqa: E402
 import tutor_session as tutor_session_module  # noqa: E402
 from tutor_session import TutorSession  # noqa: E402
@@ -26,6 +26,7 @@ def candidate_plan(**overrides):
     plan = {
         "schema_version": "2",
         "math_related": True,
+        "suggest_next_step": False,
         "intent": ["concept_question"],
         "target_concepts": ["固有値"],
         "action": "answer",
@@ -228,6 +229,20 @@ class PedagogicalPlannerTests(unittest.TestCase):
         )
         self.assertEqual(plan["action"], "answer")
         self.assertEqual(plan["source_scope"], "rag")
+
+    def test_next_step_tail_is_stripped_only_at_the_end(self):
+        body = "固有値は方向を変えない数です。"
+        self.assertEqual(_strip_next_step_tail(body + "\n\n## 次に学ぶと良い概念\nここまで掴めたら、次は行列式を見ると繋がりますよ。"), body)
+        self.assertEqual(_strip_next_step_tail(body + "\n\nここまで掴めたら、次は行列式を見ると繋がりますよ。"), body)
+        mid = "「次に学ぶと良い概念」という言葉を含む説明です。\n\n続きの本文。"
+        self.assertEqual(_strip_next_step_tail(mid), mid)
+
+    def test_off_topic_never_suggests_next_step(self):
+        plan = validate_and_normalize_plan(
+            candidate_plan(math_related=False, suggest_next_step=True, intent=["social"]),
+            text="hello", page_context=None, learner_evidence=[],
+        )
+        self.assertFalse(plan["suggest_next_step"])
 
     def test_off_topic_question_is_answered_without_retrieval_and_marked_extra(self):
         searcher = _FakeSearcher()

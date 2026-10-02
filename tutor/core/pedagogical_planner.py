@@ -67,6 +67,8 @@ class PedagogicalPlan(_StrictModel):
     # （検索の強制・診断の抑制・ページ関連付けの補正）を適用する。False（挨拶・雑談・数学と無関係な話題）は
     # ルールで縛らず、LLM の計画のまま（検索なしで LLM が答える）にする
     math_related: bool
+    # 回答の最後に「次の一歩」（次に学ぶと良い概念の誘い）を添えるか。必要なときだけ true にする
+    suggest_next_step: bool
     intent: list[Intent] = Field(min_length=1, max_length=3)
     target_concepts: list[str] = Field(max_length=4)
     action: Action
@@ -96,9 +98,17 @@ PLANNER_SYSTEM_PROMPT = """あなたは学習対話の教育プランナーで�
 
 必須ルール:
 - 学生の今回の依頼を最優先し、短文という理由だけで診断しない。
-- math_related: 数学（線形代数など）の学習内容を説明・解説する必要がある発話なら true。挨拶・御礼・雑談・数学と無関係な質問・使い方の質問なら false。
+- math_related: 数学（線形代数に限らず、数学の用語・概念・計算・証明・記号・問題）に少しでも関わる発話は true。
+  用語だけの短い質問（「ランク」「行列式」「内積って？」）、曖昧で意味を聞き返したくなる質問、
+  「もっとやさしく」「具体例を」「それってどういう意味？」のような直前の説明への追質問、教科書に載っていなさそうな数学の話題（微分方程式など）も、すべて true。
+  false にしてよいのは、数学と明らかに無関係な発話だけ: 挨拶、御礼、雑談、天気や食事などの日常の話題、このシステムの使い方・できることの質問。
+  迷ったら必ず true（見逃すと、教科書の根拠なしに答えてしまうため）。
   false のときは教材検索をしない前提で、source_scope は no_retrieval、action は answer を選ぶ（LLM が検索なしで自然に答える）。
-  数学の学習内容を少しでも説明する必要があるなら true にする（迷ったら true）。
+- suggest_next_step: 回答の最後に「次の一歩」（次に学ぶと良い概念の誘い）を添えるか。毎回は付けない。必要なときだけ true。
+  true にするのは次のいずれか: 学生が次に何をすればよいか・何を学べばよいかを尋ねている（study_advice や「次どうすれば」）／
+  ひとまとまりの概念の説明が完結し、学習の流れとして次の概念へ進む案内が学生の役に立つ。
+  false にする（既定）: 用語の定義だけの質問、追質問・言い直し（もっとやさしく等）、混乱している最中、問題解決の途中、
+  短く答えれば足りる質問、math_related が false の発話。
 - 概念の素朴な質問には原則 answer を選び、診断を先に強制しない。
 - 診断は、その結果で次の教え方が実質的に変わり、質問だけでは回答を進められない場合に限る。学生が明示的に診断を求めた場合は診断を選んでよい。
 - 開いているページが入力にある場合、「この式」「ここ」等はそのページと直近の会話を参照する。ページに関係する質問では active_page_first を選ぶ。
@@ -244,6 +254,7 @@ def validate_and_normalize_plan(
         plan["source_scope"] = "no_retrieval"
         plan["page_relation"] = "no_open_page" if not active_page else plan["page_relation"]
         plan["diagnostic"] = {"needed": False, "target": None, "reason": "off_topic_no_diagnosis"}
+        plan["suggest_next_step"] = False
         plan["retrieval"] = {"queries": [], "prerequisite_concepts": []}
     else:
         plan["page_relation"] = relation
@@ -499,6 +510,7 @@ def fallback_plan(
     return {
         "schema_version": PLANNER_SCHEMA_VERSION,
         "math_related": not social,
+        "suggest_next_step": False,
         "intent": intent,
         "target_concepts": [],
         "action": action,

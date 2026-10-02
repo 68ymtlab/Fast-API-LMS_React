@@ -109,12 +109,10 @@ SYSTEM_PROMPT_BEGINNER_ADAPTIVE = """あなたは相手の理解度に合わせ�
 8. explain_mode=simplify → 直前の説明を一段やさしく言い直す。新しい高度な概念（行列式・基底・固有値など）を持ち込まない。
 9. explain_mode=style_shift → スタイルだけ変えて同じ焦点を説明する。
 10. focus_concept があるときは、その概念だけに集中する。
-11. **回答の最後に「次の一歩」を1文だけ添える**。「## 次に学ぶと良い概念」ブロックが文脈に
-    あればそこから1つ選び、無ければ今の話題の自然な続きを提案する。
-    形は必ず**誘い**（「ここまで掴めたら、次は◯◯を見ると繋がりますよ」）にする。
-    確認クイズ・問題の出題は**禁止**（学習者への出題はしない方針）。
-    理解度に合わせる: none/heard→今の概念のより易しい隣接、can_compute以上→発展方向。
-    学習者が明らかに混乱している最中（explain_mode=simplify/after_clarify）は省いてよい。
+11. 「次の一歩」（回答の最後の誘い1文）は、ユーザーメッセージの「## 次の一歩」の指示に従う。
+    指示が無い（計画なし）ときは、今の話題の自然な続きを誘い形（「ここまで掴めたら、次は◯◯を見ると繋がりますよ」）で1文だけ添える。
+    添えるときも見出しは付けず、本文の末尾に1文だけ。確認クイズ・問題の出題は**禁止**（学習者への出題はしない方針）。
+    「## 次に学ぶと良い概念」ブロックが文脈にあれば、添えるときだけそこから1つ選ぶ。
 12. 思考プロセスは出さず、回答本文だけ。出典ブロックは書かない。"""
 
 SYSTEM_PROMPT_GENERAL = """あなたは数学の学習アシスタントです。
@@ -129,6 +127,18 @@ SYSTEM_PROMPT_GENERAL = """あなたは数学の学習アシスタントです�
    - 【推論】: 複数の情報を組み合わせた推論
 4. 不確実な情報は「〜と考えられます」「〜の可能性が高い」と表現してください。
 5. 思考プロセスや内部の推論は出力しないでください。直接回答のみを出力してください。"""
+
+
+_NEXT_STEP_TAIL_RE = re.compile(
+    r"\n+[ \t]*(?:#+[ \t]*)?(?:\*\*)?次に学ぶと良い概念(?:\*\*)?[^\n]*(?:\n.*)?\Z|"
+    r"\n+[ \t]*ここまで掴めたら、次は[^\n]*\Z",
+    re.DOTALL,
+)
+
+
+def _strip_next_step_tail(text: str) -> str:
+    """planner が「次の一歩は不要」と判断したのに、LLM が末尾に付けた「次に学ぶと良い概念」を落とす（保険）。"""
+    return _NEXT_STEP_TAIL_RE.sub("", text or "").rstrip()
 
 
 def _vllm_manager_token() -> str:
@@ -1818,8 +1828,22 @@ class DeepRAGSearcher:
             context_block = f"\n## 教科書の文脈\n{context}\n"
             no_retrieval_block = ""
 
+        # 「次の一歩」は planner が必要と判断したときだけ（計画が無い旧経路は従来どおり添える）
+        allow_next_step = True if not pedagogical_plan else bool(pedagogical_plan.get("suggest_next_step"))
+        if no_retrieval:
+            next_step_block = ""
+        elif allow_next_step:
+            next_step_block = (
+                "\n## 次の一歩\n今回は回答の最後に「次の一歩」の誘いを1文だけ添える（見出しは付けない）。\n"
+            )
+        else:
+            next_step_block = (
+                "\n## 次の一歩\n今回は「次の一歩」「次に学ぶと良い概念」の提案を添えない。"
+                "文脈にそのブロックがあっても使わず、回答は質問への答えで終える。\n"
+            )
+
         user_prompt = f"""以下の教科書の文脈と会話を踏まえて、質問／発話に回答してください。
-{state_block}{km_note}{focus_block}{mode_block}{plan_block}{no_retrieval_block}{evidence_block}{length_block}{page_block}{dialogue_block}{last_exp_block}
+{state_block}{km_note}{focus_block}{mode_block}{plan_block}{next_step_block}{no_retrieval_block}{evidence_block}{length_block}{page_block}{dialogue_block}{last_exp_block}
 ## 質問／発話
 {query}
 {context_block}
@@ -1843,6 +1867,8 @@ class DeepRAGSearcher:
                 full_text += delta
 
             full_text = _strip_thinking_process(full_text)
+            if pedagogical_plan and not allow_next_step:
+                full_text = _strip_next_step_tail(full_text)
 
             # 以降の【教科書に基づく】/【補足知識】/【推論】抽出は
             # SYSTEM_PROMPT_GENERAL 専用の後処理。beginner / adaptive は
