@@ -19,6 +19,14 @@ run "シェルの全角文字直前の裸の変数（set -u で落ちる）" pyt
 run "テストの docker compose が一時のプロジェクト名で動くか（実際のスタックを消さない）" python3 "$HERE/check_test_isolation.py"
 run "Markdown のリンク切れ" python3 "$HERE/check_md_links.py"
 run "frontend の NEXT_PUBLIC_* がビルド設定に揃っているか" python3 "$HERE/check_public_env.py"
+# Node 22 以上が必要（TypeScript をそのまま読むため）。無ければスキップする（CI の frontend ジョブでも実行される）
+if command -v node >/dev/null 2>&1 && node -e 'process.exit(parseInt(process.versions.node) >= 22 ? 0 : 1)'; then
+    run "frontend: AI チューターのエラー判定（メンテナンス表示の出し分け）" node --experimental-strip-types --no-warnings --test "$HERE/../../frontend/server/src/lib/tutor/errors.test.mjs"
+else
+    echo ""
+    echo "===== frontend: AI チューターのエラー判定 ====="
+    echo "(Node 22 以上が無いのでスキップ。docker で実行するなら: docker run --rm -v \"\$PWD/frontend/server:/f:ro\" -w /f node:22-alpine node --experimental-strip-types --test src/lib/tutor/errors.test.mjs)"
+fi
 run "deploy.sh（偽の docker）" sh "$HERE/test_deploy.sh"
 run "破壊的スクリプトの確認（偽の docker）" sh "$HERE/test_guard.sh"
 if [ "$MODE" != "--fast" ]; then
@@ -26,6 +34,7 @@ if [ "$MODE" != "--fast" ]; then
     run "backup / restore_test / schema_diff（本物の docker）" sh "$HERE/test_backup_restore.sh"
     run "定期バックアップ（backup コンテナ。本物の docker / PostgreSQL）" sh "$HERE/test_periodic_backup.sh"
     run "誤ってコンテナ・ボリュームを消した事故からの復旧（本物の docker compose）" sh "$HERE/test_disaster_recovery.sh"
+    run "LLM に繋がらないときの tutor（メンテナンス中の 503・早い見切り・自動復旧・手動切り替え）" sh "$HERE/test_tutor_llm_down.sh"
     run "nginx（X-Forwarded-For の上書き・本物の nginx）" sh "$HERE/test_nginx.sh"
 fi
 if [ "$MODE" != "--fast" ] && [ "$MODE" != "--no-heavy" ]; then

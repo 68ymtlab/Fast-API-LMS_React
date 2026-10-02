@@ -5,7 +5,7 @@
 | 文書 | 内容 |
 |---|---|
 | [deploy-checklist.md](ops/deploy-checklist.md) | **最初に読む。** 最新版を本番に出すときに人がやることを、順番に並べたチェックリスト |
-| [runbook-deploy.md](ops/runbook-deploy.md) | デプロイの手順・ロールバック・トラブルシュート |
+| [runbook-deploy.md](ops/runbook-deploy.md) | デプロイの手順・ロールバック・トラブルシュート・**AI サーバー（LLM）が使えないときのメンテナンス表示（§8）** |
 | [backup-restore.md](ops/backup-restore.md) | バックアップ（定期・別マシン保管）・復元・復元テスト |
 | [runbook-secret-rotation.md](ops/runbook-secret-rotation.md) | `SECRET_KEY` などのシークレット更新 |
 | [docker-network.md](ops/docker-network.md) | 教室 Wi-Fi と Docker ネットワークの衝突回避 |
