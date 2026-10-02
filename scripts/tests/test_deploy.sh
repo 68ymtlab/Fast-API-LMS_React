@@ -50,6 +50,7 @@ run_case() {
 run_case "正常: 既存データがあればバックアップして進む" 0 1 "[OK] DB バックアップ" \
     FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U"
 case "$LAST_BACKUPS" in *db-*.sql.gz*) ok "バックアップファイルができた";; *) fail "バックアップファイルができていない（'$LAST_BACKUPS'）";; esac
+assert_contains "up がリポジトリ直下の .env も読む（LMS_DB_VOLUME など、.env に書いた上書きが無視されない）" "$LAST_UP" "--env-file .env --env-file frontend/server/.env"
 assert_contains "up に --renew-anon-volumes が付く（古い .venv の匿名ボリュームを持ち越さない）" "$LAST_UP" "--renew-anon-volumes"
 assert_not_contains "名前付きボリュームを消す -v は付かない" "$LAST_UP" " down"
 assert_contains "up --build に frontend/server/.env が --env-file で渡る（NEXT_PUBLIC_* をビルドに渡すため）" "$LAST_UP" "--env-file frontend/server/.env"

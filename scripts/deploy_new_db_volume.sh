@@ -69,7 +69,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
 echo ""
 echo "=== 新DBボリュームで起動 ==="
-docker compose --env-file frontend/server/.env -f docker-compose.yml -f docker-compose.prod.yml -f "$TMP_OVERRIDE_FILE" up --build -d
+ENV_FILES="--env-file frontend/server/.env"
+[ -f .env ] && ENV_FILES="--env-file .env --env-file frontend/server/.env"   # 直下の .env（ボリューム名などの上書き）も読む
+# shellcheck disable=SC2086
+docker compose $ENV_FILES -f docker-compose.yml -f docker-compose.prod.yml -f "$TMP_OVERRIDE_FILE" up --build -d
 
 echo ""
 echo "=== 起動状態確認 ==="
