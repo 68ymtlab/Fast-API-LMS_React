@@ -13,7 +13,7 @@
 import time
 from threading import Lock
 
-MAX_ATTEMPTS = 5          # この回数連続で失敗したらロック
+MAX_ATTEMPTS = 10         # この回数連続で失敗したらロック
 WINDOW_SECONDS = 15 * 60  # 失敗カウントの有効期間
 LOCKOUT_SECONDS = 15 * 60 # ロック時間
 

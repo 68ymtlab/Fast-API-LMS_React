@@ -11,7 +11,9 @@ python = "^3.12" # ここを Python 3.12 に変更
 fastapi = "^0.111.0"
 alembic = "^1.16.1"
 psycopg2-binary = "^2.9.10"
-sqlalchemy = "^2.0.41"
+# 2.1 以降は asyncio に必要な greenlet が自動では入らず、(エクストラ無しだと) 起動時に ImportError になる。
+# 動作確認済みの 2.0 系に固定し、asyncio エクストラも明示する。
+sqlalchemy = {extras = ["asyncio"], version = ">=2.0.41,<2.1"}
 python-dotenv = "^1.1.0"
 sqlacodegen = "^3.0.0"
 pydantic = "^2.11.6"

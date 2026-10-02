@@ -109,9 +109,17 @@ export const authOptions: NextAuthOptions = {
 				password: { label: "パスワード", type: "password" },
 			},
 			// 認証処理の実装
-			async authorize(credentials, _req) {
+			async authorize(credentials, req) {
 				if (!credentials) return null;
 				try {
+					// ログイン試行制限（backend）が「本当のクライアントIP」で数えられるよう、
+					// nginx が付けた X-Forwarded-For を backend に引き継ぐ。
+					// これを付けないと、backend には全員が「この frontend コンテナ」として見えてしまい、
+					// 他人のメールで失敗を重ねて本人を締め出す、といった嫌がらせができる。
+					const forwarded = req?.headers?.["x-forwarded-for"];
+					const forwardedFor = Array.isArray(forwarded)
+						? forwarded.join(", ")
+						: forwarded;
 					const res = await axios.post<LoginResponse>(
 						`${internalApiBaseUrl}/api/login`,
 						qs.stringify({
@@ -119,7 +127,10 @@ export const authOptions: NextAuthOptions = {
 							password: credentials.password,
 						}),
 						{
-							headers: { "Content-Type": "application/x-www-form-urlencoded" },
+							headers: {
+								"Content-Type": "application/x-www-form-urlencoded",
+								...(forwardedFor ? { "X-Forwarded-For": forwardedFor } : {}),
+							},
 						},
 					);
 

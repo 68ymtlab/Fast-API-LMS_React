@@ -1,0 +1,12 @@
+# ビルドコンテキスト（./frontend）に含めないもの。
+# .env はイメージに焼き込まない（本番の秘密情報が入るため）。ビルドに必要なときだけ、
+# docker-compose.prod.yml の build.secrets（BuildKit のシークレット）で渡す。
+server/.env
+server/.env.*
+**/.DS_Store
+server/node_modules
+server/.next
+server/storybook-static
+server/coverage
+# next.config.ts がビルド時に node_modules から生成するため、ホストのものは持ち込まない
+server/public/libs

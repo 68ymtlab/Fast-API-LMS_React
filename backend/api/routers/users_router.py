@@ -16,6 +16,7 @@ from api.db.session import get_db
 from api.core.security import get_current_active_user, require_admin, require_teacher_or_higher
 from api.core.config import settings
 from api.core import login_rate_limit
+from api.core.client_ip import get_client_ip
 from api.repositories.users_repo import UserRepository
 from api.services.users_service import UserService
 import api.schemas.users as user_schema
@@ -56,11 +57,8 @@ async def login_for_access_token(
     }
 
 def _client_ip(request: Request) -> str:
-    """レート制限用のクライアントIP。nginx 経由では X-Forwarded-For の先頭を使う。"""
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """レート制限用のクライアントIP（決め方は api/core/client_ip.py）。"""
+    return get_client_ip(request.headers, request.client.host if request.client else None)
 
 
 @users_router.post("/login", response_model=user_schema.LoginResponse, summary="NextAuth用 ログイン認証")

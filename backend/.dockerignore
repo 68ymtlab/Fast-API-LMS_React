@@ -1,0 +1,10 @@
+# ビルドコンテキスト（./backend）に含めないもの。
+# .env はイメージに焼き込まない。実行時の値は docker-compose の env_file で渡す。
+.env
+.env.*
+# ホストの仮想環境を持ち込むと、イメージ内の Linux 用 .venv を壊す
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.DS_Store
