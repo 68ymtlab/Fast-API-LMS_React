@@ -1,0 +1,5 @@
+synced_at: 2026-08-23T06:19:57Z
+agents_workspace: /Users/kaihara/workspace/project/agents/workspace
+agents_git: 4f465fc
+embeddings.json: 38c02a9bf20049c6596d042c60a5da711404dca13b4172c2e787aab6c8b0e90f
+knowledge_graph.json: fd734160866dbb99daa70b40b674ca733e2f5810edd48dd3457e5ca625230327

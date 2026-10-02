@@ -1,5 +1,4 @@
-# 実データ（embeddings ~21MB, KG ~1MB, qdrant_data ~8MB）はコミットしない。
-# tutor/scripts/sync_from_agents.sh で研究側（agents/workspace）から同期する。
-*
-!.gitignore
-!README.md
+# 知識ベース（tutor/data/stage4/ ＝ 研究側から sync_from_agents.sh で同期したもの）は git で管理する。
+# 研究室のリポジトリで、デプロイ先は git pull するだけで揃う（以前は git 管理外で、手でコピーしていた）。
+# 実行時に作られるロックファイルだけ無視する。
+**/.lock

@@ -11,3 +11,7 @@ docker-entrypoint.sh text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
 *.env text eol=lf
+
+# tutor の知識ベース: 巨大な JSON は差分を取らない。Qdrant のストア（sqlite）はバイナリとして扱う
+tutor/data/stage4/*.json -diff
+tutor/data/stage4/qdrant_data/** binary
