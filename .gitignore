@@ -17,7 +17,6 @@ dist/
 build/
 
 # --- Backend ---
-backend/poetry.lock
 backend/test_router.js
 **/views/test
 **/components.d.ts

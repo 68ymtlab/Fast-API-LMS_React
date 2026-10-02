@@ -1,6 +1,8 @@
 # 本番用オーバーライド
 # 使用方法:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+#   ./scripts/deploy.sh   （通常はこれを使う。バックアップ・チェックを含む）
+#   手動でビルドするなら（frontend の NEXT_PUBLIC_* をビルドに渡すため --env-file が必要）:
+#   docker compose --env-file frontend/server/.env -f docker-compose.yml -f docker-compose.prod.yml up --build -d --renew-anon-volumes
 #
 # 開発用 (通常通り):
 #   docker compose up --build
@@ -12,10 +14,15 @@ services:
   # ---- Backend (本番) ----
   backend:
     restart: unless-stopped
-    # 本番ではソースバインドマウントを削除
-    # `!reset` タグは環境によって解釈されず volumes が空になるため、明示的に定義する
-    volumes:
+    # 本番では開発用の設定（ホストのソースの bind mount・.venv の匿名ボリューム・--reload）を使わない。
+    # compose の volumes は「上書き」ではなく「マージ」されるため、!override で開発側の定義を確実に外す
+    # （!override / command の !reset には compose v2.24 以上が必要。deploy.sh が確認する）。
+    # これを外さないと、イメージ内のコードではなくホストのファイルで動き、git pull だけで本番のコードが入れ替わり、
+    # .venv の匿名ボリュームが古いまま残って新しい依存が使われない。
+    volumes: !override
       - uploads-data:/app/uploads
+    # command を外すと、Dockerfile の CMD（--reload なし・WEB_CONCURRENCY のワーカー数）で動く
+    command: !reset null
     environment:
       - UPLOAD_ROOT=/app/uploads
     # ホストへのポート公開を削除（nginx 経由のみアクセス）
@@ -74,10 +81,16 @@ services:
       start_period: 60s
     build:
       args:
-        # .env から読み込んだ値をビルド時の ARG として渡す
+        # NEXT_PUBLIC_* はビルド時にバンドルへ焼き込まれる。値は frontend/server/.env から、
+        # `docker compose --env-file frontend/server/.env` で渡す（scripts/deploy.sh が付ける）。
+        # 付け忘れると値が空になり、REQUIRE_PUBLIC_ENV によってビルドが失敗する（壊れた画面を作らない）。
         - NEXT_PUBLIC_API_BASE_URL
         - NEXT_PUBLIC_APP_BASE_URL
+        - NEXT_PUBLIC_MAINTENANCE_MODE
+        - NEXT_PUBLIC_DEBUG_LEVEL
+        - NEXT_PUBLIC_DISABLE_AUTH_CHECK
         - NEXTAUTH_URL
+        - REQUIRE_PUBLIC_ENV=1
         - HTTP_PROXY=${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
         - HTTPS_PROXY=${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
         - http_proxy=${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
@@ -89,29 +102,38 @@ services:
     # ホストへのポート公開を廃止（内部ネットワークのみ）
     ports: !reset []
 
-  # ---- init (シード処理: 起動後1回のみ) ----
-  init:
+  # ---- Backup (本番): 定期バックアップ ----
+  # コンテナやボリュームを誤って消しても、データが残るようにする（最も起こりやすいデータの消え方への備え）。
+  # DB を数時間ごと、アップロードを1日ごとに、ホストの ./db/backups（= Docker のボリュームの外）へ保存する。
+  # `docker compose down -v` や `docker volume rm` でも、ここのファイルは消えない。起動直後（= デプロイのたび）にも1回取る。
+  # 取れていなければ unhealthy になる（`docker compose ps` で分かる）。仕組みは backup/run.sh、復元は docs/ops/backup-restore.md。
+  backup:
     build:
-      context: ./backend
+      context: ./backup
       network: host
-      args:
-        HTTP_PROXY: ${HTTP_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
-        HTTPS_PROXY: ${HTTPS_PROXY:-http://wwwproxy.kanazawa-it.ac.jp:8080}
-        http_proxy: ${http_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
-        https_proxy: ${https_proxy:-http://wwwproxy.kanazawa-it.ac.jp:8080}
-    restart: "no"
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     env_file:
-      - ./backend/.env
-    command:
-      - sh
-      - -c
-      - |
-        echo "Running database seeds..."
-        poetry run python scripts/seed_users.py
-        echo "Seeding complete."
+      - ./db/.env
+    environment:
+      - PGHOST=db
+      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-4}
+    volumes:
+      - ./db/backups:/backups
+      - uploads-data:/data/uploads:ro
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/lms-backup", "--healthcheck"]
+      interval: 10m
+      timeout: 30s
+      retries: 1
+      start_period: 15m
+
+  # ---- init（ユーザーのシード）は本番では動かさない ----
+  # 以前はデプロイのたびに seed_users.py を実行していたが、固定 id・固定パスワードのアカウントを
+  # 毎回投入してしまうため廃止した。新規DBの初回だけ、手動で ./scripts/seed_users.sh を実行する
+  # （docs/ops/runbook-deploy.md の「初回セットアップ」）。
 
   # ---- Nginx (リバースプロキシ) ----
   nginx:
@@ -136,5 +158,16 @@ networks:
         - subnet: 10.200.0.0/24
           gateway: 10.200.0.1
 
+# DB とアップロードのボリュームは external（compose の管理外）にする。
+#   - `docker compose down -v` でも消えない（compose は external のボリュームを削除しない）
+#   - ボリュームが無い／名前が違うときは、空のボリュームを勝手に作らず `up` が失敗する
+#     （気付かないうちに空のDBで起動してしまうのを防ぐ）
+# 名前は既存の本番のボリューム名と同じ。テストでは LMS_DB_VOLUME / LMS_UPLOADS_VOLUME で別名にする。
+# 初回だけ scripts/deploy.sh が `docker volume create` で作る。
 volumes:
+  postgres-data:
+    external: true
+    name: ${LMS_DB_VOLUME:-fast-api-lms_react_postgres-data}
   uploads-data:
+    external: true
+    name: ${LMS_UPLOADS_VOLUME:-fast-api-lms_react_uploads-data}

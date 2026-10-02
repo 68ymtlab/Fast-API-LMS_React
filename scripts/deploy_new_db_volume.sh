@@ -17,6 +17,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+. "$ROOT_DIR/scripts/_guard.sh"
+confirm_destructive "既存スタックを停止し、空の新DBボリュームで起動します。サービスは空のDBを参照するようになります（旧ボリュームは残るが自動では戻りません）"
+
 echo "=== Fast-API-LMS 新DBボリューム再デプロイ ==="
 echo "DB volume: $DB_VOLUME_NAME"
 
@@ -66,7 +69,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
 echo ""
 echo "=== 新DBボリュームで起動 ==="
-docker compose -f docker-compose.yml -f docker-compose.prod.yml -f "$TMP_OVERRIDE_FILE" up --build -d
+docker compose --env-file frontend/server/.env -f docker-compose.yml -f docker-compose.prod.yml -f "$TMP_OVERRIDE_FILE" up --build -d
 
 echo ""
 echo "=== 起動状態確認 ==="

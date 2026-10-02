@@ -6,6 +6,14 @@ echo === 🧹 LMS DB Reset Script (Windows) ===
 REM プロジェクトルートに移動（scripts の1階層上）
 cd /d "%~dp0.."
 
+REM 本番で誤実行すると全データ（DB・提出ファイル）が消えるため、必ず確認を取る
+echo !!! 警告: 全ボリューム（DB・アップロード）を削除します。元に戻せません。
+set /p CONFIRM=本当に実行するなら DELETE と入力してください: 
+if not "!CONFIRM!"=="DELETE" (
+  echo 中止しました。
+  exit /b 1
+)
+
 REM 1. サービスを停止・ボリューム削除（完全リセット）
 echo → Stopping containers and removing volumes...
 docker compose down -v --remove-orphans

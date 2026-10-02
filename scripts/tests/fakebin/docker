@@ -1,0 +1,79 @@
+#!/bin/sh
+# deploy.sh / reset.sh などのテスト用の偽 docker。実際には何もせず、環境変数で状況を再現する。
+#   FAKE_LOG        呼ばれたコマンドの記録先
+#   FAKE_CONFIG_FAIL=1       compose config を失敗させる
+#   FAKE_CONTAINER=1         lms-db コンテナが存在する
+#   FAKE_MOUNT=名前          lms-db の /var/lib/postgresql/data にマウントされているボリューム名
+#   FAKE_VOLUMES="a b c"     存在するボリューム
+#   FAKE_PSQL=ok|empty|fail|garbage   psql の結果
+#   FAKE_DUMP=ok|fail|trunc           pg_dump の結果
+#   FAKE_COMPOSE_VERSION=2.29.1       docker compose version --short の出力（空なら取得失敗）
+#   FAKE_BACKEND_CFG=prod|dev         マージ後の backend 設定（dev は bind mount と --reload が残っている状態）
+#   FAKE_RUN_FAIL=1                   docker run（alpine でのコピー等）を失敗させる
+#   FAKE_DB_VOLUME_NAME / FAKE_UPLOADS_VOLUME_NAME   compose の設定（external の name）として出すボリューム名
+echo "docker $*" >> "$FAKE_LOG"
+all="$*"
+case "$1" in
+  compose)
+    case "$all" in
+      *" version"*) [ -n "${FAKE_COMPOSE_VERSION-2.29.1}" ] && echo "${FAKE_COMPOSE_VERSION-2.29.1}"; exit 0;;
+      *" config"*)
+        [ "${FAKE_CONFIG_FAIL:-}" = 1 ] && exit 1
+        echo "name: fast-api-lms_react"; echo "services:"; echo "  backend:"
+        if [ "${FAKE_BACKEND_CFG:-prod}" = dev ]; then
+            echo "    command:"; echo "      - poetry"; echo "      - --reload"
+            echo "    volumes:"; echo "      - type: bind"; echo "        source: /srv/app/backend"; echo "        target: /src/backend"
+            echo "      - type: volume"; echo "        target: /src/backend/.venv"
+        else
+            echo "    volumes:"; echo "      - type: volume"; echo "        source: uploads-data"; echo "        target: /app/uploads"
+        fi
+        echo "  db:"; echo "    image: postgres:16-alpine"
+        # 本番用 compose の external ボリューム（名前は compose の設定から取得される）
+        echo "volumes:"
+        echo "  postgres-data:"; echo "    name: ${FAKE_DB_VOLUME_NAME:-fast-api-lms_react_postgres-data}"; echo "    external: true"
+        echo "  uploads-data:"; echo "    name: ${FAKE_UPLOADS_VOLUME_NAME:-fast-api-lms_react_uploads-data}"; echo "    external: true"
+        exit 0;;
+      *" exec -T db psql"*)
+        case "${FAKE_PSQL:-ok}" in
+          fail) echo 'psql: error: FATAL: role "x" does not exist' >&2; exit 2;;
+          garbage) echo "WARNING: weird"; exit 0;;
+          empty) echo " 0"; exit 0;;
+          *) echo " 23"; exit 0;;
+        esac;;
+      *" exec -T db pg_dump"*)
+        case "${FAKE_DUMP:-ok}" in
+          fail) exit 1;;
+          trunc) echo "-- PostgreSQL database dump"; echo "CREATE TABLE x();"; exit 0;;
+          *) echo "-- PostgreSQL database dump"; echo "CREATE TABLE x();"; echo "-- PostgreSQL database dump complete"; exit 0;;
+        esac;;
+      *" exec -T tutor"*) echo '{"ok":true}'; exit 0;;
+      *) exit 0;;
+    esac;;
+  inspect)
+    case "$all" in *Health*) echo healthy; exit 0;; esac
+    [ "${FAKE_CONTAINER:-}" = 1 ] || exit 1
+    case "$all" in
+      *Mounts*) printf '%s' "${FAKE_MOUNT:-}";;
+      *) echo running;;
+    esac; exit 0;;
+  exec)
+    case "$all" in
+      *pg_dump*)
+        case "${FAKE_DUMP:-ok}" in
+          fail) exit 1;;
+          trunc) echo "-- PostgreSQL database dump"; echo "CREATE TABLE public.users();"; exit 0;;
+          *) echo "-- PostgreSQL database dump"; echo "CREATE TABLE public.users();"; echo "-- PostgreSQL database dump complete"; exit 0;;
+        esac;;
+      *psql*) echo " 5"; exit 0;;
+    esac
+    exit 0;;
+  volume)
+    case "$2" in
+      create) exit 0;;
+      inspect) echo "${FAKE_VOLUMES:-}" | tr ' ' '\n' | grep -qx "$3" && exit 0 || exit 1;;
+      ls) echo "${FAKE_VOLUMES:-}" | tr ' ' '\n' | grep -v '^$'; exit 0;;
+    esac;;
+  network) exit 0;;
+  run) [ "${FAKE_RUN_FAIL:-}" = 1 ] && exit 1; exit 0;;
+esac
+exit 0
