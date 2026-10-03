@@ -184,6 +184,7 @@ const AdminCoursesPage = () => {
 	const [duplicatingCourse, setDuplicatingCourse] = useState<Course | null>(null);
 	const [duplicateForm, setDuplicateForm] = useState({
 		new_course_name: "",
+		target_subject_id: "",
 		start_date_time: "",
 		end_date_time: "",
 		is_active: true,
@@ -638,6 +639,7 @@ const AdminCoursesPage = () => {
 		setDuplicatingCourse(course);
 		setDuplicateForm({
 			new_course_name: `${course.course_name}（複製）`,
+			target_subject_id: String(course.subject_id ?? selectedSubjectId ?? ""),
 			start_date_time: toInputDateTime(course.start_date_time),
 			end_date_time: toInputDateTime(course.end_date_time),
 			is_active: course.is_active,
@@ -657,6 +659,12 @@ const AdminCoursesPage = () => {
 			setDuplicateError("複製後のコース名を入力してください");
 			return;
 		}
+		const targetSubjectId = Number.parseInt(duplicateForm.target_subject_id, 10);
+		if (Number.isNaN(targetSubjectId)) {
+			setDuplicateError("複製先の科目を選択してください");
+			return;
+		}
+		const targetSubject = subjects.find((s) => s.id === targetSubjectId) ?? null;
 
 		setDuplicateSaving(true);
 		setDuplicateError(null);
@@ -666,6 +674,7 @@ const AdminCoursesPage = () => {
 				`/admin/courses/${duplicatingCourse.id}/duplicate`,
 				{
 					new_course_name: duplicateForm.new_course_name.trim(),
+					target_subject_id: targetSubjectId,
 					start_date_time: duplicateForm.start_date_time
 						? `${duplicateForm.start_date_time}:00`
 						: null,
@@ -684,8 +693,13 @@ const AdminCoursesPage = () => {
 
 			setDuplicateDialogOpen(false);
 			await fetchCoursesBySubject(selectedSubjectId);
+			const movedToOtherSubject = targetSubjectId !== selectedSubjectId;
 			setDuplicateSuccess(
-				`コースを複製しました（レッスン: ${response.data.copied_lessons}件 / 履修者: ${response.data.copied_enrollments}件）`,
+				`コースを${
+					movedToOtherSubject && targetSubject
+						? `「${targetSubject.subject_name}」に`
+						: ""
+				}複製しました（レッスン: ${response.data.copied_lessons}件 / 履修者: ${response.data.copied_enrollments}件）`,
 			);
 		} catch (_error) {
 			setDuplicateError("コースの複製に失敗しました");
@@ -1528,6 +1542,31 @@ const AdminCoursesPage = () => {
 								複製元: {duplicatingCourse.course_name}
 							</p>
 						) : null}
+						<div className="space-y-2">
+							<Label htmlFor="duplicate_target_subject">複製先の科目</Label>
+							<select
+								id="duplicate_target_subject"
+								className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+								value={duplicateForm.target_subject_id}
+								onChange={(e) =>
+									setDuplicateForm((prev) => ({
+										...prev,
+										target_subject_id: e.target.value,
+									}))
+								}
+							>
+								{subjects.map((subject) => (
+									<option key={subject.id} value={String(subject.id)}>
+										{subject.subject_name}（{subject.academic_year}年度
+										{subject.semester?.name ? ` ${subject.semester.name}` : ""}
+										{subject.is_active ? "" : "・無効"}）
+									</option>
+								))}
+							</select>
+							<p className="text-xs text-muted-foreground">
+								別の科目を選ぶと、そのコースを他の科目へ複製できます。
+							</p>
+						</div>
 						<div className="space-y-2">
 							<Label htmlFor="duplicate_course_name">複製後のコース名</Label>
 							<Input

@@ -60,6 +60,9 @@ class CourseWithLessons(Course):
 class CourseDuplicateRequest(BaseModel):
     """コース複製時の入力スキーマ"""
     new_course_name: str = Field(..., description="複製後のコース名", min_length=1, max_length=255)
+    target_subject_id: Optional[int] = Field(
+        None, description="複製先の科目ID。省略時は複製元と同じ科目に複製する"
+    )
     start_date_time: Optional[datetime] = Field(None, description="複製後コースの開始日時")
     end_date_time: Optional[datetime] = Field(None, description="複製後コースの終了日時")
     is_active: bool = Field(True, description="複製後コースの公開フラグ")

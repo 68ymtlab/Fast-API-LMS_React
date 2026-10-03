@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from api.core.password import SecurityManager
 from api.repositories.courses_repo import CourseRepository
 from api.repositories.users_repo import UserRepository # 追加
-from api.models import contents_model, courses_model, lessons_model, users_model
+from api.models import contents_model, courses_model, lessons_model, subjects_model, users_model
 import api.schemas.courses as courses_schema
 
 class CourseService:
@@ -465,6 +465,17 @@ class CourseService:
                 detail="new_course_name must not be empty.",
             )
 
+        # 複製先の科目。指定が無ければ複製元と同じ科目。別の科目を指定する場合は、存在する（削除されていない）科目であること
+        target_subject_id = source_course.subject_id
+        if duplicate_in.target_subject_id is not None and duplicate_in.target_subject_id != source_course.subject_id:
+            stmt_subject = select(subjects_model.Subjects.id).where(
+                subjects_model.Subjects.id == duplicate_in.target_subject_id,
+                subjects_model.Subjects.deleted_at.is_(None),
+            )
+            if (await self.course_repo.db.execute(stmt_subject)).scalar_one_or_none() is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target subject not found")
+            target_subject_id = duplicate_in.target_subject_id
+
         start_date_time = duplicate_in.start_date_time or source_course.start_date_time
         end_date_time = duplicate_in.end_date_time or source_course.end_date_time
         if start_date_time >= end_date_time:
@@ -481,7 +492,7 @@ class CourseService:
 
         async with self.course_repo.db.begin_nested():
             duplicated_course = courses_model.Courses(
-                subject_id=source_course.subject_id,
+                subject_id=target_subject_id,
                 course_name=new_course_name,
                 description=source_course.description,
                 session_count=source_course.session_count,
