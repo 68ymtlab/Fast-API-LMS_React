@@ -37,9 +37,17 @@ class SubjectService:
 
         # トランザクションを確定して、他のリクエストからも参照できるようにする
         await self.subject_repo.db.commit()
-        await self.subject_repo.db.refresh(new_subject)
 
-        return new_subject
+        # 応答（Subject スキーマ）は semester も返す。commit で期限切れになった属性を refresh するだけでは
+        # semester が未読み込みのまま残り、応答の組み立て時に非同期の遅延読み込みが起きて 500 になる
+        # （MissingGreenlet）。一覧・詳細と同じ読み込み方（semester を先読み）で取り直して返す。
+        created = await self.subject_repo.get(subject_id=new_subject.id, include_inactive=True)
+        if created is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load created subject.",
+            )
+        return created
 
     async def update_subject(self, subject_id: int, subject_in: subject_schema.SubjectUpdate, user_id: int) -> None:
         """科目の情報を更新します。"""
