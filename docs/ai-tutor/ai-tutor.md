@@ -82,6 +82,16 @@ Fast-API-LMS_React/
 > `pedagogical_planner.py` / `tutor_session.py` / `deeprag_search.py`（`generate_answer` の検索なし分岐）に LMS 側の変更が入っている。
 > `math_related=false`（挨拶・雑談・無関係な話題）は、サーバー側のルールで縛らず、定型文も返さず、検索なしで LLM が答える。
 > `true` のときだけ従来のルール（検索の強制・診断の抑制・ページ関連付けの補正）を適用する。研究側と再同期するときは再適用が必要。
+>
+> 同日の追加（planner の出力に追加した項目。いずれも `pedagogical_planner.py` のスキーマ・プロンプト、`tutor_session.py`、`deeprag_search.py` に変更あり）:
+> - `suggest_next_step`: 回答の最後の「次の一歩」を、必要なとき（次に学ぶことを尋ねられた・概念の説明が完結した）だけ付ける。
+>   false のときは LLM に指示せず、付けてしまっても末尾の「次に学ぶと良い概念」を機械的に取り除く（`_strip_next_step_tail`）。
+> - `textbook_coverage`（covered / partial / not_covered）: planner に教科書の目次（知識グラフの節の一覧）を渡して判断させ、
+>   目次だけでは節の中身が分からないため、planner が挙げた対象概念（`target_concepts`）が教科書の本文に実在するかで確定する
+>   （`TutorSession._refine_textbook_coverage`。判定の根拠は planner の記録 `plan.coverage_check` に残る）。
+>   not_covered は「教科書に載っていないため…」のバナーを出し、出典は出さない。covered は誤バナーを出さない。
+>   これは従来の「検索結果との語彙の重なり」による判定（`assess_knowledge_mode`）より優先する（planner が失敗したときは従来の判定）。
+> - 対象が分からない発話（「どういうこと？」等。ページも直近の説明も無い）は、`action=clarify` として検索せず LLM が聞き返す。
 
 ---
 

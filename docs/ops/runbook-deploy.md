@@ -157,6 +157,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down   # ← -v 
 | `deploy.sh` が「ボリュームが想定と異なります」で止まる | **データを守るための停止**。`docker inspect lms-db` の Mounts と `docker volume ls` を見て、本番データのあるボリュームを特定する。分かるまで進めない |
 | バックアップで中止される | `db/.env` の `POSTGRES_USER`/`POSTGRES_DB` が実DBと一致しているか確認 |
 | ログインできない／全員ログアウトされた | `SECRET_KEY` か `NEXTAUTH_SECRET` を変更した後は全員再ログインが必要（仕様）。[シークレット手順書](runbook-secret-rotation.md) |
+| 画面のデータが「—」や空のまま／ブラウザの API 呼び出しが届かない | `frontend/server/.env` の `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_APP_BASE_URL` / `NEXTAUTH_URL` のホスト名が、**ブラウザのあるネットワークから名前解決できるか**確認する（`nginx` のアクセスログに `/api/...` が一件も出ていなければ、ここが原因）。名前が引けないなら IP で書く。`backend/.env` の `ALLOWED_ORIGINS` も同じ URL にする。変更後は `deploy.sh`（再ビルド） |
 | フロントが古いURLを叩く | `NEXT_PUBLIC_*` はビルド時に焼き込まれる。`.env` 修正後に `deploy.sh`（再ビルド）を実行 |
 | チューターが 502「接続できません」になる | backend コンテナの `HTTP_PROXY` が内部通信（tutor 等）に使われていないか。`docker compose exec backend env \| grep -i proxy` で `NO_PROXY=tutor,db,...` があるか確認（`backend/Dockerfile` で設定。変更後は再ビルド） |
 | チューターが 503「準備中」になる | 知識ベースの読み込みに数十秒かかる。続く場合は `docker compose ... logs --tail=100 tutor` |
