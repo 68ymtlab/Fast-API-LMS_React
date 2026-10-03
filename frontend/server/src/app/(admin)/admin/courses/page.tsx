@@ -1156,10 +1156,9 @@ const AdminCoursesPage = () => {
 								/>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="semester_id">学期ID</Label>
-								<Input
+								<Label htmlFor="semester_id">学期</Label>
+								<select
 									id="semester_id"
-									type="number"
 									value={subjectForm.semester_id}
 									onChange={(e) =>
 										setSubjectForm((prev) => ({
@@ -1167,7 +1166,21 @@ const AdminCoursesPage = () => {
 											semester_id: e.target.value,
 										}))
 									}
-								/>
+									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+								>
+									{/* 学期マスタを取得できていない場合も、現在の学期は表示する */}
+									{subjectForm.semester_id &&
+									!semesters.some((s) => String(s.id) === subjectForm.semester_id) ? (
+										<option value={subjectForm.semester_id}>
+											{editingSubject?.semester?.name ?? `学期 (ID: ${subjectForm.semester_id})`}
+										</option>
+									) : null}
+									{semesters.map((s) => (
+										<option key={s.id} value={s.id}>
+											{s.name}
+										</option>
+									))}
+								</select>
 							</div>
 						</div>
 						<div className="flex items-center gap-2">

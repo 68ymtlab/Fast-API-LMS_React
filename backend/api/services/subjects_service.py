@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 
 from api.core.password import SecurityManager
 from api.models import users_model
@@ -22,21 +23,29 @@ class SubjectService:
 
     async def create_subject_with_syllabus(self, subject_with_syllabus: subject_schema.SubjectWithSyllabusCreate, user_id: int) -> subject_model.Subjects:
         """科目とシラバス情報を同時に作成します。"""
-        # 1. 科目を作成
-        new_subject = await self.subject_repo.create(
-            subject_in=subject_with_syllabus.subject, 
-            created_by_user_id=user_id
-        )
-        
-        # 2. シラバスを作成
-        await self.subject_repo.upsert_syllabus(
-            subject_id=new_subject.id, 
-            syllabus_in=subject_with_syllabus.syllabus, 
-            user_id=user_id
-        )
+        try:
+            # 1. 科目を作成
+            new_subject = await self.subject_repo.create(
+                subject_in=subject_with_syllabus.subject,
+                created_by_user_id=user_id
+            )
 
-        # トランザクションを確定して、他のリクエストからも参照できるようにする
-        await self.subject_repo.db.commit()
+            # 2. シラバスを作成
+            await self.subject_repo.upsert_syllabus(
+                subject_id=new_subject.id,
+                syllabus_in=subject_with_syllabus.syllabus,
+                user_id=user_id
+            )
+
+            # トランザクションを確定して、他のリクエストからも参照できるようにする
+            await self.subject_repo.db.commit()
+        except IntegrityError:
+            # 存在しない学期・授業科目区分を指定した場合など。500 にせず 400 で返し、途中まで作った分は取り消す
+            await self.subject_repo.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="登録内容が不正です（存在しない学期または授業科目区分を指定した可能性があります）",
+            )
 
         # 応答（Subject スキーマ）は semester も返す。commit で期限切れになった属性を refresh するだけでは
         # semester が未読み込みのまま残り、応答の組み立て時に非同期の遅延読み込みが起きて 500 になる
@@ -51,7 +60,16 @@ class SubjectService:
 
     async def update_subject(self, subject_id: int, subject_in: subject_schema.SubjectUpdate, user_id: int) -> None:
         """科目の情報を更新します。"""
-        await self.subject_repo.update(subject_id=subject_id, subject_in=subject_in, updated_by_user_id=user_id)
+        try:
+            await self.subject_repo.update(subject_id=subject_id, subject_in=subject_in, updated_by_user_id=user_id)
+            # commit しないと、リクエストの終了時に変更が破棄され、204 を返しながら保存されない
+            await self.subject_repo.db.commit()
+        except IntegrityError:
+            await self.subject_repo.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="更新内容が不正です（存在しない学期を指定した可能性があります）",
+            )
 
     async def delete_subject(self, subject_id: int, user_id: int) -> None:
         """科目を論理削除します（非アクティブ化）。"""
