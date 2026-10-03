@@ -11,6 +11,7 @@
 #   FAKE_BACKEND_CFG=prod|dev         マージ後の backend 設定（dev は bind mount と --reload が残っている状態）
 #   FAKE_RUN_FAIL=1                   docker run（alpine でのコピー等）を失敗させる
 #   FAKE_DB_VOLUME_NAME / FAKE_UPLOADS_VOLUME_NAME   compose の設定（external の name）として出すボリューム名
+#   FAKE_NET_SUBNET=10.200.0.0/24     既存の fast-api-lms_react_default ネットワークのサブネット（空ならネットワーク無し）
 echo "docker $*" >> "$FAKE_LOG"
 all="$*"
 case "$1" in
@@ -73,7 +74,13 @@ case "$1" in
       inspect) echo "${FAKE_VOLUMES:-}" | tr ' ' '\n' | grep -qx "$3" && exit 0 || exit 1;;
       ls) echo "${FAKE_VOLUMES:-}" | tr ' ' '\n' | grep -v '^$'; exit 0;;
     esac;;
-  network) exit 0;;
+  network)
+    [ -n "${FAKE_NET_SUBNET:-}" ] || exit 0
+    case "$2" in
+      ls) echo "fast-api-lms_react_default";;
+      inspect) echo "$FAKE_NET_SUBNET";;
+    esac
+    exit 0;;
   run) [ "${FAKE_RUN_FAIL:-}" = 1 ] && exit 1; exit 0;;
 esac
 exit 0

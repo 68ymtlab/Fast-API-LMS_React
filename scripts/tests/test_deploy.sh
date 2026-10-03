@@ -39,6 +39,7 @@ run_case() {
     LAST_DIR_PERM="$(ls -ld "$T/db/backups" 2>/dev/null | cut -c1-10)"
     LAST_FILE_PERM="$(ls -l "$T/db/backups"/db-*.sql.gz 2>/dev/null | head -1 | cut -c1-10)"
     LAST_RUNS="$(grep -c '^docker run' "$FAKE_LOG" || true)"
+    LAST_DBUPS="$(grep -c 'up -d db' "$FAKE_LOG" || true)"
     LAST_DOTENV="$(cat "$T/.env" 2>/dev/null)"
     LAST_VOLCREATE="$(grep -c '^docker volume create' "$FAKE_LOG" || true)"
     LAST_BACKUPDIR_PERM="$(ls -ld "$T/db/backups" 2>/dev/null | cut -c1-10)"
@@ -81,6 +82,20 @@ run_case "compose config が失敗 → 中止" 1 0 "プロジェクト名を取�
     FAKE_CONFIG_FAIL=1 FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U"
 run_case "SKIP_BACKUP=1 は警告つきで進む" 0 1 "SKIP_BACKUP=1" \
     FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U" SKIP_BACKUP=1
+
+# ---- ネットワーク / 稼働中の DB を作り直さない ----
+run_case "既存ネットワークのサブネットが想定と違う → DB に触る前に中止（down -v なしを案内）" 1 0 "サブネットが想定と異なります" \
+    FAKE_NET_SUBNET=172.19.0.0/16 FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U"
+assert_contains "down の手順を案内する" "$LAST_OUT" "down    # ← -v を付けると"
+assert_eq "db の up（作り直し）を実行しない" 0 "$LAST_DBUPS"
+run_case "サブネットが想定どおり → 進む" 0 1 "[OK] DB バックアップ" \
+    FAKE_NET_SUBNET=10.200.0.0/24 FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U"
+run_case "DB が稼働中なら、バックアップ前に up -d db しない（db を作り直さない）" 0 1 "稼働中の DB を確認" \
+    FAKE_CONTAINER=1 FAKE_MOUNT=$V FAKE_VOLUMES="$V $U"
+assert_eq "up -d db は 0 回" 0 "$LAST_DBUPS"
+run_case "スタック停止中なら up -d db で DB を起動してからバックアップ" 0 1 "DB を起動して稼働を確認" \
+    FAKE_CONTAINER=0 FAKE_VOLUMES="$V $U"
+assert_eq "up -d db は 1 回" 1 "$LAST_DBUPS"
 
 # ---- docker compose のバージョン / 本番の backend の構成 / 旧形式の画像 / 権限 ----
 run_case "compose が古い（v2.20）→ 中止" 1 0 "v2.24 以上と確認できません" \

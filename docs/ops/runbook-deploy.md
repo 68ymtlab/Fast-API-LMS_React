@@ -92,7 +92,7 @@ git fetch && git log --oneline HEAD..origin/<ブランチ>     # 取り込む変
    - 実行中の `lms-db` が使っているボリュームが想定（`<プロジェクト名>_postgres-data`）と違う場合、
      または想定のボリュームが無いのに別名の `*_postgres-data` がある場合も**中止**する
      （そのまま進むと空のDBで作り直され、データが消えたように見えるため）
-3. ネットワーク設定のズレ検知（[§5](#5-ネットワーク設定を変えたとき)）
+3. ネットワーク設定のズレ検知（[§5](#5-ネットワーク設定を変えたとき)）。**DB に触る前に**確認し、ズレていたら中止する
    - リポジトリ直下の `.env` に `COMPOSE_FILE`（本番用の設定）を用意する（無ければ作る。既にあって違う値なら警告するだけで変更しない）
    - 事前に、**docker compose が v2.24 以上**であること、**マージ後の backend に開発用の設定（bind mount・`--reload`）が残っていない**ことを確認し、違えば中止する
 4. tutor の前提チェック（`tutor/.env` のトークン・永続化DB、知識ベース）
@@ -140,7 +140,8 @@ git checkout <戻したいコミット>
 （学内 Wi-Fi との衝突回避。詳細は [docker-network.md](docker-network.md)）。
 
 Docker は**ネットワーク作成時にしか**この設定を読まない。既存ネットワークがあると
-`deploy.sh`（＝`up`）だけでは反映されず、`deploy.sh` が警告を出す。反映するには:
+`deploy.sh`（＝`up`）だけでは反映されない。そのまま `up` すると compose がネットワークの作り直しに失敗し、db が止まったままになるため、
+`deploy.sh` は DB に触る前にズレを検知して**中止する**。反映するには（サービスが止まるので、止めてよい時間に）:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down   # ← -v は絶対に付けない

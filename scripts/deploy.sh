@@ -130,6 +130,28 @@ else
     exit 1
 fi
 
+# --- ネットワーク帯域の変更が未適用でないか確認（DB に触る前に行う）---
+# docker-compose.prod.yml で default ネットワークのサブネットを固定しているが、
+# Docker はネットワーク作成時にしか IPAM を読まない。既存ネットワークとズレたまま `up` すると、
+# compose がネットワークを作り直そうとして、db を止めてネットワークから外したところで
+# （他のコンテナがまだ繋がっているため）失敗し、DB が止まったままになる。
+# そのため、バックアップ（`up -d db`）より前に検知して中止し、手動 `down`（-v なし）を促す。
+DESIRED_SUBNET="10.200.0.0/24"
+NET_NAME="$(docker network ls --format '{{.Name}}' | grep -iE 'fast.?api.?lms.?react_default' | head -1 || true)"
+if [ -n "$NET_NAME" ]; then
+    CURRENT_SUBNET="$(docker network inspect "$NET_NAME" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)"
+    if [ -n "$CURRENT_SUBNET" ] && [ "$CURRENT_SUBNET" != "$DESIRED_SUBNET" ]; then
+        echo ""
+        echo "[ERROR] Docker ネットワークのサブネットが想定と異なります。"
+        echo "        現在: $CURRENT_SUBNET / 想定: $DESIRED_SUBNET"
+        echo "        このまま up するとネットワークの作り直しに失敗し、DB が止まったままになるため中止します。"
+        echo "        データは named volume に残るため、サービスを止めてよい時間に次を実行してください（-v は付けないこと）:"
+        echo "          $COMPOSE down    # ← -v を付けるとデータが消えます。絶対に付けない"
+        echo "          ./scripts/deploy.sh"
+        exit 1
+    fi
+fi
+
 # --- DB 接続情報を読み込み ---
 # shellcheck disable=SC1091
 . ./db/.env
@@ -206,9 +228,14 @@ else
     mkdir -p "$BACKUP_DIR"
     chmod 700 "$BACKUP_DIR"   # 以前のデプロイで 755 などで作られていても、本人だけにする
 
-    # DB を起動（既に起動中なら何もしない）。この時点では他サービスは触らない。
-    echo "→ DB を起動して稼働を確認..."
-    $COMPOSE up -d db >/dev/null
+    # DB を起動する。この時点では他サービスは触らない。
+    # 既に起動中なら `up` しない（設定が変わっていると compose が db を作り直してしまうため。作り直しは最後の `up` に任せる）
+    if [ "$(docker inspect --format '{{.State.Status}}' lms-db 2>/dev/null || true)" = "running" ]; then
+        echo "→ 稼働中の DB を確認..."
+    else
+        echo "→ DB を起動して稼働を確認..."
+        $COMPOSE up -d db >/dev/null
+    fi
 
     # healthy になるまで待機（最大 60 秒）
     i=0
@@ -294,26 +321,6 @@ else
                 rm -f "$old"
             done
         done
-    fi
-fi
-
-# --- ネットワーク帯域の変更が未適用でないか確認 ---
-# docker-compose.prod.yml で default ネットワークのサブネットを固定しているが、
-# Docker はネットワーク作成時にしか IPAM を読まないため、既存ネットワークがあると
-# `up` では反映されない。ズレを検知したら操作者に手動 `down`（-v なし）を促す。
-DESIRED_SUBNET="10.200.0.0/24"
-NET_NAME="$(docker network ls --format '{{.Name}}' | grep -iE 'fast.?api.?lms.?react_default' | head -1 || true)"
-if [ -n "$NET_NAME" ]; then
-    CURRENT_SUBNET="$(docker network inspect "$NET_NAME" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)"
-    if [ -n "$CURRENT_SUBNET" ] && [ "$CURRENT_SUBNET" != "$DESIRED_SUBNET" ]; then
-        echo ""
-        echo "[WARN] Docker ネットワークのサブネットが想定と異なります。"
-        echo "       現在: $CURRENT_SUBNET / 想定: $DESIRED_SUBNET"
-        echo "       反映するにはコンテナとネットワークの作り直しが必要です。"
-        echo "       データは named volume に残るため、次を実行してください（-v は付けないこと）:"
-        echo "         $COMPOSE down    # ← -v を付けるとデータが消えます。絶対に付けない"
-        echo "         ./scripts/deploy.sh"
-        echo "       （このまま続行しても既存サブネットのまま起動します）"
     fi
 fi
 
